@@ -55,13 +55,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const SidebarNavContent = ({ onLinkClick }: { onLinkClick?: () => void }) => (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-16 items-center border-b border-sidebar-border px-6 shrink-0">
+      <div className="flex h-16 items-center border-b border-sidebar-border px-6 flex-shrink-0">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
           <Icons.Wallet className="h-6 w-6" />
           <span>Pocket Ledger</span>
         </Link>
       </div>
-      <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
+      <nav className="flex-1 space-y-1 p-4 overflow-y-auto overflow-x-hidden">
         {navItems.map((item) => (
           <Link
             key={item.href}
@@ -80,40 +80,46 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
       <Separator className="bg-sidebar-border mx-2 my-2" />
-      <div className="p-4 shrink-0">
+      <div className="p-4 flex-shrink-0">
         <UserNav />
       </div>
     </div>
   );
 
   return (
-    <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
+    <div className="flex w-full h-screen overflow-hidden">
       {/* Invisible component that handles data prefetching */}
       <DataPrefetcher />
       
-      {/* Desktop Sidebar */}
-      <aside className="hidden border-r border-sidebar-border lg:block">
-        <SidebarNavContent />
+      {/* Desktop Sidebar - Fixed position with its own scrolling */}
+      <aside className="hidden lg:flex lg:flex-col w-[280px] border-r border-sidebar-border flex-shrink-0 h-screen">
+        <div className="h-full overflow-hidden flex flex-col">
+          <SidebarNavContent />
+        </div>
       </aside>
       
-      <div className="flex flex-col min-h-screen overflow-hidden">
-         {/* Mobile Header with Floating Hamburger Menu */}
+      {/* Main content area with independent scrolling */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Mobile Header with Floating Hamburger Menu */}
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-             <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="lg:hidden fixed top-4 left-4 z-40 bg-card/80 backdrop-blur-sm hover:bg-card shadow-md">
-                    <Menu className="h-6 w-6" />
-                    <span className="sr-only">Toggle navigation menu</span>
-                </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0">
-                <SidebarNavContent onLinkClick={() => setMobileNavOpen(false)} />
-            </SheetContent>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="lg:hidden fixed top-4 left-4 z-40 bg-card/80 backdrop-blur-sm hover:bg-card shadow-md">
+              <Menu className="h-6 w-6" />
+              <span className="sr-only">Toggle navigation menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0">
+            <SidebarNavContent onLinkClick={() => setMobileNavOpen(false)} />
+          </SheetContent>
         </Sheet>
         
-        <main className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto overflow-x-hidden bg-background relative">
-           {/* Add padding top to prevent content from being obscured by the mobile menu button */}
-          <div className="lg:pt-0 pt-[64px] md:pt-[72px]"> 
-            {children}
+        <main className="flex-1 overflow-y-auto overflow-x-auto bg-background relative">
+          {/* Container with padding */}
+          <div className="p-4 md:p-6 min-h-full">
+            {/* Add padding top to prevent content from being obscured by the mobile menu button */}
+            <div className="lg:pt-0 pt-[64px] md:pt-[72px]"> 
+              {children}
+            </div>
           </div>
         </main>
       </div>
