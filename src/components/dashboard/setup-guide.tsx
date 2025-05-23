@@ -87,7 +87,7 @@ export function SetupGuide() {
       id: "budget",
       title: "Set up your budget",
       description: "Create a zero-based budget to track your spending.",
-      href: "/budget/new",
+      href: "/budget/",
       isCompleted: false,
     },
   ]);
@@ -140,9 +140,9 @@ export function SetupGuide() {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
-        // Check budget categories
+        // Check variable expenses (previously budget categories)
         const { count: budgetCount, error: budgetError } = await supabase
-          .from('budget_categories')
+          .from('variable_expenses')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
