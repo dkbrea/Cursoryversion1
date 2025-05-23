@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
+import { DataPrefetcher } from "@/components/navigation/data-prefetcher";
 
 interface NavItem {
   href: string;
@@ -87,6 +88,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
+      {/* Invisible component that handles data prefetching */}
+      <DataPrefetcher />
+      
       {/* Desktop Sidebar */}
       <aside className="hidden border-r border-sidebar-border lg:block">
         <SidebarNavContent />
