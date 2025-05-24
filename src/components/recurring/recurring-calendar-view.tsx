@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 
 interface RecurringCalendarViewProps {
   items: UnifiedRecurringListItem[];
+  onMonthChange?: (month: Date) => void;
 }
 
 interface DayItem {
@@ -75,9 +76,16 @@ const getItemBackgroundColor = (itemType: UnifiedRecurringListItem['itemDisplayT
   }
 };
 
-export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
+export function RecurringCalendarView({ items, onMonthChange }: RecurringCalendarViewProps) {
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+
+  // Notify parent when month changes
+  useEffect(() => {
+    if (onMonthChange) {
+      onMonthChange(month);
+    }
+  }, [month, onMonthChange]);
 
   // Calculate all occurrences for the displayed month using comprehensive logic similar to budget forecast
   const monthlyOccurrences = useMemo(() => {
@@ -449,11 +457,13 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
   // Custom caption component for consolidated month selector
   const CustomCaption = ({ displayMonth }: CaptionProps) => {
     const goToPreviousMonth = () => {
-      setMonth(addMonths(displayMonth, -1));
+      const newMonth = addMonths(displayMonth, -1);
+      setMonth(newMonth);
     };
 
     const goToNextMonth = () => {
-      setMonth(addMonths(displayMonth, 1));
+      const newMonth = addMonths(displayMonth, 1);
+      setMonth(newMonth);
     };
 
     return (

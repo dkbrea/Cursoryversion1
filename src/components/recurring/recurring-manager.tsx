@@ -136,6 +136,7 @@ export function RecurringManager() {
   const [itemToEdit, setItemToEdit] = useState<RecurringItem | null>(null);
   const [dialogKey, setDialogKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [displayedMonth, setDisplayedMonth] = useState<Date>(startOfMonth(new Date())); // Track displayed month
   const { toast } = useToast();
   const { user } = useAuth();
   const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary>({
@@ -281,11 +282,10 @@ export function RecurringManager() {
 
   }, [recurringItems, debtAccounts]);
 
-  // Effect for Monthly Summaries
+  // Effect for Monthly Summaries - calculate for the displayed month
   useEffect(() => {
-    const today = new Date();
-    const currentMonthStart = startOfMonth(today);
-    const currentMonthEnd = endOfMonth(today);
+    const currentMonthStart = startOfMonth(displayedMonth);
+    const currentMonthEnd = endOfMonth(displayedMonth);
     
     let currentIncome = 0;
     let currentFixedExpenses = 0;
@@ -412,7 +412,7 @@ export function RecurringManager() {
       debtPayments: currentDebtPayments,
     });
 
-  }, [recurringItems, debtAccounts]);
+  }, [recurringItems, debtAccounts, displayedMonth]);
 
   const handleAddRecurringItem = (newItemData: Omit<RecurringItem, "id" | "userId" | "createdAt">) => {
     if (!user?.id) return;
@@ -635,7 +635,10 @@ export function RecurringManager() {
           </Card>
         </TabsContent>
         <TabsContent value="calendar">
-          <RecurringCalendarView items={unifiedList} />
+          <RecurringCalendarView 
+            items={unifiedList} 
+            onMonthChange={setDisplayedMonth}
+          />
         </TabsContent>
       </Tabs>
 
