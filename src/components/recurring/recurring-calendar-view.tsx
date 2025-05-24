@@ -157,8 +157,31 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
             allDebtDates.push(new Date(tempDate));
             tempDate = addWeeks(tempDate, 2);
           }
+        } else if (unifiedItem.frequency === 'monthly') {
+          // Calculate all monthly occurrences for the year
+          let tempDate = new Date(referenceDate);
+          
+          // Work backwards to find earlier dates in the year
+          while (tempDate >= yearStart) {
+            if (tempDate >= yearStart) {
+              allDebtDates.push(new Date(tempDate));
+            }
+            tempDate = addMonths(tempDate, -1);
+          }
+          
+          // Work forwards from reference to find later dates in the year
+          tempDate = addMonths(referenceDate, 1);
+          while (tempDate <= yearEnd) {
+            allDebtDates.push(new Date(tempDate));
+            tempDate = addMonths(tempDate, 1);
+          }
+        } else if (unifiedItem.frequency === 'annually') {
+          // For yearly debt payments, just use reference date if in this year
+          if (referenceDate >= yearStart && referenceDate <= yearEnd) {
+            allDebtDates.push(referenceDate);
+          }
         } else {
-          // For monthly, annually, and other frequencies, use reference date if in this year
+          // For 'other' frequency, use reference date if in this year
           if (referenceDate >= yearStart && referenceDate <= yearEnd) {
             allDebtDates.push(referenceDate);
           }
