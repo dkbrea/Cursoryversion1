@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   email?: string;
@@ -138,6 +137,8 @@ export interface UnifiedRecurringListItem {
   status: 'Ended' | 'Today' | 'Upcoming';
   isDebt: boolean;
   endDate?: Date | null; 
+  startDate?: Date | null;
+  lastRenewalDate?: Date | null;
   semiMonthlyFirstPayDate?: Date | null; 
   semiMonthlySecondPayDate?: Date | null; 
   notes?: string;

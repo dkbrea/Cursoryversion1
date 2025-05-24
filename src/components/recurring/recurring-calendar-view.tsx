@@ -1,34 +1,77 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { UnifiedRecurringListItem } from '@/types';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { format, isSameDay, startOfMonth, isSameMonth } from 'date-fns';
-import type { DayContentProps } from 'react-day-picker';
-import { CalendarDays } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { format, isSameDay, startOfMonth, isSameMonth, startOfDay, endOfMonth, isWithinInterval, setDate, addDays, addWeeks, addMonths, addQuarters, addYears, getDate, isBefore, isAfter, getYear } from 'date-fns';
+import type { DayContentProps, CaptionProps } from 'react-day-picker';
+import { CalendarDays, DollarSign, CreditCard, Users, Briefcase, TrendingUp, TrendingDown, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface RecurringCalendarViewProps {
   items: UnifiedRecurringListItem[];
 }
 
-const MAX_VISIBLE_ITEMS_IN_CELL = 2; 
+interface DayItem {
+  id: string;
+  name: string;
+  amount: number;
+  type: UnifiedRecurringListItem['itemDisplayType'];
+  source: 'recurring' | 'debt';
+}
 
-const getItemBadgeVariant = (itemType: UnifiedRecurringListItem['itemDisplayType']): NonNullable<Parameters<typeof Badge>[0]['variant']> => {
+interface DayData {
+  items: DayItem[];
+  totalIncome: number;
+  totalExpenses: number;
+  netAmount: number;
+}
+
+const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
   switch (itemType) {
     case 'income':
-      return 'default'; 
+      return <ArrowUpCircle className="h-4 w-4 text-green-600" />;
     case 'subscription':
-      return 'secondary';
+      return <CreditCard className="h-4 w-4 text-blue-600" />;
     case 'fixed-expense':
-      return 'outline';
+      return <Briefcase className="h-4 w-4 text-orange-600" />;
     case 'debt-payment':
-      return 'destructive';
+      return <ArrowDownCircle className="h-4 w-4 text-red-600" />;
     default:
-      return 'secondary';
+      return <DollarSign className="h-4 w-4 text-gray-600" />;
+  }
+};
+
+const getItemTextColor = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
+  switch (itemType) {
+    case 'income':
+      return "text-green-700";
+    case 'subscription':
+      return "text-blue-700";
+    case 'fixed-expense':
+      return "text-orange-700";
+    case 'debt-payment':
+      return "text-red-700";
+    default:
+      return "text-gray-700";
+  }
+};
+
+const getItemBackgroundColor = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
+  switch (itemType) {
+    case 'income':
+      return "bg-green-100 border-green-200";
+    case 'subscription':
+      return "bg-blue-100 border-blue-200";
+    case 'fixed-expense':
+      return "bg-orange-100 border-orange-200";
+    case 'debt-payment':
+      return "bg-red-100 border-red-200";
+    default:
+      return "bg-gray-100 border-gray-200";
   }
 };
 
@@ -36,35 +79,382 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
+  // Calculate all occurrences for the displayed month using comprehensive logic similar to budget forecast
+  const monthlyOccurrences = useMemo(() => {
+    const monthStart = startOfMonth(month);
+    const monthEnd = endOfMonth(month);
+    const dayMap = new Map<string, DayData>();
+
+    // Helper function to add occurrence to a specific day
+    const addOccurrenceToDay = (date: Date, item: DayItem) => {
+      const dateKey = format(date, 'yyyy-MM-dd');
+      const existingDay = dayMap.get(dateKey) || {
+        items: [],
+        totalIncome: 0,
+        totalExpenses: 0,
+        netAmount: 0
+      };
+
+      existingDay.items.push(item);
+      
+      if (item.type === 'income') {
+        existingDay.totalIncome += item.amount;
+      } else {
+        existingDay.totalExpenses += item.amount;
+      }
+      
+      existingDay.netAmount = existingDay.totalIncome - existingDay.totalExpenses;
+      dayMap.set(dateKey, existingDay);
+    };
+
+    // Calculate year-wide pattern for each item, then filter to displayed month
+    items.forEach(unifiedItem => {
+      if (unifiedItem.source === 'debt') {
+        // For debt payments, calculate full year pattern based on payment frequency
+        const currentYear = getYear(month);
+        const yearStart = new Date(currentYear, 0, 1);
+        const yearEnd = new Date(currentYear, 11, 31);
+        
+        // Start with next occurrence date as reference point
+        const referenceDate = new Date(unifiedItem.nextOccurrenceDate);
+        
+        // Calculate all debt payment dates for the year
+        let allDebtDates: Date[] = [];
+        
+        if (unifiedItem.frequency === 'weekly') {
+          // Find first occurrence of the year by working backwards/forwards from reference
+          let tempDate = new Date(referenceDate);
+          
+          // Work backwards to find earlier dates in the year
+          while (tempDate >= yearStart) {
+            if (tempDate >= yearStart) {
+              allDebtDates.push(new Date(tempDate));
+            }
+            tempDate = addWeeks(tempDate, -1);
+          }
+          
+          // Work forwards from reference to find later dates in the year
+          tempDate = addWeeks(referenceDate, 1);
+          while (tempDate <= yearEnd) {
+            allDebtDates.push(new Date(tempDate));
+            tempDate = addWeeks(tempDate, 1);
+          }
+        } else if (unifiedItem.frequency === 'bi-weekly') {
+          // Find first occurrence of the year by working backwards/forwards from reference
+          let tempDate = new Date(referenceDate);
+          
+          // Work backwards to find earlier dates in the year
+          while (tempDate >= yearStart) {
+            if (tempDate >= yearStart) {
+              allDebtDates.push(new Date(tempDate));
+            }
+            tempDate = addWeeks(tempDate, -2);
+          }
+          
+          // Work forwards from reference to find later dates in the year
+          tempDate = addWeeks(referenceDate, 2);
+          while (tempDate <= yearEnd) {
+            allDebtDates.push(new Date(tempDate));
+            tempDate = addWeeks(tempDate, 2);
+          }
+        } else {
+          // For monthly, annually, and other frequencies, use reference date if in this year
+          if (referenceDate >= yearStart && referenceDate <= yearEnd) {
+            allDebtDates.push(referenceDate);
+          }
+        }
+        
+        // Filter to current month and add to calendar
+        allDebtDates.forEach(debtDate => {
+          if (isSameMonth(debtDate, month)) {
+            addOccurrenceToDay(debtDate, {
+              id: `${unifiedItem.id}-${format(debtDate, 'yyyy-MM-dd')}`,
+              name: unifiedItem.name,
+              amount: unifiedItem.amount,
+              type: unifiedItem.itemDisplayType,
+              source: unifiedItem.source
+            });
+          }
+        });
+        
+      } else {
+        // For recurring items, calculate full year pattern
+        if (unifiedItem.status === "Ended") return;
+
+        const currentYear = getYear(month);
+        const yearStart = new Date(currentYear, 0, 1);
+        const yearEnd = new Date(currentYear, 11, 31);
+        
+        let allOccurrences: Date[] = [];
+
+        // Handle semi-monthly frequency
+        if (unifiedItem.frequency === 'semi-monthly') {
+          if (unifiedItem.semiMonthlyFirstPayDate && unifiedItem.semiMonthlySecondPayDate) {
+            // Get the day of month for each payment
+            const firstPayDay = getDate(new Date(unifiedItem.semiMonthlyFirstPayDate));
+            const secondPayDay = getDate(new Date(unifiedItem.semiMonthlySecondPayDate));
+            
+            // Generate all semi-monthly dates for the year
+            for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+              const currentMonthStart = new Date(currentYear, monthIndex, 1);
+              const currentMonthEnd = endOfMonth(currentMonthStart);
+              
+              // First payment of the month
+              const firstPayDate = new Date(currentMonthStart);
+              firstPayDate.setDate(Math.min(firstPayDay, getDate(currentMonthEnd)));
+              
+              // Second payment of the month
+              const secondPayDate = new Date(currentMonthStart);
+              secondPayDate.setDate(Math.min(secondPayDay, getDate(currentMonthEnd)));
+              
+              // Add both dates if they're valid and not ended
+              if (!unifiedItem.endDate || firstPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(firstPayDate);
+              }
+              if (!unifiedItem.endDate || secondPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(secondPayDate);
+              }
+            }
+          }
+        } else {
+          // Handle regular frequencies - calculate full year pattern
+          const referenceDate = new Date(unifiedItem.nextOccurrenceDate);
+          let startDate: Date;
+          
+          // Determine proper start date for calculations
+          if (unifiedItem.itemDisplayType === 'subscription' && unifiedItem.lastRenewalDate) {
+            startDate = startOfDay(new Date(unifiedItem.lastRenewalDate));
+            // For subscriptions, first payment is after last renewal
+            switch (unifiedItem.frequency) {
+              case "daily": startDate = addDays(startDate, 1); break;
+              case "weekly": startDate = addWeeks(startDate, 1); break;
+              case "bi-weekly": startDate = addWeeks(startDate, 2); break;
+              case "monthly": startDate = addMonths(startDate, 1); break;
+              case "quarterly": startDate = addQuarters(startDate, 1); break;
+              case "yearly": startDate = addYears(startDate, 1); break;
+              default: startDate = addDays(startDate, 1); break;
+            }
+          } else if (unifiedItem.startDate) {
+            startDate = startOfDay(new Date(unifiedItem.startDate));
+          } else {
+            // Use reference date as fallback
+            startDate = new Date(referenceDate);
+          }
+          
+          // Calculate all occurrences for the year based on frequency
+          if (unifiedItem.frequency === 'daily') {
+            let tempDate = new Date(referenceDate);
+            
+            // Work backwards to start of year
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addDays(tempDate, -1);
+            }
+            
+            // Work forwards to end of year
+            tempDate = addDays(referenceDate, 1);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addDays(tempDate, 1);
+            }
+          } else if (unifiedItem.frequency === 'weekly') {
+            let tempDate = new Date(referenceDate);
+            
+            // Work backwards to start of year
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addWeeks(tempDate, -1);
+            }
+            
+            // Work forwards to end of year
+            tempDate = addWeeks(referenceDate, 1);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addWeeks(tempDate, 1);
+            }
+          } else if (unifiedItem.frequency === 'bi-weekly') {
+            let tempDate = new Date(referenceDate);
+            
+            // Work backwards to start of year
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addWeeks(tempDate, -2);
+            }
+            
+            // Work forwards to end of year
+            tempDate = addWeeks(referenceDate, 2);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addWeeks(tempDate, 2);
+            }
+          } else if (unifiedItem.frequency === 'monthly') {
+            let tempDate = new Date(referenceDate);
+            
+            // Work backwards to start of year
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addMonths(tempDate, -1);
+            }
+            
+            // Work forwards to end of year
+            tempDate = addMonths(referenceDate, 1);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addMonths(tempDate, 1);
+            }
+          } else if (unifiedItem.frequency === 'quarterly') {
+            let tempDate = new Date(referenceDate);
+            
+            // Work backwards to start of year
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addQuarters(tempDate, -1);
+            }
+            
+            // Work forwards to end of year
+            tempDate = addQuarters(referenceDate, 1);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addQuarters(tempDate, 1);
+            }
+          } else if (unifiedItem.frequency === 'yearly') {
+            // For yearly, just use the reference date if it's in this year
+            if (referenceDate >= yearStart && referenceDate <= yearEnd) {
+              if (!unifiedItem.endDate || referenceDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(referenceDate);
+              }
+            }
+          }
+        }
+        
+        // Filter occurrences to current month and add to calendar
+        allOccurrences.forEach(occurrenceDate => {
+          if (isSameMonth(occurrenceDate, month)) {
+            addOccurrenceToDay(occurrenceDate, {
+              id: `${unifiedItem.id}-${format(occurrenceDate, 'yyyy-MM-dd')}`,
+              name: unifiedItem.name,
+              amount: unifiedItem.amount,
+              type: unifiedItem.itemDisplayType,
+              source: unifiedItem.source
+            });
+          }
+        });
+      }
+    });
+
+    return dayMap;
+  }, [items, month]);
+
   const CustomDayContent = ({ date, displayMonth }: DayContentProps) => {
     const dayOfMonth = format(date, "d");
+    const dateKey = format(date, 'yyyy-MM-dd');
+    const dayData = monthlyOccurrences.get(dateKey);
+    const isToday = isSameDay(date, new Date());
     
-    const itemsOnThisDay = items.filter(item => 
-        isSameDay(new Date(item.nextOccurrenceDate), date) && 
-        item.status !== "Ended" && 
-        isSameMonth(date, displayMonth)
+    if (!dayData || dayData.items.length === 0) {
+      return (
+        <div className="flex flex-col items-start justify-start h-full w-full p-2">
+          <span className={cn(
+            "text-lg font-semibold self-start",
+            isToday && "bg-primary text-primary-foreground px-2 py-1 rounded-full font-bold"
+          )}>{dayOfMonth}</span>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="flex flex-col items-start justify-start h-full w-full p-2 space-y-1">
+        <span className={cn(
+          "text-lg font-semibold self-start",
+          isToday && "bg-primary text-primary-foreground px-2 py-1 rounded-full font-bold"
+        )}>{dayOfMonth}</span>
+        
+        <div className="space-y-1 w-full overflow-hidden">
+          {dayData.items.slice(0, 3).map((item, index) => (
+            <div
+              key={item.id}
+              className={cn(
+                "flex items-center space-x-1 text-sm leading-tight truncate font-medium px-2 py-1 rounded-md border",
+                getItemTextColor(item.type),
+                getItemBackgroundColor(item.type)
+              )}
+            >
+              {getItemIcon(item.type)}
+              <span className="truncate flex-1">{item.name}</span>
+            </div>
+          ))}
+          
+          {dayData.items.length > 3 && (
+            <p className="text-sm text-muted-foreground leading-tight font-medium">
+              +{dayData.items.length - 3} more
+            </p>
+          )}
+        </div>
+        
+        <div className="w-full mt-auto pt-1">
+          <div className={cn(
+            "text-sm font-bold leading-tight",
+            dayData.netAmount >= 0 ? "text-green-600" : "text-red-600"
+          )}>
+            Total: ${Math.abs(dayData.netAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
+      </div>
     );
+  };
+
+  // Custom caption component for consolidated month selector
+  const CustomCaption = ({ displayMonth }: CaptionProps) => {
+    const goToPreviousMonth = () => {
+      setMonth(addMonths(displayMonth, -1));
+    };
+
+    const goToNextMonth = () => {
+      setMonth(addMonths(displayMonth, 1));
+    };
 
     return (
-        <div className="flex flex-col items-start justify-start h-full w-full p-1.5">
-            <span className="text-xs font-medium self-start mb-1">{dayOfMonth}</span>
-            <div className="space-y-1 w-full overflow-hidden">
-                {itemsOnThisDay.slice(0, MAX_VISIBLE_ITEMS_IN_CELL).map(item => (
-                    <Badge
-                        key={item.id + item.source}
-                        variant={getItemBadgeVariant(item.itemDisplayType)}
-                        className="w-full text-[10px] leading-tight truncate justify-start px-1 py-0.5"
-                    >
-                        {item.name}
-                    </Badge>
-                ))}
-                {itemsOnThisDay.length > MAX_VISIBLE_ITEMS_IN_CELL && (
-                    <p className="text-[10px] text-muted-foreground leading-tight">
-                        +{itemsOnThisDay.length - MAX_VISIBLE_ITEMS_IN_CELL} more
-                    </p>
-                )}
-            </div>
+      <div className="flex items-center justify-center gap-1 py-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={goToPreviousMonth}
+          className="h-7 w-7 p-0"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="text-xl font-semibold px-4 min-w-[200px] text-center">
+          {format(displayMonth, 'MMMM yyyy')}
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={goToNextMonth}
+          className="h-7 w-7 p-0"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
     );
   };
 
@@ -73,10 +463,10 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
       <CardHeader>
         <CardTitle className="flex items-center">
           <CalendarDays className="mr-2 h-5 w-5 text-primary" />
-          Calendar Overview
+          Monthly Calendar View
         </CardTitle>
         <CardDescription>
-          Recurring items are shown on their next occurrence date.
+          All recurring items and debt payments for {format(month, 'MMMM yyyy')}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center p-2 sm:p-4">
@@ -86,13 +476,12 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
           onSelect={setSelectedDate}
           month={month}
           onMonthChange={setMonth}
-          components={{ DayContent: CustomDayContent }}
+          components={{ DayContent: CustomDayContent, Caption: CustomCaption }}
           className="p-0 rounded-md border w-full" 
           classNames={{
               day_selected: "bg-primary/20 text-primary-foreground ring-1 ring-primary",
-              day_today: "bg-accent text-accent-foreground font-bold ring-1 ring-accent",
-              caption_label: "text-lg font-medium",
-              head_cell: "w-full text-muted-foreground font-normal text-xs sm:text-sm pb-1",
+              day_today: "",
+              head_cell: "w-full text-muted-foreground font-semibold text-base pb-2 text-center",
               table: "w-full border-collapse",
               row: "flex w-full mt-0 border-t", 
               cell: cn( 
@@ -101,7 +490,7 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
                 "border-l" 
               ),
               day: cn( 
-                "h-28 sm:h-32 w-full rounded-none p-0 font-normal aria-selected:opacity-100 transition-colors hover:bg-accent/50",
+                "h-36 sm:h-40 w-full rounded-none p-0 font-normal aria-selected:opacity-100 transition-colors hover:bg-accent/50",
                 "focus:bg-accent/70 focus:outline-none"
               ),
               day_outside: "text-muted-foreground/50 aria-selected:bg-accent/30",
@@ -109,8 +498,13 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
               month: "space-y-2 w-full",
           }}
           showOutsideDays={true}
+          formatters={{
+            formatWeekdayName: (date) => {
+              return format(date, 'EEE'); // This will show Sun, Mon, Tue, Wed, Thu, Fri, Sat
+            }
+          }}
         />
       </CardContent>
     </Card>
   );
-}
+} 
