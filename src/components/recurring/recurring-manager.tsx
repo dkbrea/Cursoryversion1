@@ -16,7 +16,7 @@ import { RecurringSummaryCards } from "./recurring-summary-cards";
 import { 
   addDays, addWeeks, addMonths, addQuarters, addYears, 
   isSameDay, setDate, getDate, startOfDay, 
-  startOfMonth, endOfMonth, isWithinInterval
+  startOfMonth, endOfMonth, isWithinInterval, isSameMonth, getYear
 } from "date-fns";
 
 interface MonthlySummary {
@@ -292,117 +292,206 @@ export function RecurringManager() {
     let currentSubscriptions = 0;
     let currentDebtPayments = 0;
 
-    recurringItems.forEach(item => {
-      if (item.endDate && startOfDay(new Date(item.endDate)) < currentMonthStart) return; 
-
-      let itemMonthlyTotal = 0;
-      
-      if (item.frequency === 'semi-monthly') {
-        if (item.semiMonthlyFirstPayDate && isWithinInterval(startOfDay(new Date(item.semiMonthlyFirstPayDate)), { start: currentMonthStart, end: currentMonthEnd })) {
-          if (!item.endDate || startOfDay(new Date(item.semiMonthlyFirstPayDate)) <= startOfDay(new Date(item.endDate))) {
-            itemMonthlyTotal += item.amount;
-          }
-        }
-        if (item.semiMonthlySecondPayDate && isWithinInterval(startOfDay(new Date(item.semiMonthlySecondPayDate)), { start: currentMonthStart, end: currentMonthEnd })) {
-           if (!item.endDate || startOfDay(new Date(item.semiMonthlySecondPayDate)) <= startOfDay(new Date(item.endDate))) {
-            itemMonthlyTotal += item.amount;
-          }
-        }
-      } else {
-        let baseIterationDate: Date | null = null;
-        if (item.type === 'subscription') {
-            if (!item.lastRenewalDate) return;
-            baseIterationDate = startOfDay(new Date(item.lastRenewalDate));
-        } else {
-            if (!item.startDate) return;
-            baseIterationDate = startOfDay(new Date(item.startDate));
-        }
-
-        if (baseIterationDate > currentMonthEnd) return;
-
-        let tempDate = new Date(baseIterationDate);
+    // Use the same comprehensive calculation logic as the calendar
+    unifiedList.forEach(unifiedItem => {
+      if (unifiedItem.source === 'debt') {
+        // For debt payments, calculate occurrences in the displayed month
+        const currentYear = getYear(displayedMonth);
+        const yearStart = new Date(currentYear, 0, 1);
+        const yearEnd = new Date(currentYear, 11, 31);
         
-        // For subscriptions, first actual payment is *after* last renewal. For others, it *is* the start date.
-        if(item.type === 'subscription') {
-            switch (item.frequency) {
-                case "daily": tempDate = addDays(tempDate, 1); break;
-                case "weekly": tempDate = addWeeks(tempDate, 1); break;
-                case "bi-weekly": tempDate = addWeeks(tempDate, 2); break;
-                case "monthly": tempDate = addMonths(tempDate, 1); break;
-                case "quarterly": tempDate = addQuarters(tempDate, 1); break;
-                case "yearly": tempDate = addYears(tempDate, 1); break;
+        const referenceDate = new Date(unifiedItem.nextOccurrenceDate);
+        let allDebtDates: Date[] = [];
+        
+        if (unifiedItem.frequency === 'weekly') {
+          let tempDate = new Date(referenceDate);
+          while (tempDate >= yearStart) {
+            if (tempDate >= yearStart) {
+              allDebtDates.push(new Date(tempDate));
             }
-        }
-
-        while (tempDate <= currentMonthEnd) {
-          if (item.endDate && tempDate > startOfDay(new Date(item.endDate))) break;
-
-          if (tempDate >= currentMonthStart) { 
-             if (isWithinInterval(tempDate, { start: currentMonthStart, end: currentMonthEnd })) {
-                itemMonthlyTotal += item.amount;
-             }
+            tempDate = addWeeks(tempDate, -1);
           }
+          tempDate = addWeeks(referenceDate, 1);
+          while (tempDate <= yearEnd) {
+            allDebtDates.push(new Date(tempDate));
+            tempDate = addWeeks(tempDate, 1);
+          }
+        } else if (unifiedItem.frequency === 'bi-weekly') {
+          let tempDate = new Date(referenceDate);
+          while (tempDate >= yearStart) {
+            if (tempDate >= yearStart) {
+              allDebtDates.push(new Date(tempDate));
+            }
+            tempDate = addWeeks(tempDate, -2);
+          }
+          tempDate = addWeeks(referenceDate, 2);
+          while (tempDate <= yearEnd) {
+            allDebtDates.push(new Date(tempDate));
+            tempDate = addWeeks(tempDate, 2);
+          }
+        } else if (unifiedItem.frequency === 'monthly') {
+          let tempDate = new Date(referenceDate);
+          while (tempDate >= yearStart) {
+            if (tempDate >= yearStart) {
+              allDebtDates.push(new Date(tempDate));
+            }
+            tempDate = addMonths(tempDate, -1);
+          }
+          tempDate = addMonths(referenceDate, 1);
+          while (tempDate <= yearEnd) {
+            allDebtDates.push(new Date(tempDate));
+            tempDate = addMonths(tempDate, 1);
+          }
+        } else if (unifiedItem.frequency === 'annually') {
+          if (referenceDate >= yearStart && referenceDate <= yearEnd) {
+            allDebtDates.push(referenceDate);
+          }
+        } else {
+          if (referenceDate >= yearStart && referenceDate <= yearEnd) {
+            allDebtDates.push(referenceDate);
+          }
+        }
+        
+        // Count occurrences in the displayed month
+        allDebtDates.forEach(debtDate => {
+          if (isSameMonth(debtDate, displayedMonth)) {
+            currentDebtPayments += unifiedItem.amount;
+          }
+        });
+        
+      } else {
+        // For recurring items (income, subscriptions, fixed expenses)
+        if (unifiedItem.status === "Ended") return;
+
+        const currentYear = getYear(displayedMonth);
+        const yearStart = new Date(currentYear, 0, 1);
+        const yearEnd = new Date(currentYear, 11, 31);
+        
+        let allOccurrences: Date[] = [];
+
+        if (unifiedItem.frequency === 'semi-monthly') {
+          if (unifiedItem.semiMonthlyFirstPayDate && unifiedItem.semiMonthlySecondPayDate) {
+            const firstPayDay = getDate(new Date(unifiedItem.semiMonthlyFirstPayDate));
+            const secondPayDay = getDate(new Date(unifiedItem.semiMonthlySecondPayDate));
+            
+            for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+              const currentMonthStart = new Date(currentYear, monthIndex, 1);
+              const currentMonthEnd = endOfMonth(currentMonthStart);
+              
+              const firstPayDate = new Date(currentMonthStart);
+              firstPayDate.setDate(Math.min(firstPayDay, getDate(currentMonthEnd)));
+              
+              const secondPayDate = new Date(currentMonthStart);
+              secondPayDate.setDate(Math.min(secondPayDay, getDate(currentMonthEnd)));
+              
+              if (!unifiedItem.endDate || firstPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(firstPayDate);
+              }
+              if (!unifiedItem.endDate || secondPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(secondPayDate);
+              }
+            }
+          }
+        } else {
+          const referenceDate = new Date(unifiedItem.nextOccurrenceDate);
           
-          if (tempDate > currentMonthEnd && item.frequency !== 'daily') break; 
-
-          switch (item.frequency) {
-            case "daily": tempDate = addDays(tempDate, 1); break;
-            case "weekly": tempDate = addWeeks(tempDate, 1); break;
-            case "bi-weekly": tempDate = addWeeks(tempDate, 2); break;
-            case "monthly": tempDate = addMonths(tempDate, 1); break;
-            case "quarterly": tempDate = addQuarters(tempDate, 1); break;
-            case "yearly": tempDate = addYears(tempDate, 1); break;
-            default: tempDate = addYears(tempDate, 100); break; 
+          if (unifiedItem.frequency === 'daily') {
+            let tempDate = new Date(referenceDate);
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addDays(tempDate, -1);
+            }
+            tempDate = addDays(referenceDate, 1);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addDays(tempDate, 1);
+            }
+          } else if (unifiedItem.frequency === 'weekly') {
+            let tempDate = new Date(referenceDate);
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addWeeks(tempDate, -1);
+            }
+            tempDate = addWeeks(referenceDate, 1);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addWeeks(tempDate, 1);
+            }
+          } else if (unifiedItem.frequency === 'bi-weekly') {
+            let tempDate = new Date(referenceDate);
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addWeeks(tempDate, -2);
+            }
+            tempDate = addWeeks(referenceDate, 2);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addWeeks(tempDate, 2);
+            }
+          } else if (unifiedItem.frequency === 'monthly') {
+            let tempDate = new Date(referenceDate);
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addMonths(tempDate, -1);
+            }
+            tempDate = addMonths(referenceDate, 1);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addMonths(tempDate, 1);
+            }
+          } else if (unifiedItem.frequency === 'quarterly') {
+            let tempDate = new Date(referenceDate);
+            while (tempDate >= yearStart) {
+              if (tempDate >= yearStart && (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate)))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addQuarters(tempDate, -1);
+            }
+            tempDate = addQuarters(referenceDate, 1);
+            while (tempDate <= yearEnd) {
+              if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(new Date(tempDate));
+              }
+              tempDate = addQuarters(tempDate, 1);
+            }
+          } else if (unifiedItem.frequency === 'yearly') {
+            if (referenceDate >= yearStart && referenceDate <= yearEnd) {
+              if (!unifiedItem.endDate || referenceDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(referenceDate);
+              }
+            }
           }
         }
-      }
-
-      if (item.type === 'income') currentIncome += itemMonthlyTotal;
-      else if (item.type === 'fixed-expense') currentFixedExpenses += itemMonthlyTotal;
-      else if (item.type === 'subscription') currentSubscriptions += itemMonthlyTotal;
-    });
-
-    debtAccounts.forEach(debt => {
-      let debtMonthlyTotal = 0;
-      let paymentDateForMonth = setDate(currentMonthStart, debt.paymentDayOfMonth);
-      
-      // Make sure the first potential payment day for this month isn't before the debt was created
-      const debtCreationMonthStart = startOfMonth(new Date(debt.createdAt));
-      if (paymentDateForMonth < debtCreationMonthStart && debt.paymentDayOfMonth < getDate(new Date(debt.createdAt))) {
-           paymentDateForMonth = setDate(addMonths(paymentDateForMonth,1), debt.paymentDayOfMonth);
-      } else if (paymentDateForMonth < debtCreationMonthStart) {
-          paymentDateForMonth = setDate(debtCreationMonthStart, debt.paymentDayOfMonth);
-      }
-
-      let checkDate = new Date(paymentDateForMonth);
-      if (checkDate < currentMonthStart) { // if payment day already passed for current month's start, advance to next cycle start
-          switch (debt.paymentFrequency) {
-            case "weekly": checkDate = addWeeks(checkDate, 1); break;
-            case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
-            case "monthly": checkDate = addMonths(checkDate, 1); break;
-            case "annually": checkDate = addYears(checkDate, 1); break;
-            default: break; // 'other' assumes one check
+        
+        // Count occurrences in the displayed month
+        allOccurrences.forEach(occurrenceDate => {
+          if (isSameMonth(occurrenceDate, displayedMonth)) {
+            if (unifiedItem.itemDisplayType === 'income') {
+              currentIncome += unifiedItem.amount;
+            } else if (unifiedItem.itemDisplayType === 'fixed-expense') {
+              currentFixedExpenses += unifiedItem.amount;
+            } else if (unifiedItem.itemDisplayType === 'subscription') {
+              currentSubscriptions += unifiedItem.amount;
+            }
           }
+        });
       }
-      
-      // Iterate through possible pay dates in the current month
-      while(isWithinInterval(checkDate, { start: currentMonthStart, end: currentMonthEnd })) {
-        if (checkDate >= startOfDay(new Date(debt.createdAt))) { // Ensure payment is on or after debt creation
-            debtMonthlyTotal += debt.minimumPayment;
-        }
-        switch (debt.paymentFrequency) {
-            case "weekly": checkDate = addWeeks(checkDate, 1); break;
-            case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
-            // For monthly and annually, we only expect one payment per month (or less)
-            // so we break after the first valid one.
-            case "monthly": 
-            case "annually":
-            default: 
-                checkDate = addMonths(checkDate, 1); // Effectively break by moving out of current month
-                break; 
-        }
-      }
-      currentDebtPayments += debtMonthlyTotal;
     });
 
     setMonthlySummaries({
@@ -412,7 +501,7 @@ export function RecurringManager() {
       debtPayments: currentDebtPayments,
     });
 
-  }, [recurringItems, debtAccounts, displayedMonth]);
+  }, [unifiedList, displayedMonth]);
 
   const handleAddRecurringItem = (newItemData: Omit<RecurringItem, "id" | "userId" | "createdAt">) => {
     if (!user?.id) return;
