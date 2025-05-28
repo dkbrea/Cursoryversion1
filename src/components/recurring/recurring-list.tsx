@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { UnifiedRecurringListItem, RecurringItem, RecurringFrequency } from "@/types"; // Updated import
@@ -12,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit3, ArrowDownCircle, ArrowUpCircle, AlertCircle } from "lucide-react";
+import { Trash2, Edit3, ArrowDownCircle, ArrowUpCircle, AlertCircle, CreditCard, Briefcase, DollarSign } from "lucide-react";
 import { format, isPast, isToday, isSameDay } from "date-fns";
 import {
   AlertDialog,
@@ -40,13 +39,74 @@ const formatDisplayType = (type: UnifiedRecurringListItem['itemDisplayType']) =>
     case 'subscription': return 'Subscription';
     case 'fixed-expense': return 'Fixed Expense';
     case 'debt-payment': return 'Debt Payment';
-    default: return type.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    default: return String(type).replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
   }
 };
 
 const formatFrequencyDisplay = (frequency: UnifiedRecurringListItem['frequency']) => {
   if (!frequency) return 'N/A';
   return frequency.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
+
+// Helper functions for consistent color coding (matching calendar view)
+const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
+  switch (itemType) {
+    case 'income':
+      return <ArrowUpCircle className="h-5 w-5 text-green-600" />;
+    case 'subscription':
+      return <CreditCard className="h-5 w-5 text-blue-600" />;
+    case 'fixed-expense':
+      return <Briefcase className="h-5 w-5 text-orange-600" />;
+    case 'debt-payment':
+      return <ArrowDownCircle className="h-5 w-5 text-red-600" />;
+    default:
+      return <DollarSign className="h-5 w-5 text-gray-600" />;
+  }
+};
+
+const getBadgeVariant = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
+  switch (itemType) {
+    case 'income':
+      return 'default';
+    case 'subscription':
+      return 'secondary';
+    case 'fixed-expense':
+      return 'outline';
+    case 'debt-payment':
+      return 'destructive';
+    default:
+      return 'outline';
+  }
+};
+
+const getBadgeClassName = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
+  switch (itemType) {
+    case 'income':
+      return 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200';
+    case 'subscription':
+      return 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200';
+    case 'fixed-expense':
+      return 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200';
+    case 'debt-payment':
+      return 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200';
+    default:
+      return '';
+  }
+};
+
+const getAmountTextColor = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
+  switch (itemType) {
+    case 'income':
+      return 'text-green-600';
+    case 'subscription':
+      return 'text-blue-600';
+    case 'fixed-expense':
+      return 'text-orange-600';
+    case 'debt-payment':
+      return 'text-red-600';
+    default:
+      return 'text-destructive';
+  }
 };
 
 export function RecurringList({ items, onDeleteItem, onEditItem }: RecurringListProps) {
@@ -80,7 +140,7 @@ export function RecurringList({ items, onDeleteItem, onEditItem }: RecurringList
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <span className="flex items-center justify-center">
-                                {item.itemDisplayType === 'income' ? <ArrowUpCircle className="h-5 w-5 text-green-500" /> : <ArrowDownCircle className="h-5 w-5 text-red-500" />}
+                                {getItemIcon(item.itemDisplayType)}
                             </span>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -91,16 +151,13 @@ export function RecurringList({ items, onDeleteItem, onEditItem }: RecurringList
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell>
                     <Badge 
-                        variant={item.itemDisplayType === 'income' ? 'default' 
-                                 : item.itemDisplayType === 'subscription' ? 'secondary' 
-                                 : item.itemDisplayType === 'debt-payment' ? 'destructive'
-                                 : 'outline'} 
-                        className="capitalize"
+                        variant={getBadgeVariant(item.itemDisplayType)}
+                        className={cn("capitalize", getBadgeClassName(item.itemDisplayType))}
                     >
                       {formatDisplayType(item.itemDisplayType)}
                     </Badge>
                   </TableCell>
-                  <TableCell className={`text-right font-semibold ${item.itemDisplayType === 'income' ? 'text-green-600' : 'text-destructive'}`}>
+                  <TableCell className={`text-right font-semibold ${getAmountTextColor(item.itemDisplayType)}`}>
                     ${item.amount.toFixed(2)}
                   </TableCell>
                   <TableCell>{formatFrequencyDisplay(item.frequency)}</TableCell>

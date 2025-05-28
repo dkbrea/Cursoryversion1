@@ -4,25 +4,78 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
 
+interface SetupProgress {
+  onboardingCompleted?: boolean;
+  steps?: Record<string, boolean>;
+  [key: string]: any;
+}
+
 export function useOnboarding() {
   const { user } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const checkOnboardingStatus = async () => {
-      if (!user?.id) {
+  const checkOnboardingStatus = async () => {
+    if (!user?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // First check if onboarding was manually completed
+      const { data: preferencesData, error: preferencesError } = await supabase
+        .from('user_preferences')
+        .select('setup_progress')
+        .eq('user_id', user.id)
+        .single();
+
+      // If onboarding was manually completed, don't show it
+      const setupProgress = preferencesData?.setup_progress as SetupProgress | null;
+      if (setupProgress?.onboardingCompleted) {
+        setShowOnboarding(false);
         setIsLoading(false);
         return;
       }
 
-      // Always show onboarding for now - this is more reliable than querying tables that might not exist
-      setShowOnboarding(true);
-      setIsLoading(false);
-    };
+      // Check if user has completed any setup steps by checking for existing data
+      const [
+        { data: accounts, error: accountsError },
+        { data: recurringItems, error: recurringError },
+        { data: debts, error: debtsError },
+        { data: goals, error: goalsError }
+      ] = await Promise.all([
+        supabase.from('accounts').select('id').eq('user_id', user.id).limit(1),
+        supabase.from('recurring_items').select('id').eq('user_id', user.id).limit(1),
+        supabase.from('debt_accounts').select('id').eq('user_id', user.id).limit(1),
+        supabase.from('financial_goals').select('id').eq('user_id', user.id).limit(1)
+      ]);
 
+      // If any of these queries return data, user has completed at least one setup step
+      const hasAnySetupData = (accounts && accounts.length > 0) ||
+                            (recurringItems && recurringItems.length > 0) ||
+                            (debts && debts.length > 0) ||
+                            (goals && goals.length > 0);
+
+      // Only show onboarding if user has no setup data
+      setShowOnboarding(!hasAnySetupData);
+      
+    } catch (error) {
+      console.error("Error checking onboarding status:", error);
+      // On error, default to showing onboarding to be safe
+      setShowOnboarding(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     checkOnboardingStatus();
   }, [user?.id]);
+
+  // Function to refresh onboarding status (for use by other components)
+  const refreshOnboardingStatus = async () => {
+    await checkOnboardingStatus();
+  };
 
   // Function to mark onboarding as completed
   const completeOnboarding = async () => {
@@ -36,7 +89,7 @@ export function useOnboarding() {
           .single();
 
         // Initialize the setup_progress object or use existing one
-        let setupProgress = data?.setup_progress || {};
+        let setupProgress: SetupProgress = (data?.setup_progress as SetupProgress) || { steps: {} };
         
         // Set onboardingCompleted to true
         setupProgress.onboardingCompleted = true;
@@ -76,6 +129,7 @@ export function useOnboarding() {
     showOnboarding,
     setShowOnboarding,
     completeOnboarding,
+    refreshOnboardingStatus,
     isLoading
   };
 }
