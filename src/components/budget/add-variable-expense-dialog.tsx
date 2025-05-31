@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,14 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { VariableExpense } from "@/types";
+import type { VariableExpense, PredefinedRecurringCategoryValue } from "@/types";
 import { predefinedRecurringCategories } from "@/types";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50, { message: "Name cannot exceed 50 characters."}),
-  category: z.string({
+  category: z.enum(['housing', 'food', 'utilities', 'transportation', 'health', 'personal', 'home-family', 'media-productivity'] as const, {
     required_error: "Please select a category.",
   }),
   amount: z.preprocess(
@@ -35,39 +34,77 @@ const formSchema = z.object({
   ),
 });
 
-type AddBudgetCategoryFormValues = z.infer<typeof formSchema>;
+type AddEditBudgetCategoryFormValues = z.infer<typeof formSchema>;
 
-interface AddVariableExpenseDialogProps {
+interface AddEditVariableExpenseDialogProps {
   children: ReactNode;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onExpenseAdded: (expenseData: Omit<VariableExpense, "id" | "userId" | "createdAt">) => void;
+  onExpenseAdded?: (expenseData: Omit<VariableExpense, "id" | "userId" | "createdAt">) => void;
+  onExpenseUpdated?: (expenseId: string, expenseData: Omit<VariableExpense, "id" | "userId" | "createdAt">) => void;
+  expenseToEdit?: VariableExpense | null;
 }
 
-export function AddVariableExpenseDialog({ children, isOpen, onOpenChange, onExpenseAdded }: AddVariableExpenseDialogProps) {
+export function AddEditVariableExpenseDialog({ 
+  children, 
+  isOpen, 
+  onOpenChange, 
+  onExpenseAdded, 
+  onExpenseUpdated, 
+  expenseToEdit 
+}: AddEditVariableExpenseDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const form = useForm<AddBudgetCategoryFormValues>({
+  const form = useForm<AddEditBudgetCategoryFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { name: "", category: "", amount: undefined },
+    defaultValues: { name: "", category: undefined, amount: undefined },
   });
 
-  async function onSubmit(values: AddBudgetCategoryFormValues) {
+  // Update form when expenseToEdit changes
+  useEffect(() => {
+    if (expenseToEdit && isOpen) {
+      form.reset({
+        name: expenseToEdit.name,
+        category: expenseToEdit.category,
+        amount: expenseToEdit.amount,
+      });
+    } else if (!isOpen) {
+      form.reset({ name: "", category: undefined, amount: undefined });
+    }
+  }, [expenseToEdit, isOpen, form]);
+
+  async function onSubmit(values: AddEditBudgetCategoryFormValues) {
     setIsLoading(true);
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
-    onExpenseAdded(values);
+    
+    if (expenseToEdit && onExpenseUpdated) {
+      onExpenseUpdated(expenseToEdit.id, values);
+    } else if (onExpenseAdded) {
+      onExpenseAdded(values);
+    }
+    
     form.reset();
     setIsLoading(false);
     onOpenChange(false);
   }
 
+  const isEditing = !!expenseToEdit;
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) form.reset(); onOpenChange(open); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { 
+      if (!open) form.reset(); 
+      onOpenChange(open); 
+    }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Variable Expense</DialogTitle>
-          <DialogDescription>Add a new variable expense with name, category, and monthly budget amount.</DialogDescription>
+          <DialogTitle>{isEditing ? "Edit Variable Expense" : "Add Variable Expense"}</DialogTitle>
+          <DialogDescription>
+            {isEditing 
+              ? "Update the variable expense details below." 
+              : "Add a new variable expense with name, category, and monthly budget amount."
+            }
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
@@ -86,7 +123,7 @@ export function AddVariableExpenseDialog({ children, isOpen, onOpenChange, onExp
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Category *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a category" />
@@ -114,9 +151,11 @@ export function AddVariableExpenseDialog({ children, isOpen, onOpenChange, onExp
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+                Cancel
+              </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : "Add Expense"}
+                {isLoading ? <Loader2 className="animate-spin" /> : (isEditing ? "Update Expense" : "Add Expense")}
               </Button>
             </DialogFooter>
           </form>
@@ -125,3 +164,6 @@ export function AddVariableExpenseDialog({ children, isOpen, onOpenChange, onExp
     </Dialog>
   );
 }
+
+// Keep the old export for backward compatibility
+export { AddEditVariableExpenseDialog as AddVariableExpenseDialog };

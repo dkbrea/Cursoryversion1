@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
 import { BudgetSummary } from "./budget-summary";
 import { VariableExpenseList } from "./variable-expense-list";
-import { AddVariableExpenseDialog } from "./add-variable-expense-dialog";
+import { AddEditVariableExpenseDialog } from "./add-variable-expense-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BudgetForecastView } from "./budget-forecast-view";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,8 @@ export function BudgetManager() {
   const [variableExpenses, setVariableExpenses] = useState<VariableExpense[]>([]);
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
+  const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
+  const [expenseToEdit, setExpenseToEdit] = useState<VariableExpense | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date()); // Default to current month
 
   useEffect(() => {
@@ -1043,6 +1045,85 @@ export function BudgetManager() {
     }
   };
 
+  const handleEditVariableExpense = async (expenseId: string, expenseData: Omit<VariableExpense, "id" | "userId" | "createdAt" | "updatedAt">) => {
+    if (!user?.id) return;
+
+    try {
+      // Try to update in the new variable_expenses table
+      try {
+        const { error } = await supabase
+          .from('variable_expenses')
+          .update({
+            name: expenseData.name,
+            category: expenseData.category,
+            amount: expenseData.amount,
+          })
+          .eq('id', expenseId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        // Update local state
+        setVariableExpenses(prev => prev.map(expense => 
+          expense.id === expenseId ? { 
+            ...expense, 
+            name: expenseData.name,
+            category: expenseData.category,
+            amount: expenseData.amount,
+            updatedAt: new Date()
+          } : expense
+        ));
+
+        toast({
+          title: "Variable Expense Updated",
+          description: `Variable expense "${expenseData.name}" has been updated.`,
+        });
+        return;
+      } catch (err) {
+        // If the variable_expenses table doesn't exist, fall back to budget_categories
+        console.warn('Failed to update in variable_expenses, falling back to budget_categories');
+        const { error } = await supabase
+          .from('budget_categories')
+          .update({
+            name: expenseData.name,
+            budgeted_amount: expenseData.amount,
+          })
+          .eq('id', expenseId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        // Update local state
+        setVariableExpenses(prev => prev.map(expense => 
+          expense.id === expenseId ? { 
+            ...expense, 
+            name: expenseData.name,
+            category: expenseData.category,
+            amount: expenseData.amount,
+            updatedAt: new Date()
+          } : expense
+        ));
+
+        toast({
+          title: "Variable Expense Updated",
+          description: `Variable expense "${expenseData.name}" has been updated.`,
+        });
+      }
+    } catch (error: any) {
+      console.error("Error updating variable expense:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update variable expense.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleOpenEditDialog = (expense: VariableExpense) => {
+    setExpenseToEdit(expense);
+    setIsEditCategoryDialogOpen(true);
+  };
+
   const handleUpdateVariableExpenseAmount = async (expenseId: string, newAmount: number) => {
     // Update the variable expense amount in the main state
     setVariableExpenses(prev => prev.map(expense => 
@@ -1438,21 +1519,26 @@ export function BudgetManager() {
               // If we have forecast data for the selected month, use the variable expenses from there
               // This ensures the list shows the overridden amounts
               if (selectedMonthData && 'variableExpenses' in selectedMonthData && selectedMonthData.variableExpenses) {
-                return selectedMonthData.variableExpenses.map(ve => ({
-                  id: ve.id,
-                  name: ve.name,
-                  category: 'personal' as const, // Default category since forecast doesn't store this
-                  amount: ve.monthSpecificAmount,
-                  userId: user?.id || '',
-                  createdAt: new Date(),
-                  updatedAt: undefined
-                }));
+                return selectedMonthData.variableExpenses.map(ve => {
+                  // Find the original expense to get the correct category
+                  const originalExpense = variableExpenses.find(orig => orig.id === ve.id);
+                  return {
+                    id: ve.id,
+                    name: ve.name,
+                    category: originalExpense?.category || 'personal' as const, // Use original category or fallback
+                    amount: ve.monthSpecificAmount,
+                    userId: user?.id || '',
+                    createdAt: originalExpense?.createdAt || new Date(),
+                    updatedAt: originalExpense?.updatedAt
+                  };
+                });
               }
               // Fallback to original variable expenses if no forecast data
               return variableExpenses;
             })()}
             onUpdateExpenseAmount={handleUpdateVariableExpenseAmount}
             onDeleteExpense={handleDeleteVariableExpense}
+            onEditExpense={handleOpenEditDialog}
           />
         </TabsContent>
         <TabsContent value="forecast">
@@ -1465,7 +1551,7 @@ export function BudgetManager() {
         </TabsContent>
       </Tabs>
 
-      <AddVariableExpenseDialog
+      <AddEditVariableExpenseDialog
         isOpen={isAddCategoryDialogOpen}
         onOpenChange={setIsAddCategoryDialogOpen}
         onExpenseAdded={handleAddVariableExpense}
@@ -1473,7 +1559,21 @@ export function BudgetManager() {
         <Button onClick={() => setIsAddCategoryDialogOpen(true)}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add Variable Expense
         </Button>
-      </AddVariableExpenseDialog>
+      </AddEditVariableExpenseDialog>
+
+      <AddEditVariableExpenseDialog
+        isOpen={isEditCategoryDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditCategoryDialogOpen(open);
+          if (!open) {
+            setExpenseToEdit(null);
+          }
+        }}
+        onExpenseUpdated={handleEditVariableExpense}
+        expenseToEdit={expenseToEdit}
+      >
+        <></>
+      </AddEditVariableExpenseDialog>
     </div>
   );
 }

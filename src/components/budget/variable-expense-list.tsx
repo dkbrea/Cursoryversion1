@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { VariableExpense, PredefinedRecurringCategoryValue } from "@/types";
@@ -6,7 +5,7 @@ import { predefinedRecurringCategories } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, PlusCircle } from "lucide-react";
+import { Trash2, Edit } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -16,9 +15,10 @@ interface VariableExpenseListProps {
   expenses: VariableExpense[];
   onUpdateExpenseAmount?: (expenseId: string, newAmount: number) => void;
   onDeleteExpense: (expenseId: string) => void;
+  onEditExpense?: (expense: VariableExpense) => void;
 }
 
-export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteExpense }: VariableExpenseListProps) {
+export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteExpense, onEditExpense }: VariableExpenseListProps) {
   const { toast } = useToast();
   const [editingAmounts, setEditingAmounts] = useState<Record<string, string>>({});
 
@@ -80,7 +80,7 @@ export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteE
                 <TableHead>Name</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead className="text-right w-[200px]">Amount ($)</TableHead>
-                <TableHead className="text-right w-[100px]">Actions</TableHead>
+                <TableHead className="text-right w-[120px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -105,27 +105,39 @@ export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteE
                     />
                   </TableCell>
                   <TableCell className="text-right">
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
+                    <div className="flex justify-end gap-1">
+                      {onEditExpense && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => onEditExpense(expense)}
+                          className="text-muted-foreground hover:text-blue-600"
+                        >
+                          <Edit className="h-4 w-4" />
                         </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete "{expense.name}" Expense?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently remove this variable expense. This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => onDeleteExpense(expense.id)} className="bg-destructive hover:bg-destructive/90">
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                      )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete "{expense.name}" Expense?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently remove this variable expense. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => onDeleteExpense(expense.id)} className="bg-destructive hover:bg-destructive/90">
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

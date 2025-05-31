@@ -95,7 +95,7 @@ export const recurringFrequencies = ['daily', 'weekly', 'bi-weekly', 'monthly', 
 export type RecurringFrequency = typeof recurringFrequencies[number];
 
 export const predefinedRecurringCategories = [
-  { value: 'housing', label: 'Housinig (Rent/Mortgage)' },
+  { value: 'housing', label: 'Housing (Rent/Mortgage)' },
   { value: 'food', label: 'Food (Groceries, Restaurants)' },
   { value: 'utilities', label: 'Utilities (Energy, Water, Internet, Phone)' },
   { value: 'transportation', label: 'Transportation (Insurance, Gasoline, Maint.)' },

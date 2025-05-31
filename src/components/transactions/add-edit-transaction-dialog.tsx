@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { Transaction, Category, Account, TransactionDetailedType, RecurringItem, DebtAccount, FinancialGoalWithContribution } from "@/types";
+import type { Transaction, Category, Account, TransactionDetailedType, RecurringItem, DebtAccount, FinancialGoalWithContribution, VariableExpense } from "@/types";
 import { transactionDetailedTypes } from "@/types";
 import { useState, useEffect, type ReactNode } from "react";
 import { Loader2, CalendarIcon, ShoppingBag, Repeat, Landmark, Flag, FileText, TrendingUp } from "lucide-react";
@@ -26,50 +25,64 @@ import { useToast } from "@/hooks/use-toast";
 
 
 const formSchema = z.object({
-  date: z.date({ required_error: "Date is required." }),
+  date: z.date({ required_error: "Date is required.", invalid_type_error: "Please select a valid date." }),
   detailedType: z.enum(transactionDetailedTypes, { required_error: "Transaction type is required." }),
-  
-  description: z.string().optional(), 
-  sourceId: z.string().optional(), // For linking to RecurringItem, DebtAccount, or FinancialGoal
-  
-  amount: z.preprocess(
-    (val) => (typeof val === 'string' ? parseFloat(val.replace(/[^0-9.-]+/g,"")) : val),
-    z.number({ required_error: "Amount is required.", invalid_type_error: "Amount must be a number." })
-     .positive({ message: "Amount must be a positive number." })
-  ),
-  categoryId: z.string().nullable().optional(), // Only for 'variable-expense'
-  accountId: z.string({ required_error: "Account is required." }), // Source account for expenses/transfers, destination for income
-  toAccountId: z.string().nullable().optional(), // Destination account for transfers like goal contributions
-  notes: z.string().max(200, "Notes must be 200 characters or less.").optional(),
+  description: z.string().optional(),
+  sourceId: z.string().optional(),
+  amount: z.number({ required_error: "Amount is required.", invalid_type_error: "Amount must be a number." }).min(0, { message: "Amount cannot be negative." }),
+  categoryId: z.string().nullable().optional(),
+  accountId: z.string({ required_error: "Account selection is required." }),
+  toAccountId: z.string().nullable().optional(),
+  notes: z.string().optional(),
   tags: z.string().optional(),
 }).superRefine((data, ctx) => {
-    if (data.detailedType !== 'variable-expense' && !data.sourceId) {
+    // Require sourceId for all types except manual variable expenses
+    if (!data.sourceId) {
+        if (data.detailedType !== 'variable-expense') {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["sourceId"],
+                message: "Please select an item or source for this transaction type.",
+            });
+        } else {
+            // For manual variable expenses, require description and categoryId
+            if (!data.description || data.description.trim() === '') {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["description"],
+                    message: "Description is required for variable expenses.",
+                });
+            }
+            if (!data.categoryId) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["categoryId"],
+                    message: "Budget category is required for variable expenses.",
+                });
+            }
+        }
+    }
+    
+    // Require amount to be greater than 0 when submitting
+    if (data.amount <= 0) {
         ctx.addIssue({
-            path: ["sourceId"],
-            message: "Please select an item or source for this transaction type.",
+            code: z.ZodIssueCode.custom,
+            path: ["amount"],
+            message: "Amount must be greater than 0.",
         });
     }
-    if (data.detailedType === 'variable-expense' && (!data.description || data.description.trim() === '')) {
-        ctx.addIssue({
-            path: ["description"],
-            message: "Description is required for variable expenses.",
-        });
-    }
-     if (data.detailedType === 'variable-expense' && !data.categoryId) {
-        ctx.addIssue({
-            path: ["categoryId"],
-            message: "Budget category is required for variable expenses.",
-        });
-    }
+    
     if (data.detailedType === 'goal-contribution') {
       if (!data.toAccountId) {
         ctx.addIssue({
+            code: z.ZodIssueCode.custom,
             path: ["toAccountId"],
             message: "Destination account is required for goal contributions.",
         });
       }
       if (data.accountId && data.toAccountId && data.accountId === data.toAccountId) {
         ctx.addIssue({
+            code: z.ZodIssueCode.custom,
             path: ["toAccountId"],
             message: "From and To accounts cannot be the same for a goal contribution.",
         });
@@ -89,6 +102,7 @@ interface AddEditTransactionDialogProps {
   recurringItems: RecurringItem[];
   debtAccounts: DebtAccount[];
   goals: FinancialGoalWithContribution[];
+  variableExpenses: VariableExpense[];
   transactionToEdit?: Transaction | null;
 }
 
@@ -103,7 +117,7 @@ const detailedTypeButtonConfig: { type: TransactionDetailedType; label: string; 
 
 export function AddEditTransactionDialog({
   children, isOpen, onOpenChange, onSave,
-  categories, accounts, recurringItems, debtAccounts, goals, transactionToEdit
+  categories, accounts, recurringItems, debtAccounts, goals, variableExpenses, transactionToEdit
 }: AddEditTransactionDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -113,10 +127,10 @@ export function AddEditTransactionDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       date: startOfDay(new Date()),
-      detailedType: 'variable-expense', // Default to variable expense
+      detailedType: 'income', // Default to income
       description: "",
       sourceId: undefined,
-      amount: undefined,
+      amount: 0,
       categoryId: null,
       accountId: undefined,
       toAccountId: null,
@@ -126,6 +140,21 @@ export function AddEditTransactionDialog({
   });
 
   const selectedDetailedType = form.watch("detailedType");
+
+  // Helper function to get predefined category labels
+  const getPredefinedCategoryLabel = (value: string) => {
+    const categoryLabels: Record<string, string> = {
+      'housing': 'Housing',
+      'food': 'Food',
+      'utilities': 'Utilities',
+      'transportation': 'Transportation',
+      'health': 'Health',
+      'personal': 'Personal',
+      'home-family': 'Home/Family',
+      'media-productivity': 'Media/Productivity'
+    };
+    return categoryLabels[value] || value;
+  };
 
   useEffect(() => {
     if (transactionToEdit && isOpen) {
@@ -143,8 +172,8 @@ export function AddEditTransactionDialog({
       });
     } else if (!isOpen && !transactionToEdit) { 
       form.reset({
-        date: startOfDay(new Date()), detailedType: 'variable-expense', description: "", sourceId: undefined,
-        amount: undefined, categoryId: null, accountId: undefined, toAccountId: null, notes: "", tags: "",
+        date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
+        amount: 0, categoryId: null, accountId: undefined, toAccountId: null, notes: "", tags: "",
       });
     }
   }, [transactionToEdit, isOpen, form]);
@@ -153,16 +182,40 @@ export function AddEditTransactionDialog({
     form.setValue('sourceId', itemId, {shouldValidate: true});
     let selectedItemName = "";
     let selectedItemAmount: number | undefined;
+    let selectedCategoryId: string | null = null;
 
     if (selectedDetailedType === 'income') {
         const item = recurringItems.find(ri => ri.id === itemId && ri.type === 'income');
-        if (item) { selectedItemName = item.name; selectedItemAmount = item.amount; }
+        if (item) { 
+          selectedItemName = item.name; 
+          selectedItemAmount = item.amount; 
+        }
     } else if (selectedDetailedType === 'fixed-expense') {
         const item = recurringItems.find(ri => ri.id === itemId && ri.type === 'fixed-expense');
-        if (item) { selectedItemName = item.name; selectedItemAmount = item.amount; }
+        if (item) { 
+          selectedItemName = item.name; 
+          selectedItemAmount = item.amount;
+          // Set category based on the recurring item's categoryId (already a UUID)
+          selectedCategoryId = item.categoryId || null;
+        }
     } else if (selectedDetailedType === 'subscription') {
         const item = recurringItems.find(ri => ri.id === itemId && ri.type === 'subscription');
-        if (item) { selectedItemName = item.name; selectedItemAmount = item.amount; }
+        if (item) { 
+          selectedItemName = item.name; 
+          selectedItemAmount = item.amount;
+          // Set category based on the recurring item's categoryId (already a UUID)
+          selectedCategoryId = item.categoryId || null;
+        }
+    } else if (selectedDetailedType === 'variable-expense') {
+        const item = variableExpenses.find(ve => ve.id === itemId);
+        if (item) { 
+          selectedItemName = item.name; 
+          selectedItemAmount = item.amount;
+          
+          // For variable expenses, the predefined category IS the category
+          // We'll store the predefined category value and display it properly
+          selectedCategoryId = item.category; // This will be 'home-family', 'transportation', etc.
+        }
     } else if (selectedDetailedType === 'debt-payment') {
         const item = debtAccounts.find(da => da.id === itemId);
         if (item) { selectedItemName = item.name; selectedItemAmount = item.minimumPayment; }
@@ -175,7 +228,12 @@ export function AddEditTransactionDialog({
     if (selectedItemAmount !== undefined && selectedItemAmount > 0) {
       form.setValue('amount', parseFloat(selectedItemAmount.toFixed(2)), {shouldValidate: true});
     } else {
-      form.setValue('amount', undefined, { shouldValidate: true }); 
+      form.setValue('amount', 0, { shouldValidate: true }); 
+    }
+    
+    // Set the category automatically for expense types that have predefined categories
+    if (selectedCategoryId) {
+      form.setValue('categoryId', selectedCategoryId, {shouldValidate: true});
     }
   };
   
@@ -185,9 +243,8 @@ export function AddEditTransactionDialog({
     if (selectedDetailedType !== 'goal-contribution') {
       form.setValue('toAccountId', null); 
     }
-    if(selectedDetailedType !== 'variable-expense') {
-        form.setValue('categoryId', null);
-    }
+    // Clear categoryId when changing transaction type, it will be set automatically when an item is selected
+    form.setValue('categoryId', null);
   }, [selectedDetailedType, form]);
 
 
@@ -202,6 +259,18 @@ export function AddEditTransactionDialog({
         baseTransactionType = 'transfer'; // Goal contributions are transfers
     }
 
+    // Check if categoryId is a predefined category value that needs to be mapped to a UUID
+    let finalCategoryId = values.categoryId === "_UNCATEGORIZED_" ? null : values.categoryId;
+    
+    // If categoryId is a predefined category value, mark it with a prefix so the parent can handle mapping
+    // Exception: Income, goal contribution, and debt payment transactions don't need this since they always use specific categories
+    if (finalCategoryId && typeof finalCategoryId === 'string' && values.detailedType !== 'income' && values.detailedType !== 'goal-contribution' && values.detailedType !== 'debt-payment') {
+      const predefinedCategories = ['housing', 'food', 'utilities', 'transportation', 'health', 'personal', 'home-family', 'media-productivity'];
+      if (predefinedCategories.includes(finalCategoryId)) {
+        finalCategoryId = `PREDEFINED:${finalCategoryId}`;
+      }
+    }
+
     const transactionData = {
       date: startOfDay(values.date),
       description: values.description || "N/A", 
@@ -209,7 +278,7 @@ export function AddEditTransactionDialog({
       type: baseTransactionType, 
       detailedType: values.detailedType,
       sourceId: values.sourceId || undefined,
-      categoryId: values.detailedType === 'variable-expense' ? (values.categoryId === "_UNCATEGORIZED_" ? null : values.categoryId) : null,
+      categoryId: finalCategoryId,
       accountId: values.accountId, // This is "From Account"
       toAccountId: values.detailedType === 'goal-contribution' ? values.toAccountId : null,
       notes: values.notes || undefined,
@@ -229,6 +298,8 @@ export function AddEditTransactionDialog({
             return recurringItems.filter(item => item.type === 'fixed-expense').map(item => ({value: item.id, label: item.name}));
         case 'subscription':
             return recurringItems.filter(item => item.type === 'subscription').map(item => ({value: item.id, label: item.name}));
+        case 'variable-expense':
+            return variableExpenses.map(item => ({value: item.id, label: item.name}));
         case 'debt-payment':
             return debtAccounts.map(item => ({value: item.id, label: item.name}));
         case 'goal-contribution':
@@ -243,6 +314,7 @@ export function AddEditTransactionDialog({
         case 'income': return "Select Income Source";
         case 'fixed-expense': return "Select Fixed Expense";
         case 'subscription': return "Select Subscription";
+        case 'variable-expense': return "Select Variable Expense";
         case 'debt-payment': return "Select Debt Account";
         case 'goal-contribution': return "Financial Goal"; 
         default: return "Select Item";
@@ -255,8 +327,8 @@ export function AddEditTransactionDialog({
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!isLoading && !open) {
         form.reset({ 
-            date: startOfDay(new Date()), detailedType: 'variable-expense', description: "", sourceId: undefined,
-            amount: undefined, categoryId: null, accountId: undefined, toAccountId: null, notes: "", tags: "",
+            date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
+            amount: 0, categoryId: null, accountId: undefined, toAccountId: null, notes: "", tags: "",
         });
       }
       if (!isLoading) onOpenChange(open); 
@@ -318,7 +390,7 @@ export function AddEditTransactionDialog({
                               field.onChange(config.type);
                               form.setValue('sourceId', undefined, {shouldValidate: true}); 
                               form.setValue('description', '', {shouldValidate: true});
-                              form.setValue('amount', undefined, {shouldValidate: true});
+                              form.setValue('amount', 0, {shouldValidate: true});
                               form.setValue('categoryId', null, {shouldValidate: true});
                               if (config.type !== 'goal-contribution') {
                                 form.setValue('toAccountId', null, {shouldValidate: true});
@@ -338,36 +410,110 @@ export function AddEditTransactionDialog({
               )}
             />
             
-            {/* Conditional field for selecting the specific item (goal, recurring income/expense, debt) */}
-            {selectedDetailedType !== 'variable-expense' && (
-                 <FormField
-                    control={form.control}
-                    name="sourceId"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>{getSourceSelectLabel()} *</FormLabel>
-                        <Select onValueChange={(value) => handleItemSelection(value)} value={field.value || ""} >
-                            <FormControl>
-                            <SelectTrigger>
-                                <SelectValue placeholder={getSourceSelectLabel()} />
-                            </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                            {getSourceSelectItems().map(item => (
-                                <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                                </SelectItem>
-                            ))}
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
+            {/* Conditional field for selecting the specific item (goal, recurring income/expense, debt, variable expense) */}
+            <FormField
+                control={form.control}
+                name="sourceId"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>{getSourceSelectLabel()} *</FormLabel>
+                    <Select onValueChange={(value) => handleItemSelection(value)} value={field.value || ""} >
+                        <FormControl>
+                        <SelectTrigger>
+                            <SelectValue placeholder={getSourceSelectLabel()} />
+                        </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                        {getSourceSelectItems().map(item => (
+                            <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                            </SelectItem>
+                        ))}
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+            
+            {/* Category Display - Show the category of the selected item (read-only) */}
+            {form.watch('sourceId') && (selectedDetailedType === 'income' || selectedDetailedType === 'variable-expense' || selectedDetailedType === 'fixed-expense' || selectedDetailedType === 'subscription' || selectedDetailedType === 'goal-contribution' || selectedDetailedType === 'debt-payment') && (
+                <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <div className="flex min-h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm items-center">
+                        {(() => {
+                            const categoryId = form.watch('categoryId');
+                            
+                            if (selectedDetailedType === 'variable-expense') {
+                                const selectedExpense = variableExpenses.find(ve => ve.id === form.watch('sourceId'));
+                                if (selectedExpense) {
+                                    return (
+                                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                            {getPredefinedCategoryLabel(selectedExpense.category)}
+                                        </span>
+                                    );
+                                }
+                            }
+                            
+                            // For income, fixed expenses and subscriptions
+                            if (selectedDetailedType === 'income' || selectedDetailedType === 'fixed-expense' || selectedDetailedType === 'subscription') {
+                                if (selectedDetailedType === 'income') {
+                                    // For income transactions, always show "Income" category
+                                    return (
+                                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                            Income
+                                        </span>
+                                    );
+                                }
+                                
+                                const recurringItem = recurringItems.find(ri => ri.id === form.watch('sourceId'));
+                                if (recurringItem?.categoryId) {
+                                    return (
+                                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                            {getPredefinedCategoryLabel(recurringItem.categoryId)}
+                                        </span>
+                                    );
+                                }
+                                return (
+                                    <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">
+                                        No category assigned
+                                    </span>
+                                );
+                            }
+                            
+                            // For goal contribution transactions, always show "Savings" category
+                            if (selectedDetailedType === 'goal-contribution') {
+                                return (
+                                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                        Savings
+                                    </span>
+                                );
+                            }
+                            
+                            // For debt payment transactions, always show "Debt" category
+                            if (selectedDetailedType === 'debt-payment') {
+                                return (
+                                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                        Debt
+                                    </span>
+                                );
+                            }
+                            
+                            return (
+                                <span className="text-muted-foreground text-xs">
+                                    No category information available
+                                </span>
+                            );
+                        })()}
+                    </div>
+                    <FormDescription className="text-xs">
+                        This category will be automatically assigned to your transaction
+                    </FormDescription>
+                </FormItem>
             )}
             
-             {/* Description field (primarily for variable expenses, or if no item selected for others) */}
-            {(selectedDetailedType === 'variable-expense' || (selectedDetailedType !== 'variable-expense' && !form.watch('sourceId'))) && (
+             {/* Description field (primarily for variable expenses when no item selected, or if no item selected for others) */}
+            {((selectedDetailedType === 'variable-expense' && !form.watch('sourceId')) || (selectedDetailedType !== 'variable-expense' && !form.watch('sourceId'))) && (
                 <FormField
                     control={form.control}
                     name="description"
@@ -393,8 +539,8 @@ export function AddEditTransactionDialog({
                             <span className="text-muted-foreground sm:text-sm">$</span>
                         </div>
                         <Input type="number" step="0.01" placeholder="0.00" {...field} 
-                               onChange={e => field.onChange(parseFloat(e.target.value) || undefined)}
-                               value={field.value === undefined ? '' : field.value}
+                               onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                               value={field.value || 0}
                                className="pl-7" />
                     </div>
                   </FormControl>
@@ -409,7 +555,7 @@ export function AddEditTransactionDialog({
               name="accountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>From Account *</FormLabel>
+                  <FormLabel>{selectedDetailedType === 'goal-contribution' ? 'From Account *' : 'Account *'}</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || ""} >
                     <FormControl>
                       <SelectTrigger>
@@ -458,8 +604,8 @@ export function AddEditTransactionDialog({
                 />
             )}
             
-            {/* Budget Category - Only for Variable Expense */}
-            {selectedDetailedType === 'variable-expense' && (
+            {/* Budget Category - Only for manual Variable Expense (no source selected) */}
+            {selectedDetailedType === 'variable-expense' && !form.watch('sourceId') && (
                 <FormField
                 control={form.control}
                 name="categoryId"
@@ -524,8 +670,8 @@ export function AddEditTransactionDialog({
                 onOpenChange(false);
                 if (!transactionToEdit) { 
                      form.reset({
-                        date: startOfDay(new Date()), detailedType: 'variable-expense', description: "", sourceId: undefined,
-                        amount: undefined, categoryId: null, accountId: undefined, toAccountId: null, notes: "", tags: "",
+                        date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
+                        amount: 0, categoryId: null, accountId: undefined, toAccountId: null, notes: "", tags: "",
                      });
                 }
               }} disabled={isLoading}>

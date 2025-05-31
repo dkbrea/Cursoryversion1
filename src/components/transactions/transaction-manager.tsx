@@ -1,6 +1,6 @@
 "use client";
 
-import type { Transaction, Category, Account, RecurringItem, DebtAccount, FinancialGoalWithContribution, TransactionDetailedType } from "@/types";
+import type { Transaction, Category, Account, RecurringItem, DebtAccount, FinancialGoalWithContribution, TransactionDetailedType, VariableExpense } from "@/types";
 import { useState, useEffect } from "react";
 import { TransactionTable } from "./transaction-table";
 import { AddEditTransactionDialog } from "./add-edit-transaction-dialog";
@@ -17,6 +17,7 @@ import { getAccounts } from "@/lib/api/accounts";
 import { getRecurringItems } from "@/lib/api/recurring";
 import { getDebtAccounts } from "@/lib/api/debts";
 import { getFinancialGoals } from "@/lib/api/goals";
+import { supabase } from "@/lib/supabase";
 
 export function TransactionManager() {
   const { toast } = useToast();
@@ -29,11 +30,20 @@ export function TransactionManager() {
   const [recurringItemsList, setRecurringItemsList] = useState<RecurringItem[]>([]);
   const [debtAccountsList, setDebtAccountsList] = useState<DebtAccount[]>([]);
   const [goalsList, setGoalsList] = useState<FinancialGoalWithContribution[]>([]);
+  const [variableExpensesList, setVariableExpensesList] = useState<VariableExpense[]>([]);
   
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
   const [isAddEditDialogOpen, setIsAddEditDialogOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+
+  // Helper function to format currency with commas
+  const formatCurrency = (amount: number): string => {
+    return amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
 
   // Fetch all data when component mounts and user is authenticated
   useEffect(() => {
@@ -61,6 +71,49 @@ export function TransactionManager() {
           getDebtAccounts(user.id),
           getFinancialGoals(user.id)
         ]);
+
+        // Fetch variable expenses separately since there's no dedicated API function yet
+        let variableExpensesData: VariableExpense[] = [];
+        try {
+          const { data, error } = await supabase
+            .from('variable_expenses')
+            .select('*')
+            .eq('user_id', user.id);
+            
+          if (error) {
+            // Fallback to budget_categories if variable_expenses doesn't exist
+            const { data: legacyData, error: legacyError } = await supabase
+              .from('budget_categories')
+              .select('*')
+              .eq('user_id', user.id);
+              
+            if (!legacyError && legacyData) {
+              variableExpensesData = legacyData.map(item => ({
+                id: item.id,
+                name: item.name,
+                category: 'personal' as const,
+                amount: item.budgeted_amount,
+                userId: item.user_id,
+                createdAt: new Date(item.created_at),
+                updatedAt: item.updated_at ? new Date(item.updated_at) : undefined
+              }));
+            }
+          } else if (data) {
+            variableExpensesData = data.map(expense => ({
+              id: expense.id,
+              name: expense.name,
+              category: expense.category,
+              amount: expense.amount,
+              userId: expense.user_id,
+              createdAt: new Date(expense.created_at),
+              updatedAt: expense.updated_at ? new Date(expense.updated_at) : undefined
+            }));
+          }
+        } catch (err) {
+          console.error("Error fetching variable expenses:", err);
+        }
+        
+        setVariableExpensesList(variableExpensesData);
 
         // Handle transactions
         if (transactionsResult.error) {
@@ -157,16 +210,147 @@ export function TransactionManager() {
       finalType = 'income';
     } else if (data.detailedType === 'goal-contribution') {
       finalType = 'transfer';
+    } else if (data.detailedType === 'debt-payment') {
+      finalType = 'expense';
     }
     
     const finalAmount = (finalType === 'income' || finalType === 'transfer') ? Math.abs(data.amount) : -Math.abs(data.amount);
+
+    // Handle predefined category mapping
+    let finalCategoryId = data.categoryId;
+    
+    // For income transactions, always use "Income" category
+    if (data.detailedType === 'income') {
+      const incomeCategoryName = 'Income';
+      let incomeCategory = categoriesList.find(cat => cat.name === incomeCategoryName);
+      
+      if (incomeCategory) {
+        finalCategoryId = incomeCategory.id;
+      } else {
+        // Create Income category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: incomeCategoryName,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategoriesList(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create Income category:', error);
+          finalCategoryId = null;
+        }
+      }
+    } else if (data.detailedType === 'goal-contribution') {
+      // For goal contribution transactions, always use "Savings" category
+      const savingsCategoryName = 'Savings';
+      let savingsCategory = categoriesList.find(cat => cat.name === savingsCategoryName);
+      
+      if (savingsCategory) {
+        finalCategoryId = savingsCategory.id;
+      } else {
+        // Create Savings category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: savingsCategoryName,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategoriesList(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create Savings category:', error);
+          finalCategoryId = null;
+        }
+      }
+    } else if (data.detailedType === 'debt-payment') {
+      // For debt payment transactions, always use "Debt" category
+      const debtCategoryName = 'Debt';
+      let debtCategory = categoriesList.find(cat => cat.name === debtCategoryName);
+      
+      if (debtCategory) {
+        finalCategoryId = debtCategory.id;
+      } else {
+        // Create Debt category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: debtCategoryName,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategoriesList(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create Debt category:', error);
+          finalCategoryId = null;
+        }
+      }
+    } else if (finalCategoryId && typeof finalCategoryId === 'string' && finalCategoryId.startsWith('PREDEFINED:')) {
+      // Handle other predefined categories (for expenses)
+      const predefinedValue = finalCategoryId.replace('PREDEFINED:', '');
+      
+      // Map predefined value to display label
+      const categoryLabels: Record<string, string> = {
+        'housing': 'Housing',
+        'food': 'Food',
+        'utilities': 'Utilities',
+        'transportation': 'Transportation',
+        'health': 'Health',
+        'personal': 'Personal',
+        'home-family': 'Home/Family',
+        'media-productivity': 'Media/Productivity'
+      };
+      
+      const categoryLabel = categoryLabels[predefinedValue] || predefinedValue;
+      
+      // Try to find existing category with this name
+      let existingCategory = categoriesList.find(cat => cat.name === categoryLabel);
+      
+      if (existingCategory) {
+        finalCategoryId = existingCategory.id;
+      } else {
+        // Create new category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: categoryLabel,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategoriesList(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create category:', error);
+          finalCategoryId = null;
+        }
+      }
+    }
 
     const processedData = {
       ...data,
       type: finalType,
       amount: finalAmount,
       tags: data.tags || [],
-      categoryId: data.detailedType === 'variable-expense' ? data.categoryId : null,
+      categoryId: finalCategoryId,
       toAccountId: data.detailedType === 'goal-contribution' ? data.toAccountId : null,
       userId: user.id
     };
@@ -224,6 +408,77 @@ export function TransactionManager() {
     setTransactionToEdit(null);
   };
 
+  // Helper function to update missing categories for existing transactions
+  const updateMissingCategories = async () => {
+    const transactionsNeedingCategories = transactions.filter(t => 
+      !t.categoryId && t.sourceId && t.detailedType
+    );
+    
+    if (transactionsNeedingCategories.length === 0) {
+      toast({
+        title: "No Updates Needed",
+        description: "All transactions already have categories assigned.",
+      });
+      return;
+    }
+
+    let updatedCount = 0;
+    
+    for (const transaction of transactionsNeedingCategories) {
+      let categoryId: string | null = null;
+      
+      // Try to determine category based on transaction type and source
+      if (transaction.detailedType === 'variable-expense' && transaction.sourceId) {
+        const variableExpense = variableExpensesList.find(ve => ve.id === transaction.sourceId);
+        if (variableExpense) {
+          // Use the same matching logic as in the dialog
+          let matchingCategory = categoriesList.find(cat => 
+            cat.name.toLowerCase() === variableExpense.category.toLowerCase()
+          );
+          
+          if (!matchingCategory) {
+            matchingCategory = categoriesList.find(cat => 
+              cat.name.toLowerCase().includes(variableExpense.category.toLowerCase()) ||
+              variableExpense.category.toLowerCase().includes(cat.name.toLowerCase())
+            );
+          }
+          
+          categoryId = matchingCategory?.id || null;
+        }
+      } else if (transaction.detailedType === 'fixed-expense' && transaction.sourceId) {
+        const recurringItem = recurringItemsList.find(ri => ri.id === transaction.sourceId);
+        if (recurringItem?.categoryId) {
+          categoryId = recurringItem.categoryId;
+        }
+      } else if (transaction.detailedType === 'subscription' && transaction.sourceId) {
+        const recurringItem = recurringItemsList.find(ri => ri.id === transaction.sourceId);
+        if (recurringItem?.categoryId) {
+          categoryId = recurringItem.categoryId;
+        }
+      }
+      
+      // Update the transaction if we found a category
+      if (categoryId) {
+        try {
+          const result = await updateTransaction(transaction.id, { categoryId });
+          if (!result.error && result.transaction) {
+            setTransactions(prev => prev.map(t => 
+              t.id === transaction.id ? { ...t, categoryId } : t
+            ));
+            updatedCount++;
+          }
+        } catch (error) {
+          console.error(`Failed to update transaction ${transaction.id}:`, error);
+        }
+      }
+    }
+    
+    toast({
+      title: "Categories Updated",
+      description: `Updated ${updatedCount} out of ${transactionsNeedingCategories.length} transactions with missing categories.`,
+    });
+  };
+
   const handleDeleteTransaction = async (transactionId: string) => {
     const transactionToDelete = transactions.find(t => t.id === transactionId);
     
@@ -256,41 +511,6 @@ export function TransactionManager() {
     }
   };
   
-  const handleUpdateTransactionCategory = async (transactionId: string, categoryId: string | null) => {
-    const transaction = transactions.find(t => t.id === transactionId);
-    if (!transaction) return;
-
-    try {
-      const result = await updateTransaction(transactionId, { categoryId });
-      if (result.error) {
-        toast({
-          title: "Error",
-          description: `Failed to update category: ${result.error}`,
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      setTransactions((prevTransactions) =>
-        prevTransactions.map((t) =>
-          t.id === transactionId ? { ...t, categoryId, updatedAt: new Date() } : t
-        )
-      );
-      
-      toast({ 
-        title: "Category Updated", 
-        description: `Category for "${transaction.description}" updated.`
-      });
-    } catch (error) {
-      console.error("Error updating transaction category:", error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred while updating the category.",
-        variant: "destructive"
-      });
-    }
-  };
-
   // If not authenticated, show message
   if (!isAuthenticated) {
     return (
@@ -323,7 +543,7 @@ export function TransactionManager() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">${totalIncome.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-green-600">${formatCurrency(totalIncome)}</div>
             <p className="text-xs text-muted-foreground">Based on current transactions</p>
           </CardContent>
         </Card>
@@ -333,7 +553,7 @@ export function TransactionManager() {
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">${totalExpenses.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-red-600">${formatCurrency(totalExpenses)}</div>
              <p className="text-xs text-muted-foreground">Based on current transactions</p>
           </CardContent>
         </Card>
@@ -344,7 +564,7 @@ export function TransactionManager() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${netFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${netFlow.toFixed(2)}
+              ${formatCurrency(netFlow)}
             </div>
              <p className="text-xs text-muted-foreground">Income - Expenses</p>
           </CardContent>
@@ -357,28 +577,38 @@ export function TransactionManager() {
             <CardTitle>Transaction History</CardTitle>
             <CardDescription>Manually track all your income and expenses. Use AI to help categorize your spending.</CardDescription>
           </div>
-          <AddEditTransactionDialog
-            isOpen={isAddEditDialogOpen}
-            onOpenChange={setIsAddEditDialogOpen}
-            onSave={handleSaveTransaction}
-            categories={categoriesList}
-            accounts={accountsList}
-            recurringItems={recurringItemsList}
-            debtAccounts={debtAccountsList}
-            goals={goalsList}
-            transactionToEdit={transactionToEdit}
-          >
-            <Button onClick={handleOpenAddDialog} variant="default">
-              <PlusCircle className="mr-2 h-4 w-4" /> Record Transaction
+          <div className="flex gap-2">
+            <Button 
+              onClick={updateMissingCategories} 
+              variant="outline" 
+              size="sm"
+              className="text-xs"
+            >
+              Fix Missing Categories
             </Button>
-          </AddEditTransactionDialog>
+            <AddEditTransactionDialog
+              isOpen={isAddEditDialogOpen}
+              onOpenChange={setIsAddEditDialogOpen}
+              onSave={handleSaveTransaction}
+              categories={categoriesList}
+              accounts={accountsList}
+              recurringItems={recurringItemsList}
+              debtAccounts={debtAccountsList}
+              goals={goalsList}
+              variableExpenses={variableExpensesList}
+              transactionToEdit={transactionToEdit}
+            >
+              <Button onClick={handleOpenAddDialog} variant="default">
+                <PlusCircle className="mr-2 h-4 w-4" /> Record Transaction
+              </Button>
+            </AddEditTransactionDialog>
+          </div>
         </CardHeader>
         <CardContent>
           <TransactionTable
             transactions={transactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
             categories={categoriesList}
             accounts={accountsList}
-            onUpdateTransactionCategory={handleUpdateTransactionCategory}
             onDeleteTransaction={handleDeleteTransaction}
             onEditTransaction={handleOpenEditDialog}
           />
