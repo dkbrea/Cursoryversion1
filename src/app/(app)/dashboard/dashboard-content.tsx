@@ -25,12 +25,17 @@ export function DashboardContent() {
 
   // Fetch data when user is available
   useEffect(() => {
+    console.log('Dashboard useEffect triggered, user:', user);
+    console.log('User ID:', user?.id);
+    
     async function fetchData() {
       if (!user?.id) {
+        console.log('No user ID found, setting loading to false');
         setIsLoading(false);
         return;
       }
 
+      console.log('Starting to fetch data for user:', user.id);
       try {
         setIsLoading(true);
         

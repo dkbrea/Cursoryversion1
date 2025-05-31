@@ -19,93 +19,53 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [checkingSession, setCheckingSession] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    // Check for an existing Supabase session
+    // Only check session once
+    if (sessionChecked) return;
+
     const checkSession = async () => {
-      // Guard against multiple simultaneous session checks
-      if (checkingSession) return;
-      
       try {
-        setCheckingSession(true);
         console.log('Checking for existing session...');
-        setLoading(true);
         
-        // First check if we have a session directly from Supabase
-        const { data: sessionData } = await supabase.auth.getSession();
-        console.log('Supabase session check:', sessionData?.session ? 'Session exists' : 'No session');
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Session check timeout')), 5000);
+        });
         
-        const { user, error } = await getCurrentUser();
+        const sessionPromise = getCurrentUser();
+        
+        const { user, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
         
         if (error) {
           console.error("Session error:", error);
-        }
-        
-        if (user) {
+          setUser(null);
+        } else if (user) {
           console.log('User found in session:', user.email);
+          setUser(user);
         } else {
           console.log('No authenticated user found');
-        }
-        
-        setUser(user);
-      } catch (error) {
-        console.error("Session check failed:", error);
-      } finally {
-        setLoading(false);
-        setCheckingSession(false);
-      }
-    };
-
-    if (!checkingSession) {
-      checkSession();
-    }
-
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event);
-        
-        // Don't update state if we're already checking the session
-        if (checkingSession) {
-          console.log('Skipping auth state update - already checking session');
-          return;
-        }
-        
-        if (session) {
-          try {
-            const { user: userData } = await getCurrentUser();
-            
-            // Only update if user data actually changed
-            const currentUserId = user?.id;
-            const newUserId = userData?.id;
-            
-            if (currentUserId !== newUserId) {
-              console.log('Updating user state after auth change');
-              setUser(userData);
-            }
-          } catch (error) {
-            console.error('Error handling auth state change:', error);
-          }
-        } else if (user !== null) { // Only set to null if it's not already null
-          console.log('Clearing user state after signout');
           setUser(null);
         }
+      } catch (error) {
+        console.error("Session check failed:", error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+        setSessionChecked(true);
+        console.log('Session check completed');
       }
-    );
-
-    return () => {
-      subscription.unsubscribe();
     };
-  }, []);
+
+    checkSession();
+  }, [sessionChecked]);
 
   const login = async (email: string, password: string) => {
     try {
       console.log('Login attempt for:', email);
       const result = await signIn(email, password);
-      
-      console.log('Sign in result:', result);
       
       if (result.error) {
         console.error('Login error:', result.error);
@@ -128,18 +88,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         console.log('User data retrieved successfully:', userData);
         setUser(userData);
-        
-        // Force redirection to dashboard with replace to prevent back navigation
-        console.log('Redirecting to dashboard');
         router.replace("/dashboard");
-        
-        // Small delay before returning to ensure router has time to process
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
         return { success: true };
       }
       
-      console.error('Login failed: No user in response');
       return { success: false, error: "Login failed" };
     } catch (error: any) {
       console.error('Unexpected login error:', error);
@@ -156,6 +108,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       setUser(null);
+      setSessionChecked(false); // Allow session check on next login
       router.push("/auth");
       return { success: true };
     } catch (error: any) {

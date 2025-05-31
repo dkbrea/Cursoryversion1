@@ -20,7 +20,12 @@ export default function HomePage() {
 
   return (
     <div className="flex h-screen w-screen items-center justify-center">
-      <p>Loading Pocket Ledger...</p>
+      <div className="text-center">
+        <p>Loading Pocket Ledger...</p>
+        {!loading && (
+          <p className="text-sm text-gray-500 mt-2">Redirecting...</p>
+        )}
+      </div>
     </div>
   );
 }

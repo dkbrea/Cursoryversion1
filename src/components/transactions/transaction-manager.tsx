@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Transaction, Category, Account, RecurringItem, DebtAccount, FinancialGoalWithContribution, TransactionDetailedType } from "@/types";
@@ -7,70 +6,128 @@ import { TransactionTable } from "./transaction-table";
 import { AddEditTransactionDialog } from "./add-edit-transaction-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, TrendingDown, TrendingUp, DollarSign } from "lucide-react";
+import { PlusCircle, TrendingDown, TrendingUp, DollarSign, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
 
-// Mock data - in a real app this would come from a data store / API
-const mockCategories: Category[] = [
-  { id: "cat1", name: "Groceries", userId: "1", createdAt: new Date() },
-  { id: "cat2", name: "Dining Out", userId: "1", createdAt: new Date() },
-  { id: "cat3", name: "Utilities", userId: "1", createdAt: new Date() },
-  { id: "cat4", name: "Transport", userId: "1", createdAt: new Date() },
-  { id: "cat5", name: "Entertainment", userId: "1", createdAt: new Date() },
-  { id: "cat6", name: "Shopping", userId: "1", createdAt: new Date() },
-  { id: "cat7", name: "Health", userId: "1", createdAt: new Date() },
-  { id: "cat8", name: "Salary", userId: "1", createdAt: new Date() },
-  { id: "cat9", name: "Freelance", userId: "1", createdAt: new Date() },
-  { id: "cat10", name: "Bills", userId: "1", createdAt: new Date() },
-];
-
-const mockAssetAccounts: Account[] = [
-  { id: "acc1", name: "Main Checking", type: "checking", bankName: "Capital One", last4: "1234", balance: 5231.89, isPrimary: true, userId: "1", createdAt: new Date() },
-  { id: "acc2", name: "Emergency Fund", type: "savings", bankName: "Ally Bank", last4: "5678", balance: 10500.00, isPrimary: false, userId: "1", createdAt: new Date() },
-  { id: "acc3", name: "Discover Savings", type: "savings", bankName: "Discover", last4: "9012", balance: 2000.00, isPrimary: false, userId: "1", createdAt: new Date() },
-];
-
-const initialMockTransactions: Transaction[] = [
-    { id: "tx1", date: new Date(2024, 6, 15), description: "Trader Joe's Haul", amount: -75.20, type: "expense", detailedType: "variable-expense", categoryId: "cat1", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["food", "weekly shop"]},
-    { id: "tx2", date: new Date(2024, 6, 14), description: "Dinner at The Italian Place", amount: -45.50, type: "expense", detailedType: "variable-expense", categoryId: "cat2", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["restaurant"]},
-    { id: "tx3", date: new Date(2024, 6, 12), description: "Monthly Rent", amount: -1200.00, type: "expense", detailedType: "fixed-expense", sourceId: "rec3", accountId: "acc1", userId: "1", source: "Manual Entry", tags: []},
-    { id: "tx4", date: new Date(2024, 6, 10), description: "Spotify Subscription", amount: -10.99, type: "expense", detailedType: "subscription", sourceId: "rec2", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["music", "subscription"]},
-    { id: "tx5", date: new Date(2024, 6, 5), description: "Paycheck", amount: 2200.00, type: "income", detailedType: "income", sourceId: "rec1", accountId: "acc1", userId: "1", source: "Manual Entry", tags: []},
-];
-
-// Mock data for dialog dropdowns
-const mockRecurringItems: RecurringItem[] = [
-  { id: "rec1", name: "Main Salary", type: "income", amount: 2200, frequency: "monthly", startDate: new Date(2024, 0, 5), userId: "1", createdAt: new Date() },
-  { id: "rec2", name: "Spotify Subscription", type: "subscription", amount: 10.99, frequency: "monthly", lastRenewalDate: new Date(2024, 6, 10), categoryId: "subscriptions-media", userId: "1", createdAt: new Date() },
-  { id: "rec3", name: "Monthly Rent", type: "fixed-expense", amount: 1200, frequency: "monthly", startDate: new Date(2024, 0, 12), categoryId: "housing", userId: "1", createdAt: new Date() },
-];
-
-const mockDebtAccounts: DebtAccount[] = [
-  { id: "debt1", name: "Visa Gold", type: "credit-card", balance: 5250.75, apr: 18.9, minimumPayment: 150, paymentDayOfMonth: 15, paymentFrequency: "monthly", userId: "1", createdAt: new Date() },
-];
-
-const mockGoals: FinancialGoalWithContribution[] = [
-  { id: "goal1", name: "New Car Down Payment", targetAmount: 5000, currentAmount: 1200, targetDate: new Date(2025, 11, 31), icon: "car", userId: "1", createdAt: new Date(), monthlyContribution: 150, monthsRemaining: 20 },
-  { id: "goal2", name: "Emergency Fund Contribution", targetAmount: 10000, currentAmount: 8500, targetDate: new Date(2025, 11, 31), icon: "shield-check", userId: "1", createdAt: new Date(), monthlyContribution: 75, monthsRemaining: 20 },
-];
-
+// API imports
+import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from "@/lib/api/transactions";
+import { getCategories } from "@/lib/api/categories";
+import { getAccounts } from "@/lib/api/accounts";
+import { getRecurringItems } from "@/lib/api/recurring";
+import { getDebtAccounts } from "@/lib/api/debts";
+import { getFinancialGoals } from "@/lib/api/goals";
 
 export function TransactionManager() {
   const { toast } = useToast();
-  const [transactions, setTransactions] = useState<Transaction[]>(initialMockTransactions);
-  const [categoriesList, setCategoriesList] = useState<Category[]>(mockCategories); // Renamed
-  const [accountsList, setAccountsList] = useState<Account[]>(mockAssetAccounts); // Renamed
+  const { user, isAuthenticated } = useAuth();
   
-  const [recurringItemsList, setRecurringItemsList] = useState<RecurringItem[]>(mockRecurringItems); // Renamed
-  const [debtAccountsList, setDebtAccountsList] = useState<DebtAccount[]>(mockDebtAccounts); // Renamed
-  const [goalsList, setGoalsList] = useState<FinancialGoalWithContribution[]>(mockGoals); // Renamed
-
+  // State management
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+  const [accountsList, setAccountsList] = useState<Account[]>([]);
+  const [recurringItemsList, setRecurringItemsList] = useState<RecurringItem[]>([]);
+  const [debtAccountsList, setDebtAccountsList] = useState<DebtAccount[]>([]);
+  const [goalsList, setGoalsList] = useState<FinancialGoalWithContribution[]>([]);
+  
+  // Loading states
+  const [isLoading, setIsLoading] = useState(true);
   const [isAddEditDialogOpen, setIsAddEditDialogOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
 
+  // Fetch all data when component mounts and user is authenticated
   useEffect(() => {
-    // Data is set from mock data above
-  }, []);
+    if (!isAuthenticated || !user?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchAllData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch all data in parallel
+        const [
+          transactionsResult,
+          categoriesResult,
+          accountsResult,
+          recurringResult,
+          debtsResult,
+          goalsResult
+        ] = await Promise.all([
+          getTransactions(user.id, { limit: 100 }),
+          getCategories(user.id),
+          getAccounts(user.id),
+          getRecurringItems(user.id),
+          getDebtAccounts(user.id),
+          getFinancialGoals(user.id)
+        ]);
+
+        // Handle transactions
+        if (transactionsResult.error) {
+          console.error("Error fetching transactions:", transactionsResult.error);
+          toast({
+            title: "Error",
+            description: "Failed to load transactions. Please try again.",
+            variant: "destructive"
+          });
+        } else {
+          setTransactions(transactionsResult.transactions || []);
+        }
+
+        // Handle categories
+        if (categoriesResult.error) {
+          console.error("Error fetching categories:", categoriesResult.error);
+        } else {
+          setCategoriesList(categoriesResult.categories || []);
+        }
+
+        // Handle accounts
+        if (accountsResult.error) {
+          console.error("Error fetching accounts:", accountsResult.error);
+        } else {
+          setAccountsList(accountsResult.accounts || []);
+        }
+
+        // Handle recurring items
+        if (recurringResult.error) {
+          console.error("Error fetching recurring items:", recurringResult.error);
+        } else {
+          setRecurringItemsList(recurringResult.items || []);
+        }
+
+        // Handle debt accounts
+        if (debtsResult.error) {
+          console.error("Error fetching debt accounts:", debtsResult.error);
+        } else {
+          setDebtAccountsList(debtsResult.accounts || []);
+        }
+
+        // Handle goals - transform to match expected interface
+        if (goalsResult.error) {
+          console.error("Error fetching goals:", goalsResult.error);
+        } else {
+          const goalsWithContributions: FinancialGoalWithContribution[] = (goalsResult.goals || []).map(goal => ({
+            ...goal,
+            monthlyContribution: 0, // You might want to calculate this based on target date
+            monthsRemaining: 0 // You might want to calculate this based on target date
+          }));
+          setGoalsList(goalsWithContributions);
+        }
+
+      } catch (error) {
+        console.error("Unexpected error fetching data:", error);
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred while loading data.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAllData();
+  }, [isAuthenticated, user?.id, toast]);
 
   const handleOpenAddDialog = () => {
     setTransactionToEdit(null);
@@ -82,10 +139,18 @@ export function TransactionManager() {
     setIsAddEditDialogOpen(true);
   };
 
-  const handleSaveTransaction = (
+  const handleSaveTransaction = async (
     data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">, 
     id?: string
   ) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to save transactions.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     let finalType: Transaction['type'] = 'expense';
     if (data.detailedType === 'income') {
@@ -96,62 +161,154 @@ export function TransactionManager() {
     
     const finalAmount = (finalType === 'income' || finalType === 'transfer') ? Math.abs(data.amount) : -Math.abs(data.amount);
 
-    const processedData: Partial<Transaction> = {
+    const processedData = {
       ...data,
       type: finalType,
       amount: finalAmount,
       tags: data.tags || [],
-      categoryId: data.detailedType === 'variable-expense' ? data.categoryId : null, // Ensure categoryId is only set for variable-expense
-      toAccountId: data.detailedType === 'goal-contribution' ? data.toAccountId : null, // Ensure toAccountId is only set for goal-contribution
+      categoryId: data.detailedType === 'variable-expense' ? data.categoryId : null,
+      toAccountId: data.detailedType === 'goal-contribution' ? data.toAccountId : null,
+      userId: user.id
     };
 
-
-    if (id) { 
-      setTransactions(prev => prev.map(t => t.id === id ? { 
-        ...t, 
-        ...processedData, 
-        updatedAt: new Date() 
-      } as Transaction : t));
-      toast({ title: "Transaction Updated", description: `"${data.description}" has been updated.` });
-    } else { 
-      const newTransaction: Transaction = {
-        ...processedData,
-        id: `txn-${Date.now()}`,
-        userId: "1", 
-        source: "Manual Entry", // Or derive from sourceId if applicable
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as Transaction;
-      setTransactions(prev => [newTransaction, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-      toast({ title: "Transaction Added", description: `"${newTransaction.description}" has been added.` });
+    try {
+      if (id) {
+        // Update existing transaction
+        const result = await updateTransaction(id, processedData);
+        if (result.error) {
+          toast({
+            title: "Error",
+            description: `Failed to update transaction: ${result.error}`,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (result.transaction) {
+          setTransactions(prev => prev.map(t => t.id === id ? result.transaction! : t));
+          toast({ 
+            title: "Transaction Updated", 
+            description: `"${data.description}" has been updated.` 
+          });
+        }
+      } else {
+        // Create new transaction
+        const result = await createTransaction(processedData);
+        if (result.error) {
+          toast({
+            title: "Error",
+            description: `Failed to create transaction: ${result.error}`,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (result.transaction) {
+          setTransactions(prev => [result.transaction!, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+          toast({ 
+            title: "Transaction Added", 
+            description: `"${result.transaction.description}" has been added.` 
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error saving transaction:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while saving the transaction.",
+        variant: "destructive"
+      });
     }
+    
     setIsAddEditDialogOpen(false);
     setTransactionToEdit(null);
   };
 
-  const handleDeleteTransaction = (transactionId: string) => {
+  const handleDeleteTransaction = async (transactionId: string) => {
     const transactionToDelete = transactions.find(t => t.id === transactionId);
-    setTransactions((prevTransactions) => prevTransactions.filter(t => t.id !== transactionId));
-    if (transactionToDelete) {
+    
+    try {
+      const result = await deleteTransaction(transactionId);
+      if (result.error) {
         toast({
-            title: "Transaction Deleted",
-            description: `Transaction "${transactionToDelete.description}" has been removed.`,
-            variant: "destructive"
+          title: "Error",
+          description: `Failed to delete transaction: ${result.error}`,
+          variant: "destructive"
         });
+        return;
+      }
+      
+      setTransactions((prevTransactions) => prevTransactions.filter(t => t.id !== transactionId));
+      if (transactionToDelete) {
+        toast({
+          title: "Transaction Deleted",
+          description: `Transaction "${transactionToDelete.description}" has been removed.`,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting transaction:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while deleting the transaction.",
+        variant: "destructive"
+      });
     }
   };
   
-  const handleUpdateTransactionCategory = (transactionId: string, categoryId: string | null) => {
-    setTransactions((prevTransactions) =>
-      prevTransactions.map((t) =>
-        t.id === transactionId ? { ...t, categoryId, updatedAt: new Date() } : t
-      )
-    );
-     const updatedTransaction = transactions.find(t => t.id === transactionId);
-     if (updatedTransaction) {
-        toast({ title: "Category Updated", description: `Category for "${updatedTransaction.description}" updated.`});
-     }
+  const handleUpdateTransactionCategory = async (transactionId: string, categoryId: string | null) => {
+    const transaction = transactions.find(t => t.id === transactionId);
+    if (!transaction) return;
+
+    try {
+      const result = await updateTransaction(transactionId, { categoryId });
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: `Failed to update category: ${result.error}`,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setTransactions((prevTransactions) =>
+        prevTransactions.map((t) =>
+          t.id === transactionId ? { ...t, categoryId, updatedAt: new Date() } : t
+        )
+      );
+      
+      toast({ 
+        title: "Category Updated", 
+        description: `Category for "${transaction.description}" updated.`
+      });
+    } catch (error) {
+      console.error("Error updating transaction category:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while updating the category.",
+        variant: "destructive"
+      });
+    }
   };
+
+  // If not authenticated, show message
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <p className="text-muted-foreground">Please log in to view your transactions.</p>
+      </div>
+    );
+  }
+
+  // If loading, show loading state
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">Loading your transactions...</p>
+      </div>
+    );
+  }
 
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
   const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Math.abs(t.amount), 0); 

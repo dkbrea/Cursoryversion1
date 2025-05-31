@@ -1,4 +1,3 @@
-
 import { TransactionManager } from "@/components/transactions/transaction-manager";
 import type { Metadata } from "next";
 

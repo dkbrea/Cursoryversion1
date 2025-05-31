@@ -1,4 +1,3 @@
-
 "use client";
 
 import type {
@@ -23,6 +22,7 @@ import {
   addMonths, addQuarters, addYears, getDate, startOfDay, isBefore, isAfter,
   differenceInCalendarMonths, isPast, format, getYear, getMonth, isSameDay
 } from "date-fns";
+import { saveForecastOverride, getForecastOverridesForMonth } from "@/lib/api/forecast-overrides-v2";
 
 export function BudgetManager() {
   const { toast } = useToast();
@@ -871,8 +871,98 @@ export function BudgetManager() {
         isBalanced: Math.abs(remainingToBudget) < 0.01, // Check if close to zero
       });
     }
-    setForecastData(newForecastData);
-  }, [recurringItems, debtAccounts, variableExpenses, goals, goalsWithContributions]);
+    
+    // Load existing overrides and apply them to the forecast data
+    const loadOverridesAndSetForecast = async () => {
+      if (!user?.id) {
+        setForecastData(newForecastData);
+        return;
+      }
+
+      try {
+        // Load overrides for each month
+        const updatedForecastData = [...newForecastData];
+        
+        for (let monthIndex = 0; monthIndex < newForecastData.length; monthIndex++) {
+          const monthData = newForecastData[monthIndex];
+          const monthYear = format(monthData.month, 'yyyy-MM');
+          
+          const { overrides, error } = await getForecastOverridesForMonth(user.id, monthYear);
+          
+          if (error) {
+            console.error(`Error loading overrides for ${monthYear}:`, error);
+            continue;
+          }
+          
+          if (overrides && Object.keys(overrides).length > 0) {
+            // Apply overrides to variable expenses
+            const updatedVariableExpenses = monthData.variableExpenses.map(ve => {
+              const override = overrides[ve.id];
+              return override !== undefined 
+                ? { ...ve, monthSpecificAmount: override }
+                : ve;
+            });
+            
+            // Apply overrides to goal contributions
+            const updatedGoalContributions = monthData.goalContributions.map(gc => {
+              const override = overrides[gc.id];
+              return override !== undefined 
+                ? { ...gc, monthSpecificContribution: override }
+                : gc;
+            });
+            
+            // Apply overrides to debt additional payments
+            const updatedDebtPayments = monthData.debtPaymentItems.map(dp => {
+              const override = overrides[dp.id];
+              return override !== undefined 
+                ? { ...dp, additionalPayment: override }
+                : dp;
+            });
+            
+            // Recalculate totals
+            const newTotalVariableExpenses = updatedVariableExpenses.reduce(
+              (sum, ve) => sum + ve.monthSpecificAmount, 0
+            );
+            const newTotalGoalContributions = updatedGoalContributions.reduce(
+              (sum, gc) => sum + gc.monthSpecificContribution, 0
+            );
+            const newTotalAdditionalDebtPayments = updatedDebtPayments.reduce(
+              (sum, dp) => sum + (dp.additionalPayment || 0), 0
+            );
+            
+            const newRemainingToBudget = monthData.totalIncome - (
+              monthData.totalFixedExpenses +
+              monthData.totalSubscriptions +
+              monthData.totalDebtMinimumPayments +
+              newTotalAdditionalDebtPayments +
+              newTotalVariableExpenses +
+              newTotalGoalContributions
+            );
+            
+            // Update the month data
+            updatedForecastData[monthIndex] = {
+              ...monthData,
+              variableExpenses: updatedVariableExpenses,
+              totalVariableExpenses: newTotalVariableExpenses,
+              goalContributions: updatedGoalContributions,
+              totalGoalContributions: newTotalGoalContributions,
+              debtPaymentItems: updatedDebtPayments,
+              remainingToBudget: newRemainingToBudget,
+              isBalanced: Math.abs(newRemainingToBudget) < 0.01
+            };
+          }
+        }
+        
+        setForecastData(updatedForecastData);
+      } catch (error) {
+        console.error('Error loading forecast overrides:', error);
+        // Fall back to setting forecast data without overrides
+        setForecastData(newForecastData);
+      }
+    };
+    
+    loadOverridesAndSetForecast();
+  }, [recurringItems, debtAccounts, variableExpenses, goals, goalsWithContributions, user?.id]);
 
   const totalBudgetedVariable = useMemo(() => {
     return variableExpenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -953,7 +1043,7 @@ export function BudgetManager() {
     }
   };
 
-  const handleUpdateVariableExpenseAmount = (expenseId: string, newAmount: number) => {
+  const handleUpdateVariableExpenseAmount = async (expenseId: string, newAmount: number) => {
     // Update the variable expense amount in the main state
     setVariableExpenses(prev => prev.map(expense => 
       expense.id === expenseId ? { ...expense, amount: newAmount } : expense
@@ -995,6 +1085,25 @@ export function BudgetManager() {
         };
       });
     });
+
+    // Save override for the selected month to persist the change
+    if (user?.id) {
+      try {
+        const result = await saveForecastOverride(
+          user.id,
+          expenseId,
+          format(selectedMonth, 'yyyy-MM'),
+          newAmount,
+          'variable-expense'
+        );
+
+        if (!result.success) {
+          console.error('Failed to save forecast override:', result.error);
+        }
+      } catch (error) {
+        console.error('Error saving forecast override:', error);
+      }
+    }
   };
 
   const handleDeleteVariableExpense = (expenseId: string) => {
@@ -1066,34 +1175,193 @@ export function BudgetManager() {
     });
   };
 
-  const handleUpdateForecastVariableAmount = (monthIndex: number, variableExpenseId: string, newAmount: number) => {
-    const monthToUpdate = forecastData[monthIndex];
-    if (!monthToUpdate) return;
+  const handleUpdateForecastVariableAmount = async (monthIndex: number, expenseId: string, newAmount: number) => {
+    if (!user?.id) {
+      console.error('User not authenticated');
+      return;
+    }
 
-    const updatedVariableExpenses = monthToUpdate.variableExpenses.map(ve =>
-      ve.id === variableExpenseId ? { ...ve, monthSpecificAmount: newAmount } : ve
-    );
-    updateForecastMonth(monthIndex, { variableExpenses: updatedVariableExpenses });
+    try {
+      // Update local state immediately for responsive UI
+      setForecastData(prev => {
+        if (!prev || prev.length === 0 || monthIndex >= prev.length) return prev;
+        
+        return prev.map((monthData, index) => {
+          if (index !== monthIndex) return monthData;
+          
+          // Update the variable expenses for this month
+          const updatedVariableExpenses = monthData.variableExpenses.map(expense =>
+            expense.id === expenseId ? { ...expense, monthSpecificAmount: newAmount } : expense
+          );
+          
+          // Recalculate totals
+          const newTotalVariableExpenses = updatedVariableExpenses.reduce(
+            (sum, ve) => sum + ve.monthSpecificAmount, 0
+          );
+          
+          const newRemainingToBudget = monthData.totalIncome - (
+            monthData.totalFixedExpenses +
+            monthData.totalSubscriptions +
+            monthData.totalDebtMinimumPayments +
+            monthData.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0) +
+            newTotalVariableExpenses +
+            monthData.totalGoalContributions
+          );
+          
+          return {
+            ...monthData,
+            variableExpenses: updatedVariableExpenses,
+            totalVariableExpenses: newTotalVariableExpenses,
+            remainingToBudget: newRemainingToBudget,
+            isBalanced: Math.abs(newRemainingToBudget) < 0.01
+          };
+        });
+      });
+
+      // Save override to database/localStorage
+      const monthToUpdate = forecastData[monthIndex];
+      if (monthToUpdate) {
+        const result = await saveForecastOverride(
+          user.id,
+          expenseId,
+          format(monthToUpdate.month, 'yyyy-MM'),
+          newAmount,
+          'variable-expense'
+        );
+
+        if (!result.success) {
+          console.error('Failed to save forecast override:', result.error);
+          // Could show a toast notification here
+        }
+      }
+    } catch (error) {
+      console.error('Error updating forecast variable amount:', error);
+    }
   };
 
-  const handleUpdateForecastGoalContribution = (monthIndex: number, goalId: string, newAmount: number) => {
-    const monthToUpdate = forecastData[monthIndex];
-    if (!monthToUpdate) return;
+  const handleUpdateForecastGoalContribution = async (monthIndex: number, goalId: string, newAmount: number) => {
+    if (!user?.id) {
+      console.error('User not authenticated');
+      return;
+    }
 
-    const updatedGoalContributions = monthToUpdate.goalContributions.map(gc =>
-      gc.id === goalId ? { ...gc, monthSpecificContribution: newAmount } : gc
-    );
-    updateForecastMonth(monthIndex, { goalContributions: updatedGoalContributions });
+    try {
+      // Update local state immediately
+      setForecastData(prev => {
+        if (!prev || prev.length === 0 || monthIndex >= prev.length) return prev;
+        
+        return prev.map((monthData, index) => {
+          if (index !== monthIndex) return monthData;
+          
+          // Update the goal contributions for this month
+          const updatedGoalContributions = monthData.goalContributions.map(goal =>
+            goal.id === goalId ? { ...goal, monthSpecificContribution: newAmount } : goal
+          );
+          
+          // Recalculate totals
+          const newTotalGoalContributions = updatedGoalContributions.reduce(
+            (sum, gc) => sum + gc.monthSpecificContribution, 0
+          );
+          
+          const newRemainingToBudget = monthData.totalIncome - (
+            monthData.totalFixedExpenses +
+            monthData.totalSubscriptions +
+            monthData.totalDebtMinimumPayments +
+            monthData.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0) +
+            monthData.totalVariableExpenses +
+            newTotalGoalContributions
+          );
+          
+          return {
+            ...monthData,
+            goalContributions: updatedGoalContributions,
+            totalGoalContributions: newTotalGoalContributions,
+            remainingToBudget: newRemainingToBudget,
+            isBalanced: Math.abs(newRemainingToBudget) < 0.01
+          };
+        });
+      });
+
+      // Save override to database/localStorage
+      const monthToUpdate = forecastData[monthIndex];
+      if (monthToUpdate) {
+        const result = await saveForecastOverride(
+          user.id,
+          goalId,
+          format(monthToUpdate.month, 'yyyy-MM'),
+          newAmount,
+          'goal-contribution'
+        );
+
+        if (!result.success) {
+          console.error('Failed to save forecast override:', result.error);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating forecast goal contribution:', error);
+    }
   };
 
-  const handleUpdateForecastDebtAdditionalPayment = (monthIndex: number, debtId: string, newAdditionalAmount: number) => {
-    const monthToUpdate = forecastData[monthIndex];
-    if (!monthToUpdate) return;
+  const handleUpdateForecastDebtAdditionalPayment = async (monthIndex: number, debtId: string, newAmount: number) => {
+    if (!user?.id) {
+      console.error('User not authenticated');
+      return;
+    }
 
-    const updatedDebtPayments = monthToUpdate.debtPaymentItems.map(dp =>
-      dp.id === debtId ? { ...dp, additionalPayment: newAdditionalAmount } : dp
-    );
-    updateForecastMonth(monthIndex, { debtPaymentItems: updatedDebtPayments });
+    try {
+      // Update local state immediately
+      setForecastData(prev => {
+        if (!prev || prev.length === 0 || monthIndex >= prev.length) return prev;
+        
+        return prev.map((monthData, index) => {
+          if (index !== monthIndex) return monthData;
+          
+          // Update the debt payments for this month
+          const updatedDebtPayments = monthData.debtPaymentItems.map(debt =>
+            debt.id === debtId ? { ...debt, additionalPayment: newAmount } : debt
+          );
+          
+          // Recalculate totals
+          const newTotalAdditionalDebtPayments = updatedDebtPayments.reduce(
+            (sum, debt) => sum + (debt.additionalPayment || 0), 0
+          );
+          
+          const newRemainingToBudget = monthData.totalIncome - (
+            monthData.totalFixedExpenses +
+            monthData.totalSubscriptions +
+            monthData.totalDebtMinimumPayments +
+            newTotalAdditionalDebtPayments +
+            monthData.totalVariableExpenses +
+            monthData.totalGoalContributions
+          );
+          
+          return {
+            ...monthData,
+            debtPaymentItems: updatedDebtPayments,
+            remainingToBudget: newRemainingToBudget,
+            isBalanced: Math.abs(newRemainingToBudget) < 0.01
+          };
+        });
+      });
+
+      // Save override to database/localStorage
+      const monthToUpdate = forecastData[monthIndex];
+      if (monthToUpdate) {
+        const result = await saveForecastOverride(
+          user.id,
+          debtId,
+          format(monthToUpdate.month, 'yyyy-MM'),
+          newAmount,
+          'debt-additional-payment'
+        );
+
+        if (!result.success) {
+          console.error('Failed to save forecast override:', result.error);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating forecast debt payment:', error);
+    }
   };
 
   if (isLoading) {
@@ -1135,7 +1403,7 @@ export function BudgetManager() {
                     setSelectedMonth(new Date(year, month - 1, 1));
                   }}
                 >
-                  {forecastData.map((month) => (
+                  {forecastData && forecastData.map((month) => (
                     <option key={format(month.month, 'yyyy-MM')} value={format(month.month, 'yyyy-MM')}>
                       {format(month.month, 'MMMM yyyy')}
                     </option>
@@ -1148,22 +1416,51 @@ export function BudgetManager() {
             totalIncome={getSelectedMonthData().totalIncome}
             totalActualFixedExpenses={getSelectedMonthData().totalFixedExpenses}
             totalSubscriptions={getSelectedMonthData().totalSubscriptions}
-            totalDebtPayments={getSelectedMonthData().totalDebtMinimumPayments}
+            totalDebtPayments={(() => {
+              const selectedData = getSelectedMonthData();
+              const minimumPayments = selectedData.totalDebtMinimumPayments || 0;
+              // Add additional payments if available in forecast data
+              if ('debtPaymentItems' in selectedData && selectedData.debtPaymentItems) {
+                const additionalPayments = selectedData.debtPaymentItems.reduce(
+                  (sum, debt) => sum + (debt.additionalPayment || 0), 0
+                );
+                return minimumPayments + additionalPayments;
+              }
+              return minimumPayments;
+            })()}
             totalGoalContributions={getSelectedMonthData().totalGoalContributions}
             totalBudgetedVariable={getSelectedMonthData().totalVariableExpenses}
             onAddCategoryClick={() => setIsAddCategoryDialogOpen(true)}
           />
           <VariableExpenseList
-            expenses={variableExpenses}
+            expenses={(() => {
+              const selectedMonthData = getSelectedMonthData();
+              // If we have forecast data for the selected month, use the variable expenses from there
+              // This ensures the list shows the overridden amounts
+              if (selectedMonthData && 'variableExpenses' in selectedMonthData && selectedMonthData.variableExpenses) {
+                return selectedMonthData.variableExpenses.map(ve => ({
+                  id: ve.id,
+                  name: ve.name,
+                  category: 'personal' as const, // Default category since forecast doesn't store this
+                  amount: ve.monthSpecificAmount,
+                  userId: user?.id || '',
+                  createdAt: new Date(),
+                  updatedAt: undefined
+                }));
+              }
+              // Fallback to original variable expenses if no forecast data
+              return variableExpenses;
+            })()}
+            onUpdateExpenseAmount={handleUpdateVariableExpenseAmount}
             onDeleteExpense={handleDeleteVariableExpense}
           />
         </TabsContent>
         <TabsContent value="forecast">
             <BudgetForecastView
                 forecastData={forecastData}
-                onUpdateVariableAmount={handleUpdateForecastVariableAmount}
-                onUpdateGoalContribution={handleUpdateForecastGoalContribution}
-                onUpdateDebtAdditionalPayment={handleUpdateForecastDebtAdditionalPayment}
+                onUpdateVariableAmount={(monthIndex, expenseId, newAmount) => handleUpdateForecastVariableAmount(monthIndex, expenseId, newAmount)}
+                onUpdateGoalContribution={(monthIndex, goalId, newAmount) => handleUpdateForecastGoalContribution(monthIndex, goalId, newAmount)}
+                onUpdateDebtAdditionalPayment={(monthIndex, debtId, newAmount) => handleUpdateForecastDebtAdditionalPayment(monthIndex, debtId, newAmount)}
             />
         </TabsContent>
       </Tabs>
