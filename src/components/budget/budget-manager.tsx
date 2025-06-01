@@ -28,6 +28,7 @@ export function BudgetManager() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [isDataReady, setIsDataReady] = useState(false);
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [variableExpenses, setVariableExpenses] = useState<VariableExpense[]>([]);
@@ -878,6 +879,7 @@ export function BudgetManager() {
     const loadOverridesAndSetForecast = async () => {
       if (!user?.id) {
         setForecastData(newForecastData);
+        setIsDataReady(true);
         return;
       }
 
@@ -956,10 +958,12 @@ export function BudgetManager() {
         }
         
         setForecastData(updatedForecastData);
+        setIsDataReady(true);
       } catch (error) {
         console.error('Error loading forecast overrides:', error);
         // Fall back to setting forecast data without overrides
         setForecastData(newForecastData);
+        setIsDataReady(true);
       }
     };
     
@@ -1445,7 +1449,7 @@ export function BudgetManager() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !isDataReady) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-center">
@@ -1572,7 +1576,7 @@ export function BudgetManager() {
         onExpenseUpdated={handleEditVariableExpense}
         expenseToEdit={expenseToEdit}
       >
-        <></>
+        <div />
       </AddEditVariableExpenseDialog>
     </div>
   );
