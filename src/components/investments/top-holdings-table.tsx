@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Holding } from "@/types";
@@ -12,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, TrendingUp, TrendingDown, Trash2 } from "lucide-react";
+import { MoreHorizontal, TrendingUp, TrendingDown, Trash2, Edit } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,9 +35,10 @@ import {
 interface TopHoldingsTableProps {
   holdings: Holding[];
   onDeleteHolding: (holdingId: string) => void;
+  onEditHolding?: (holding: Holding) => void;
 }
 
-export function TopHoldingsTable({ holdings, onDeleteHolding }: TopHoldingsTableProps) {
+export function TopHoldingsTable({ holdings, onDeleteHolding, onEditHolding }: TopHoldingsTableProps) {
 
   if (holdings.length === 0) {
     return <p className="text-muted-foreground mt-4 text-center py-6">No holdings tracked yet. Add holdings to see them here.</p>;
@@ -92,7 +92,13 @@ export function TopHoldingsTable({ holdings, onDeleteHolding }: TopHoldingsTable
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem disabled>Edit Holding (Soon)</DropdownMenuItem>
+                        {onEditHolding ? (
+                          <DropdownMenuItem onClick={() => onEditHolding(holding)}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit Holding
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem disabled>Edit Holding (Soon)</DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <AlertDialogTrigger asChild>
                             <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
@@ -101,6 +107,7 @@ export function TopHoldingsTable({ holdings, onDeleteHolding }: TopHoldingsTable
                         </AlertDialogTrigger>
                     </DropdownMenuContent>
                     </DropdownMenu>
+                    
                     <AlertDialogContent>
                         <AlertDialogHeader>
                         <AlertDialogTitle>Delete Holding "{holding.name}"?</AlertDialogTitle>

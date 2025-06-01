@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { InvestmentAccount, InvestmentAccountType } from "@/types";
@@ -22,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 interface InvestmentAccountCardProps {
   account: InvestmentAccount;
   onDeleteAccount: (accountId: string) => void;
-  // onEditAccount: (account: InvestmentAccount) => void; // Future
+  onEditAccount: (account: InvestmentAccount) => void;
 }
 
 const getAccountTypeIcon = (type: InvestmentAccountType): React.ReactElement => {
@@ -44,7 +43,7 @@ const formatAccountTypeLabel = (type: InvestmentAccountType) => {
   return type.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
-export function InvestmentAccountCard({ account, onDeleteAccount }: InvestmentAccountCardProps) {
+export function InvestmentAccountCard({ account, onDeleteAccount, onEditAccount }: InvestmentAccountCardProps) {
   return (
     <TooltipProvider>
       <Card className="flex flex-col shadow-md hover:shadow-lg transition-shadow duration-200 ease-in-out border border-border hover:border-primary/50">
@@ -71,11 +70,16 @@ export function InvestmentAccountCard({ account, onDeleteAccount }: InvestmentAc
         <CardFooter className="flex justify-end items-center gap-2 pt-4 border-t">
           <Tooltip>
             <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" disabled className="cursor-not-allowed opacity-50">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => onEditAccount(account)}
+                  className="text-muted-foreground hover:text-primary"
+                >
                     <Icons.Edit className="h-4 w-4" />
                 </Button>
             </TooltipTrigger>
-            <TooltipContent><p>Edit Account (Coming Soon)</p></TooltipContent>
+            <TooltipContent><p>Edit Account</p></TooltipContent>
           </Tooltip>
           <AlertDialog>
             <AlertDialogTrigger asChild>

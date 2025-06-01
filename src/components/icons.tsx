@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 import {
-  Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3, RefreshCw, Settings2, Clock, BarChartBig as LucideBarChartBig, Info, PieChart as LucidePieChart, Download, CalendarDays, History, FileText as FileTextIconLucide, Bot, Percent, Activity, Lightbulb, ListChecks, ArrowUp, ArrowRight
+  Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3, RefreshCw, Settings2, Clock, BarChartBig as LucideBarChartBig, Info, PieChart as LucidePieChart, Download, CalendarDays, History, FileText as FileTextIconLucide, Bot, Percent, Activity, Lightbulb, ListChecks, ArrowUp, ArrowRight, AlertCircle
 } from 'lucide-react';
 
 // Renaming to avoid conflict if we have other components named PieChart, BarChartBig etc.
@@ -46,6 +46,7 @@ export const Icons = {
   Delete: Trash,
   DollarSign: DollarSign,
   HelpCircle: HelpCircle,
+  AlertCircle: AlertCircle,
   AccountTypeChecking: Landmark,
   AccountTypeSavings: PiggyBank,
   AccountTypeCreditCard: CreditCard,

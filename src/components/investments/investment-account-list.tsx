@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { InvestmentAccount } from "@/types";
@@ -7,10 +6,10 @@ import { InvestmentAccountCard } from "./investment-account-card";
 interface InvestmentAccountListProps {
   accounts: InvestmentAccount[];
   onDeleteAccount: (accountId: string) => void;
-  // onEditAccount: (account: InvestmentAccount) => void; // Future enhancement
+  onEditAccount: (account: InvestmentAccount) => void;
 }
 
-export function InvestmentAccountList({ accounts, onDeleteAccount }: InvestmentAccountListProps) {
+export function InvestmentAccountList({ accounts, onDeleteAccount, onEditAccount }: InvestmentAccountListProps) {
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {accounts.map((account) => (
@@ -18,7 +17,7 @@ export function InvestmentAccountList({ accounts, onDeleteAccount }: InvestmentA
           key={account.id}
           account={account}
           onDeleteAccount={onDeleteAccount}
-          // onEditAccount={onEditAccount} // Future
+          onEditAccount={onEditAccount}
         />
       ))}
     </div>
