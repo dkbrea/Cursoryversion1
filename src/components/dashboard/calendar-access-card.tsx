@@ -10,7 +10,7 @@ interface CalendarAccessCardProps {
 
 export function CalendarAccessCard({ onViewCalendar }: CalendarAccessCardProps) {
   return (
-    <Card className="h-fit">
+    <Card className="h-fit shadow-lg">
       <CardContent className="p-4">
         <div className="flex items-center justify-center">
           <Button 

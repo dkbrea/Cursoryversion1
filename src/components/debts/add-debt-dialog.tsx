@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,7 +33,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import type { DebtAccount, DebtAccountType, PaymentFrequency } from "@/types";
 import { debtAccountTypes, paymentFrequencies } from "@/types"; // Import the array of types
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, useEffect } from "react";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { format, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -75,20 +74,36 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
   const [formResetKey, setFormResetKey] = useState(0); // Add a key to force re-render
   const [isNextDueDatePickerOpen, setIsNextDueDatePickerOpen] = useState(false);
 
-  // Define default values outside to reuse them
-  const defaultValues = {
-    name: initialValues?.name || "",
-    type: initialValues?.type || (undefined as unknown as DebtAccountType),
-    balance: initialValues?.balance || undefined,
-    apr: initialValues?.apr || undefined,
-    minimumPayment: initialValues?.minimumPayment || undefined,
-    nextDueDate: initialValues?.nextDueDate ? startOfDay(new Date(initialValues.nextDueDate)) : startOfDay(new Date()),
-    paymentFrequency: initialValues?.paymentFrequency || (undefined as unknown as PaymentFrequency), // Keep undefined to allow placeholder to show
+  // Define default values based on whether we're editing or adding
+  const getDefaultValues = () => {
+    if (isEditing && initialValues) {
+      // When editing, use the initial values
+      return {
+        name: initialValues.name || "",
+        type: initialValues.type || (undefined as unknown as DebtAccountType),
+        balance: initialValues.balance || undefined,
+        apr: initialValues.apr || undefined,
+        minimumPayment: initialValues.minimumPayment || undefined,
+        nextDueDate: initialValues.nextDueDate ? startOfDay(new Date(initialValues.nextDueDate)) : startOfDay(new Date()),
+        paymentFrequency: initialValues.paymentFrequency || (undefined as unknown as PaymentFrequency),
+      };
+    } else {
+      // When adding new, always use empty/default values
+      return {
+        name: "",
+        type: undefined as unknown as DebtAccountType,
+        balance: undefined,
+        apr: undefined,
+        minimumPayment: undefined,
+        nextDueDate: startOfDay(new Date()),
+        paymentFrequency: undefined as unknown as PaymentFrequency,
+      };
+    }
   };
 
   const form = useForm<AddDebtFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues,
+    defaultValues: getDefaultValues(),
   });
 
   // State to track if we should keep the dialog open after submission
@@ -99,8 +114,18 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
     // Clear all form fields and errors
     form.clearErrors();
     
-    // Reset to completely fresh state
-    form.reset(defaultValues, {
+    // Reset to completely fresh state for adding (not editing)
+    const freshValues = {
+      name: "",
+      type: undefined as unknown as DebtAccountType,
+      balance: undefined,
+      apr: undefined,
+      minimumPayment: undefined,
+      nextDueDate: startOfDay(new Date()),
+      paymentFrequency: undefined as unknown as PaymentFrequency,
+    };
+    
+    form.reset(freshValues, {
       keepDefaultValues: false,
       keepErrors: false,
       keepDirty: false,
@@ -113,6 +138,23 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
     // Force re-render with a new key
     setFormResetKey(prev => prev + 1);
   };
+
+  // Reset form when switching between edit/add modes or when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      const values = getDefaultValues();
+      form.reset(values, {
+        keepDefaultValues: false,
+        keepErrors: false,
+        keepDirty: false,
+        keepIsSubmitted: false,
+        keepTouched: false,
+        keepIsValid: false,
+        keepSubmitCount: false
+      });
+      setFormResetKey(prev => prev + 1);
+    }
+  }, [isOpen, isEditing, initialValues?.id]);
 
   async function onSubmit(values: AddDebtFormValues, keepOpenSubmit: boolean = false) {
     setIsLoading(true);
@@ -183,7 +225,7 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Debt Type *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a debt type" />
@@ -290,7 +332,7 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Payment Frequency *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select frequency" />

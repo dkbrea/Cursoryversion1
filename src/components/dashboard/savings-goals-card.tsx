@@ -9,7 +9,11 @@ import { getFinancialGoals } from "@/lib/api/goals";
 import type { FinancialGoal } from "@/types";
 import { format, isPast, startOfDay } from "date-fns";
 
-export function SavingsGoalsCard() {
+interface SavingsGoalsCardProps {
+  refreshTrigger?: number;
+}
+
+export function SavingsGoalsCard({ refreshTrigger }: SavingsGoalsCardProps = {}) {
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
@@ -34,7 +38,7 @@ export function SavingsGoalsCard() {
     }
 
     fetchGoals();
-  }, [user?.id]);
+  }, [user?.id, refreshTrigger]);
 
   // Get top 3 goals with soonest target dates
   const topGoals = useMemo(() => {

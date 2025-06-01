@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpIcon, ArrowDownIcon, ArrowRightIcon, Plus } from "lucide-react";
+import { ArrowUpIcon, ArrowDownIcon, ArrowRightIcon, Plus, Edit, Trash2 } from "lucide-react";
 import type { Transaction, Category, Account, DebtAccount } from "@/types";
 
 interface RecentTransactionsCardProps {
@@ -14,6 +14,8 @@ interface RecentTransactionsCardProps {
   debtAccounts: DebtAccount[];
   limit?: number;
   onAddTransaction?: () => void;
+  onEditTransaction?: (transaction: Transaction) => void;
+  onDeleteTransaction?: (transactionId: string) => void;
 }
 
 export function RecentTransactionsCard({ 
@@ -22,7 +24,9 @@ export function RecentTransactionsCard({
   accounts, 
   debtAccounts,
   limit = 5, 
-  onAddTransaction
+  onAddTransaction,
+  onEditTransaction,
+  onDeleteTransaction
 }: RecentTransactionsCardProps) {
   // Sort transactions by date (most recent first) and limit the results
   const recentTransactions = transactions
@@ -146,7 +150,7 @@ export function RecentTransactionsCard({
               key={transaction.id}
               className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
             >
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className={`p-2 rounded-full ${getTransactionTypeColor(transaction.type, transaction.detailedType)}`}>
                   {getTransactionIcon(transaction.type, transaction.detailedType)}
                 </div>
@@ -174,17 +178,45 @@ export function RecentTransactionsCard({
                 </div>
               </div>
               
-              <div className="text-right">
-                <p className={`font-semibold ${
-                  transaction.type === 'income' 
-                    ? 'text-green-600' 
-                    : transaction.type === 'transfer'
-                    ? 'text-blue-600'
-                    : 'text-red-600'
-                }`}>
-                  {transaction.type === 'income' ? '+' : transaction.type === 'expense' ? '-' : ''}
-                  {formatCurrency(Math.abs(transaction.amount))}
-                </p>
+              <div className="flex items-center gap-2">
+                <div className="text-right">
+                  <p className={`font-semibold ${
+                    transaction.type === 'income' 
+                      ? 'text-green-600' 
+                      : transaction.type === 'transfer'
+                      ? 'text-blue-600'
+                      : 'text-red-600'
+                  }`}>
+                    {transaction.type === 'income' ? '+' : transaction.type === 'expense' ? '-' : ''}
+                    {formatCurrency(Math.abs(transaction.amount))}
+                  </p>
+                </div>
+                
+                {/* Edit and Delete buttons */}
+                <div className="flex items-center gap-1 ml-2">
+                  {onEditTransaction && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEditTransaction(transaction)}
+                      className="h-8 w-8 p-0 hover:bg-blue-100"
+                      title="Edit transaction"
+                    >
+                      <Edit className="h-4 w-4 text-blue-600" />
+                    </Button>
+                  )}
+                  {onDeleteTransaction && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onDeleteTransaction(transaction.id)}
+                      className="h-8 w-8 p-0 hover:bg-red-100"
+                      title="Delete transaction"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

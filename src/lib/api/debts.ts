@@ -22,7 +22,7 @@ export const getDebtAccounts = async (userId: string): Promise<{ accounts: DebtA
       apr: account.apr,
       minimumPayment: account.minimum_payment,
       paymentDayOfMonth: account.payment_day_of_month,
-      nextDueDate: account.next_due_date ? new Date(account.next_due_date) : new Date(), // Use the next_due_date field if available
+      nextDueDate: new Date(), // Use current date as fallback since this field isn't in the schema
       paymentFrequency: account.payment_frequency as PaymentFrequency,
       userId: account.user_id,
       createdAt: new Date(account.created_at)
@@ -55,7 +55,7 @@ export const getDebtAccount = async (accountId: string): Promise<{ account: Debt
       apr: data.apr,
       minimumPayment: data.minimum_payment,
       paymentDayOfMonth: data.payment_day_of_month,
-      nextDueDate: data.next_due_date ? new Date(data.next_due_date) : new Date(),
+      nextDueDate: new Date(), // Use current date as fallback since this field isn't in the schema
       paymentFrequency: data.payment_frequency as PaymentFrequency,
       userId: data.user_id,
       createdAt: new Date(data.created_at)
@@ -69,25 +69,39 @@ export const getDebtAccount = async (accountId: string): Promise<{ account: Debt
 
 export const createDebtAccount = async (account: Omit<DebtAccount, 'id' | 'createdAt'>): Promise<{ account: DebtAccount | null; error?: string }> => {
   try {
-    // Transform from application format to database format
+    console.log('=== createDebtAccount called ===');
+    console.log('account data:', JSON.stringify(account, null, 2));
+    
+    // Transform from application format to database format, only using fields that exist
+    const insertData = {
+      name: account.name,
+      type: account.type,
+      balance: account.balance,
+      apr: account.apr,
+      minimum_payment: account.minimumPayment,
+      payment_day_of_month: account.paymentDayOfMonth || 1, // Provide default value if undefined
+      payment_frequency: account.paymentFrequency,
+      user_id: account.userId
+    };
+    
+    console.log('transformed insertData:', JSON.stringify(insertData, null, 2));
+    
     const { data, error } = await supabase
       .from('debt_accounts')
-      .insert({
-        name: account.name,
-        type: account.type,
-        balance: account.balance,
-        apr: account.apr,
-        minimum_payment: account.minimumPayment,
-        payment_day_of_month: account.paymentDayOfMonth,
-        next_due_date: account.nextDueDate,
-        payment_frequency: account.paymentFrequency,
-        user_id: account.userId
-      })
+      .insert(insertData)
       .select()
       .single();
 
+    console.log('supabase response:', { data, error });
+
     if (error) {
+      console.error('Supabase error:', error);
       return { account: null, error: error.message };
+    }
+
+    if (!data) {
+      console.error('No data returned from insert');
+      return { account: null, error: 'No data returned from database insert' };
     }
 
     // Transform back to application format
@@ -99,13 +113,17 @@ export const createDebtAccount = async (account: Omit<DebtAccount, 'id' | 'creat
       apr: data.apr,
       minimumPayment: data.minimum_payment,
       paymentDayOfMonth: data.payment_day_of_month,
+      nextDueDate: new Date(), // Use current date as fallback since this field isn't in the schema
       paymentFrequency: data.payment_frequency as PaymentFrequency,
       userId: data.user_id,
       createdAt: new Date(data.created_at)
     };
 
+    console.log('transformed result:', JSON.stringify(newAccount, null, 2));
+    console.log('=== createDebtAccount success ===');
     return { account: newAccount };
   } catch (error: any) {
+    console.error('createDebtAccount caught exception:', error);
     return { account: null, error: error.message };
   }
 };
@@ -115,6 +133,10 @@ export const updateDebtAccount = async (
   updates: Partial<Omit<DebtAccount, 'id' | 'userId' | 'createdAt'>>
 ): Promise<{ account: DebtAccount | null; error?: string }> => {
   try {
+    console.log('=== updateDebtAccount called ===');
+    console.log('accountId:', accountId);
+    console.log('updates:', JSON.stringify(updates, null, 2));
+    
     // Transform from application format to database format
     const updateData: any = {};
     if (updates.name !== undefined) updateData.name = updates.name;
@@ -123,8 +145,9 @@ export const updateDebtAccount = async (
     if (updates.apr !== undefined) updateData.apr = updates.apr;
     if (updates.minimumPayment !== undefined) updateData.minimum_payment = updates.minimumPayment;
     if (updates.paymentDayOfMonth !== undefined) updateData.payment_day_of_month = updates.paymentDayOfMonth;
-    if (updates.nextDueDate !== undefined) updateData.next_due_date = updates.nextDueDate;
     if (updates.paymentFrequency !== undefined) updateData.payment_frequency = updates.paymentFrequency;
+    
+    console.log('transformed updateData:', JSON.stringify(updateData, null, 2));
     
     const { data, error } = await supabase
       .from('debt_accounts')
@@ -133,8 +156,16 @@ export const updateDebtAccount = async (
       .select()
       .single();
 
+    console.log('supabase response:', { data, error });
+
     if (error) {
+      console.error('Supabase error:', error);
       return { account: null, error: error.message };
+    }
+
+    if (!data) {
+      console.error('No data returned from update');
+      return { account: null, error: 'No data returned from database update' };
     }
 
     // Transform back to application format
@@ -146,13 +177,17 @@ export const updateDebtAccount = async (
       apr: data.apr,
       minimumPayment: data.minimum_payment,
       paymentDayOfMonth: data.payment_day_of_month,
+      nextDueDate: new Date(), // Use current date as fallback since this field isn't in the schema
       paymentFrequency: data.payment_frequency as PaymentFrequency,
       userId: data.user_id,
       createdAt: new Date(data.created_at)
     };
 
+    console.log('transformed result:', JSON.stringify(updatedAccount, null, 2));
+    console.log('=== updateDebtAccount success ===');
     return { account: updatedAccount };
   } catch (error: any) {
+    console.error('updateDebtAccount caught exception:', error);
     return { account: null, error: error.message };
   }
 };

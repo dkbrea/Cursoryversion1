@@ -63,7 +63,7 @@ export function UpcomingExpensesCard({ items }: UpcomingExpensesCardProps) {
 
   if (upcomingItems.length === 0) {
     return (
-      <Card className="h-full w-full flex flex-col">
+      <Card className="h-full w-full flex flex-col shadow-lg">
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="space-y-1">
@@ -81,7 +81,7 @@ export function UpcomingExpensesCard({ items }: UpcomingExpensesCardProps) {
   }
 
   return (
-    <Card className="h-full w-full flex flex-col">
+    <Card className="h-full w-full flex flex-col shadow-lg">
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="space-y-1">

@@ -23,6 +23,7 @@ import {
   differenceInCalendarMonths, isPast, format, getYear, getMonth, isSameDay
 } from "date-fns";
 import { saveForecastOverride, getForecastOverridesForMonth } from "@/lib/api/forecast-overrides-v2";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function BudgetManager() {
   const { toast } = useToast();
@@ -37,6 +38,8 @@ export function BudgetManager() {
   const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<VariableExpense | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date()); // Default to current month
+  const [selectedForecastYear, setSelectedForecastYear] = useState<number>(new Date().getFullYear()); // Default to current year
+  const [selectedCurrentMonthYear, setSelectedCurrentMonthYear] = useState<number>(new Date().getFullYear()); // Default to current year for current month view
 
   useEffect(() => {
     const fetchData = async () => {
@@ -352,11 +355,10 @@ export function BudgetManager() {
   const [forecastData, setForecastData] = useState<MonthlyForecast[]>([]);
 
   useEffect(() => {
-    const currentYear = getYear(new Date());
     const newForecastData: MonthlyForecast[] = [];
 
     for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
-      const monthDate = startOfMonth(new Date(currentYear, monthIndex, 1));
+      const monthDate = startOfMonth(new Date(selectedForecastYear, monthIndex, 1));
       const monthStart = startOfDay(monthDate);
       const monthEnd = endOfMonth(monthDate);
       const monthLabel = format(monthDate, "MMMM yyyy");
@@ -374,10 +376,9 @@ export function BudgetManager() {
         
         // Special handling for income items to ensure they appear in all months of the year
         if (item.type === 'income') {
-          // Get the current year's start and end
-          const currentYear = getYear(new Date());
-          const yearStart = new Date(currentYear, 0, 1); // January 1st
-          const yearEnd = new Date(currentYear, 11, 31); // December 31st
+          // Get the selected forecast year's start and end
+          const yearStart = new Date(selectedForecastYear, 0, 1); // January 1st
+          const yearEnd = new Date(selectedForecastYear, 11, 31); // December 31st
           
           // For income items, we want to calculate all occurrences for the entire year
           // and then check if any fall within this month
@@ -417,7 +418,7 @@ export function BudgetManager() {
           } else {
             // For other frequencies, calculate all occurrences in the year
             
-            // Start with the item's start date or January 1st of current year
+            // Start with the item's start date or January 1st of selected forecast year
             const startDate = item.startDate ? startOfDay(new Date(item.startDate)) : yearStart;
             
             // Find the first occurrence in the year (or the item's start date if later)
@@ -476,10 +477,9 @@ export function BudgetManager() {
         } 
         // Handle non-income recurring items (fixed expenses and subscriptions)
         else {
-          // Get the current year's start and end
-          const currentYear = getYear(new Date());
-          const yearStart = new Date(currentYear, 0, 1); // January 1st
-          const yearEnd = new Date(currentYear, 11, 31); // December 31st
+          // Get the selected forecast year's start and end
+          const yearStart = new Date(selectedForecastYear, 0, 1); // January 1st
+          const yearEnd = new Date(selectedForecastYear, 11, 31); // December 31st
           
           // Handle semi-monthly items
           if (item.frequency === 'semi-monthly') {
@@ -515,7 +515,7 @@ export function BudgetManager() {
           } else {
             // For other frequencies, calculate all occurrences in the year
             
-            // Start with the item's start date or January 1st of current year
+            // Start with the item's start date or January 1st of selected forecast year
             let startDate: Date;
             
             if (item.type === 'subscription' && item.lastRenewalDate) {
@@ -535,7 +535,7 @@ export function BudgetManager() {
               // Use the item's start date
               startDate = startOfDay(new Date(item.startDate));
             } else {
-              // Default to the first day of the current year
+              // Default to the first day of the selected forecast year
               startDate = yearStart;
             }
             
@@ -608,10 +608,9 @@ export function BudgetManager() {
         const paymentDay = debt.paymentDayOfMonth;
         const nextDueDate = debt.nextDueDate ? startOfDay(new Date(debt.nextDueDate)) : null;
         
-        // Get the current year's start and end
-        const currentYear = getYear(new Date());
-        const yearStart = new Date(currentYear, 0, 1); // January 1st
-        const yearEnd = new Date(currentYear, 11, 31); // December 31st
+        // Get the selected forecast year's start and end
+        const yearStart = new Date(selectedForecastYear, 0, 1); // January 1st
+        const yearEnd = new Date(selectedForecastYear, 11, 31); // December 31st
         
         // For budget forecasting, we want to show debt payments for all months of the year
         // This provides a more accurate and consistent view of finances
@@ -740,7 +739,7 @@ export function BudgetManager() {
               // If this is the month we're forecasting
               if (getMonth(monthStart) === month) {
                 // Get the payment date for this month/year
-                const paymentDateThisYear = new Date(currentYear, month, Math.min(paymentDay, getDate(endOfMonth(new Date(currentYear, month)))));
+                const paymentDateThisYear = new Date(selectedForecastYear, month, Math.min(paymentDay, getDate(endOfMonth(new Date(selectedForecastYear, month)))));
                 
                 // Show debt payments for all months of the year, regardless of creation date
                 // This ensures consistent budget forecasting across the entire year
@@ -968,7 +967,7 @@ export function BudgetManager() {
     };
     
     loadOverridesAndSetForecast();
-  }, [recurringItems, debtAccounts, variableExpenses, goals, goalsWithContributions, user?.id]);
+  }, [recurringItems, debtAccounts, variableExpenses, goals, goalsWithContributions, selectedForecastYear, user?.id]);
 
   const totalBudgetedVariable = useMemo(() => {
     return variableExpenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -1192,13 +1191,25 @@ export function BudgetManager() {
   };
 
   const handleDeleteVariableExpense = (expenseId: string) => {
-    const expenseToDelete = variableExpenses.find(expense => expense.id === expenseId);
     setVariableExpenses(prev => prev.filter(expense => expense.id !== expenseId));
-    if (expenseToDelete) {
-        toast({ title: "Variable Expense Deleted", description: `"${expenseToDelete.name}" removed.`, variant: "destructive" });
-    }
   };
-  
+
+  const handleForecastYearChange = (year: number) => {
+    setSelectedForecastYear(year);
+  };
+
+  const handleCurrentMonthYearChange = (year: number) => {
+    setSelectedCurrentMonthYear(year);
+    // Update selectedMonth to use the new year but keep the same month
+    const currentMonth = getMonth(selectedMonth);
+    setSelectedMonth(new Date(year, currentMonth, 1));
+  };
+
+  const handleCurrentMonthChange = (month: number) => {
+    // Update selectedMonth to use the selected year and new month
+    setSelectedMonth(new Date(selectedCurrentMonthYear, month, 1));
+  };
+
   // Function to get data for the selected month from forecast data
   const getSelectedMonthData = () => {
     // If forecast data is not yet loaded, return current month summary
@@ -1475,25 +1486,49 @@ export function BudgetManager() {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => setSelectedMonth(new Date())}
+                  onClick={() => {
+                    const now = new Date();
+                    setSelectedCurrentMonthYear(now.getFullYear());
+                    setSelectedMonth(now);
+                  }}
                   className={format(selectedMonth, 'yyyy-MM') === format(new Date(), 'yyyy-MM') ? 'bg-primary/10' : ''}
                 >
                   Current Month
                 </Button>
-                <select 
-                  className="border rounded p-1 text-sm" 
-                  value={format(selectedMonth, 'yyyy-MM')}
-                  onChange={(e) => {
-                    const [year, month] = e.target.value.split('-').map(Number);
-                    setSelectedMonth(new Date(year, month - 1, 1));
-                  }}
-                >
-                  {forecastData && forecastData.map((month) => (
-                    <option key={format(month.month, 'yyyy-MM')} value={format(month.month, 'yyyy-MM')}>
-                      {format(month.month, 'MMMM yyyy')}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Year:</span>
+                  <Select 
+                    value={selectedCurrentMonthYear.toString()} 
+                    onValueChange={(value) => handleCurrentMonthYearChange(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-[100px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + i).map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-muted-foreground">Month:</span>
+                  <Select 
+                    value={getMonth(selectedMonth).toString()} 
+                    onValueChange={(value) => handleCurrentMonthChange(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-[120px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i).map((monthIndex) => (
+                        <SelectItem key={monthIndex} value={monthIndex.toString()}>
+                          {format(new Date(2024, monthIndex, 1), 'MMMM')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>
@@ -1548,6 +1583,8 @@ export function BudgetManager() {
         <TabsContent value="forecast">
             <BudgetForecastView
                 forecastData={forecastData}
+                selectedYear={selectedForecastYear}
+                onYearChange={handleForecastYearChange}
                 onUpdateVariableAmount={(monthIndex, expenseId, newAmount) => handleUpdateForecastVariableAmount(monthIndex, expenseId, newAmount)}
                 onUpdateGoalContribution={(monthIndex, goalId, newAmount) => handleUpdateForecastGoalContribution(monthIndex, goalId, newAmount)}
                 onUpdateDebtAdditionalPayment={(monthIndex, debtId, newAmount) => handleUpdateForecastDebtAdditionalPayment(monthIndex, debtId, newAmount)}

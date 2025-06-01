@@ -45,6 +45,8 @@ export function DashboardContent() {
   const [monthlySpending, setMonthlySpending] = useState(0);
   const [isCalendarOverlayOpen, setIsCalendarOverlayOpen] = useState(false);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [goalRefreshTrigger, setGoalRefreshTrigger] = useState(0);
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
 
   useEffect(() => {
     console.log('Dashboard useEffect triggered, user:', user);
@@ -284,24 +286,114 @@ export function DashboardContent() {
   };
 
   const handleAddTransaction = () => {
+    setTransactionToEdit(null);
     setIsTransactionModalOpen(true);
+  };
+
+  const handleEditTransaction = (transaction: Transaction) => {
+    setTransactionToEdit(transaction);
+    setIsTransactionModalOpen(true);
+  };
+
+  const handleDeleteTransaction = async (transactionId: string) => {
+    if (!user?.id) return;
+    
+    // Find the transaction being deleted
+    const transactionToDelete = transactions.find(t => t.id === transactionId);
+    if (!transactionToDelete) return;
+
+    try {
+      const { deleteTransaction } = await import('@/lib/api/transactions');
+      const result = await deleteTransaction(transactionId);
+      
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: `Failed to delete transaction: ${result.error}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (result.success) {
+        // Remove the transaction from the list
+        setTransactions(prev => prev.filter(t => t.id !== transactionId));
+        
+        // Recalculate monthly spending
+        const updatedTransactions = transactions.filter(t => t.id !== transactionId);
+        const newSpending = updatedTransactions
+          .filter((tx: Transaction) => tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription')
+          .reduce((sum: number, tx: Transaction) => sum + Math.abs(tx.amount), 0);
+        setMonthlySpending(newSpending);
+        
+        // Refetch accounts to get updated balances
+        try {
+          const { getAccounts } = await import('@/lib/api/accounts');
+          const { accounts: updatedAccounts, error: accountsError } = await getAccounts(user.id);
+          
+          if (!accountsError && updatedAccounts) {
+            setAccounts(updatedAccounts);
+            const newBalance = updatedAccounts.reduce((sum: number, account: Account) => sum + account.balance, 0);
+            setTotalBalance(newBalance);
+          }
+        } catch (error) {
+          console.error("Error refetching accounts:", error);
+        }
+        
+        // If this was a goal contribution, update the goal's current amount and refetch goals
+        if (transactionToDelete.detailedType === 'goal-contribution' && transactionToDelete.sourceId) {
+          try {
+            const { updateFinancialGoal, getFinancialGoals } = await import('@/lib/api/goals');
+            
+            const currentGoal = goals.find(g => g.id === transactionToDelete.sourceId);
+            if (currentGoal) {
+              // Subtract the deleted contribution amount from the goal
+              const updatedAmount = Math.max(0, currentGoal.currentAmount - Math.abs(transactionToDelete.amount));
+              await updateFinancialGoal(transactionToDelete.sourceId, {
+                currentAmount: updatedAmount
+              });
+              
+              // Refetch all goals to update the dashboard display
+              const { goals: updatedGoals, error: goalsError } = await getFinancialGoals(user.id);
+              if (!goalsError && updatedGoals) {
+                setGoals(updatedGoals);
+                const goalsConverted: FinancialGoalWithContribution[] = updatedGoals.map(goal => ({
+                  ...goal,
+                  monthlyContribution: 0,
+                  monthsRemaining: 0
+                }));
+                setGoalsWithContributions(goalsConverted);
+                setGoalRefreshTrigger(Date.now());
+              }
+            }
+          } catch (error) {
+            console.error("Error updating goal after deletion:", error);
+          }
+        }
+        
+        toast({
+          title: "Transaction Deleted",
+          description: `"${transactionToDelete.description}" has been deleted.`
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting transaction:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while deleting the transaction.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSaveTransaction = async (
     data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">
   ) => {
-    if (!user?.id) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to save transactions.",
-        variant: "destructive"
-      });
-      return;
-    }
+    if (!user?.id) return;
+
+    let finalCategoryId = data.categoryId;
 
     // Handle predefined category mapping
-    let finalCategoryId = data.categoryId;
-    
     // For income transactions, always use "Income" category
     if (data.detailedType === 'income') {
       const incomeCategoryName = 'Income';
@@ -426,6 +518,48 @@ export function DashboardContent() {
           finalCategoryId = null;
         }
       }
+    } else if (data.detailedType === 'variable-expense' && data.categoryId && !data.categoryId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      // Handle predefined category IDs for variable expenses (non-UUID format)
+      const predefinedValue = data.categoryId;
+      
+      const categoryLabels: Record<string, string> = {
+        'housing': 'Housing',
+        'food': 'Food',
+        'utilities': 'Utilities',
+        'transportation': 'Transportation',
+        'health': 'Health',
+        'personal': 'Personal',
+        'home-family': 'Home/Family',
+        'media-productivity': 'Media/Productivity'
+      };
+      
+      const categoryLabel = categoryLabels[predefinedValue] || predefinedValue;
+      
+      // Try to find existing category with this name
+      let existingCategory = categories.find(cat => cat.name === categoryLabel);
+      
+      if (existingCategory) {
+        finalCategoryId = existingCategory.id;
+      } else {
+        // Create new category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: categoryLabel,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategories(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create category:', error);
+          finalCategoryId = null;
+        }
+      }
     }
 
     try {
@@ -434,29 +568,115 @@ export function DashboardContent() {
         userId: user.id,
         categoryId: finalCategoryId 
       };
-      const result = await createTransaction(transactionWithUserId);
+
+      let result;
+      
+      if (transactionToEdit) {
+        // Update existing transaction
+        const { updateTransaction } = await import('@/lib/api/transactions');
+        result = await updateTransaction(transactionToEdit.id, transactionWithUserId);
+      } else {
+        // Create new transaction
+        const { createTransaction } = await import('@/lib/api/transactions');
+        result = await createTransaction(transactionWithUserId);
+      }
+      
       if (result.error) {
         toast({
           title: "Error",
-          description: `Failed to create transaction: ${result.error}`,
+          description: `Failed to ${transactionToEdit ? 'update' : 'create'} transaction: ${result.error}`,
           variant: "destructive"
         });
         return;
       }
 
       if (result.transaction) {
-        // Add the new transaction to the list
-        setTransactions(prev => [result.transaction!, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        if (transactionToEdit) {
+          // Update the transaction in the list
+          setTransactions(prev => prev.map(t => 
+            t.id === transactionToEdit.id ? result.transaction! : t
+          ).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        } else {
+          // Add the new transaction to the list
+          setTransactions(prev => [result.transaction!, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        }
         
         // Recalculate totals
-        const newSpending = [...transactions, result.transaction]
+        const updatedTransactions = transactionToEdit 
+          ? transactions.map(t => t.id === transactionToEdit.id ? result.transaction! : t)
+          : [...transactions, result.transaction];
+          
+        const newSpending = updatedTransactions
           .filter((tx: Transaction) => tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription')
           .reduce((sum: number, tx: Transaction) => sum + Math.abs(tx.amount), 0);
         setMonthlySpending(newSpending);
         
+        // Refetch accounts to get updated balances for total balance calculation
+        try {
+          const { getAccounts } = await import('@/lib/api/accounts');
+          const { accounts: updatedAccounts, error: accountsError } = await getAccounts(user.id);
+          
+          if (!accountsError && updatedAccounts) {
+            setAccounts(updatedAccounts);
+            // Recalculate total balance with updated account data
+            const newBalance = updatedAccounts.reduce((sum: number, account: Account) => sum + account.balance, 0);
+            setTotalBalance(newBalance);
+          }
+        } catch (error) {
+          console.error("Error refetching accounts:", error);
+          // Continue without showing error to user since transaction was successful
+        }
+        
+        // If this is a goal contribution, update the goal's current amount and refetch goals
+        if (result.transaction.detailedType === 'goal-contribution' && result.transaction.sourceId) {
+          try {
+            const { updateFinancialGoal, getFinancialGoals } = await import('@/lib/api/goals');
+            
+            // Get the current goal to update its amount
+            const currentGoal = goals.find(g => g.id === result.transaction!.sourceId);
+            if (currentGoal) {
+              let updatedAmount;
+              
+              if (transactionToEdit) {
+                // For updates, we need to calculate the difference
+                const oldContribution = Math.abs(transactionToEdit.amount);
+                const newContribution = Math.abs(result.transaction!.amount);
+                const difference = newContribution - oldContribution;
+                updatedAmount = currentGoal.currentAmount + difference;
+              } else {
+                // For new transactions, simply add the amount
+                updatedAmount = currentGoal.currentAmount + Math.abs(result.transaction!.amount);
+              }
+              
+              await updateFinancialGoal(result.transaction!.sourceId, {
+                currentAmount: Math.max(0, updatedAmount)
+              });
+              
+              // Refetch all goals to update the dashboard display
+              const { goals: updatedGoals, error: goalsError } = await getFinancialGoals(user.id);
+              if (!goalsError && updatedGoals) {
+                setGoals(updatedGoals);
+                // Update goalsWithContributions for the transaction dialog
+                const goalsConverted: FinancialGoalWithContribution[] = updatedGoals.map(goal => ({
+                  ...goal,
+                  monthlyContribution: 0, // Will be recalculated by the component
+                  monthsRemaining: 0 // Will be recalculated by the component
+                }));
+                setGoalsWithContributions(goalsConverted);
+                
+                // Trigger refresh for SavingsGoalsCard
+                setGoalRefreshTrigger(Date.now());
+              }
+            }
+          } catch (error) {
+            console.error("Error updating goal contribution:", error);
+            // Continue without showing error to user since transaction and account updates were successful
+          }
+        }
+        
         toast({ 
-          title: "Transaction Added", 
-          description: `"${result.transaction.description}" has been added.` 
+          title: transactionToEdit ? "Transaction Updated" : "Transaction Added", 
+          description: `"${result.transaction.description}" has been ${transactionToEdit ? 'updated' : 'added'}.` 
         });
       }
     } catch (error) {
@@ -469,6 +689,7 @@ export function DashboardContent() {
     }
 
     setIsTransactionModalOpen(false);
+    setTransactionToEdit(null);
   };
 
   if (isLoading) {
@@ -546,7 +767,7 @@ export function DashboardContent() {
           </CardContent>
         </Card>
         
-        <SavingsGoalsCard />
+        <SavingsGoalsCard refreshTrigger={goalRefreshTrigger} />
       </div>
 
       {/* Second row: Chart and Upcoming Expenses */}
@@ -557,11 +778,9 @@ export function DashboardContent() {
         </div>
         
         {/* Right column: Calendar Access + Upcoming Expenses - takes up 1 column */}
-        <div className="flex flex-col gap-4 h-full min-h-[500px]">
+        <div className="flex flex-col gap-3 h-full min-h-[500px]">
           <CalendarAccessCard onViewCalendar={() => setIsCalendarOverlayOpen(true)} />
-          <div className="flex-1 flex">
-            <UpcomingExpensesCard items={upcomingItems} />
-          </div>
+          <UpcomingExpensesCard items={upcomingItems} />
         </div>
       </div>
 
@@ -574,6 +793,8 @@ export function DashboardContent() {
           debtAccounts={debtAccounts}
           limit={10}
           onAddTransaction={handleAddTransaction}
+          onEditTransaction={handleEditTransaction}
+          onDeleteTransaction={handleDeleteTransaction}
         />
       </div>
 
@@ -593,6 +814,7 @@ export function DashboardContent() {
         debtAccounts={debtAccounts}
         goals={goalsWithContributions}
         variableExpenses={variableExpenses}
+        transactionToEdit={transactionToEdit}
       />
     </div>
   );

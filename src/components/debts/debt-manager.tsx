@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { DebtAccount, DebtPayoffStrategy, PaymentFrequency } from "@/types";
@@ -339,20 +338,29 @@ export function DebtManager() {
     
     setIsSubmitting(true);
     try {
+      console.log('=== handleAddDebtAccount called ===');
+      console.log('newDebtData:', JSON.stringify(newDebtData, null, 2));
+      
       // Add userId to the debt data
       const debtDataWithUser = {
         ...newDebtData,
         userId: user.id
       };
       
+      console.log('debtDataWithUser:', JSON.stringify(debtDataWithUser, null, 2));
+      
       // Create the debt account in the database
       const result = await createDebtAccount(debtDataWithUser);
       
+      console.log('createDebtAccount result:', result);
+      
       if (result.error) {
+        console.error('Create failed with error:', result.error);
         throw new Error(result.error);
       }
       
       if (result.account) {
+        console.log('Create successful, updating local state');
         // Add the new account to the local state
         setDebtAccounts((prevAccounts) => [...prevAccounts, result.account!]);
         
@@ -364,12 +372,16 @@ export function DebtManager() {
         if (!keepOpen) {
           setIsAddDebtDialogOpen(false);
         }
+      } else {
+        console.error('No account returned from create');
+        throw new Error('No account data returned from create');
       }
     } catch (err: any) {
       console.error("Error adding debt account:", err);
+      const errorMessage = err.message || 'Unknown error occurred';
       toast({
         title: "Error",
-        description: "Failed to add debt account. Please try again.",
+        description: `Failed to add debt account: ${errorMessage}`,
         variant: "destructive"
       });
     } finally {
@@ -387,14 +399,22 @@ export function DebtManager() {
     
     setIsSubmitting(true);
     try {
+      console.log('=== handleUpdateDebtAccount called ===');
+      console.log('debtId:', debtId);
+      console.log('updatedDebtData:', JSON.stringify(updatedDebtData, null, 2));
+      
       // Update the debt account in the database
       const result = await updateDebtAccount(debtId, updatedDebtData);
       
+      console.log('updateDebtAccount result:', result);
+      
       if (result.error) {
+        console.error('Update failed with error:', result.error);
         throw new Error(result.error);
       }
       
       if (result.account) {
+        console.log('Update successful, updating local state');
         // Update the account in the local state
         setDebtAccounts((prevAccounts) => 
           prevAccounts.map(account => 
@@ -409,12 +429,16 @@ export function DebtManager() {
         
         setIsEditDebtDialogOpen(false);
         setSelectedDebtForEdit(null);
+      } else {
+        console.error('No account returned from update');
+        throw new Error('No account data returned from update');
       }
     } catch (err: any) {
       console.error("Error updating debt account:", err);
+      const errorMessage = err.message || 'Unknown error occurred';
       toast({
         title: "Error",
-        description: "Failed to update debt account. Please try again.",
+        description: `Failed to update debt account: ${errorMessage}`,
         variant: "destructive"
       });
     } finally {
