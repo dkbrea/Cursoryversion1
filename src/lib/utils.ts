@@ -19,3 +19,18 @@ export function formatCurrency(amount: number, currency: string = 'USD'): string
     maximumFractionDigits: 2,
   }).format(amount);
 }
+
+/**
+ * Format a date in a user-friendly way
+ * @param date The date to format
+ * @returns Formatted date string
+ */
+export function formatDate(date: Date | string): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  }).format(dateObj);
+}

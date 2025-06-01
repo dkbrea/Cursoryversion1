@@ -17,7 +17,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-import type { Transaction, ExpenseByCategory } from "@/types";
+import type { Transaction, ExpenseByCategory, TransactionDetailedType } from "@/types";
 import { useEffect, useState } from "react";
 
 // Helper function to group transactions by date
@@ -148,12 +148,23 @@ export function ExpenseChart() {
         
         // Process the data
         if (data && data.length > 0) {
-          // Convert Supabase date strings to Date objects
+          // Convert Supabase date strings to Date objects and map fields properly
           const transactions = data.map(tx => ({
-            ...tx,
+            id: tx.id.toString(),
             date: new Date(tx.date),
             amount: tx.amount,
-            type: tx.type
+            type: tx.type as 'income' | 'expense',
+            description: tx.description,
+            detailedType: tx.detailed_type as TransactionDetailedType | undefined,
+            accountId: tx.account_id,
+            userId: tx.user_id,
+            categoryId: tx.category_id?.toString() || null,
+            toAccountId: tx.to_account_id,
+            sourceId: tx.source_id,
+            source: tx.source,
+            notes: tx.notes,
+            createdAt: new Date(tx.created_at),
+            updatedAt: new Date(tx.updated_at)
           }));
           
           // Group by date
@@ -341,20 +352,39 @@ export function ExpenseChart() {
           </div>
         )}
       </CardContent>
-      <CardFooter className="flex justify-between items-center">
-        <div className="flex-col items-start gap-1 text-sm">
-          <div className="flex gap-2 font-medium leading-none items-center">
-            <span className="w-3 h-3 rounded-full bg-green-500"></span>
-            Income: {formatCurrency(totalIncome)}
+      <CardFooter className="flex justify-between items-center pt-6 border-t">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-green-500"></span>
+              <span className="text-sm text-muted-foreground">Income</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold">{formatCurrency(totalIncome)}</span>
+              <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">+8%</span>
+            </div>
           </div>
-          <div className="flex gap-2 font-medium leading-none items-center mt-1">
-            <span className="w-3 h-3 rounded-full bg-red-500"></span>
-            Expenses: {formatCurrency(totalExpense)}
+          
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-red-500"></span>
+              <span className="text-sm text-muted-foreground">Expenses</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold">{formatCurrency(totalExpense)}</span>
+              <span className="text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded">-3%</span>
+            </div>
           </div>
         </div>
-        <div className="flex gap-2 items-center">
-          <span className="text-sm font-medium">Net: {formatCurrency(totalIncome - totalExpense)}</span>
-          <ArrowDownUp className="h-4 w-4" />
+        
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Net</span>
+          </div>
+          <span className={`text-lg font-bold ${totalIncome - totalExpense >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCurrency(totalIncome - totalExpense)}
+          </span>
         </div>
       </CardFooter>
     </Card>

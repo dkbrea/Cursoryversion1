@@ -34,15 +34,15 @@ interface DayData {
 const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
   switch (itemType) {
     case 'income':
-      return <ArrowUpCircle className="h-4 w-4 text-green-600" />;
+      return <ArrowUpCircle className="h-3 w-3 text-green-600" />;
     case 'subscription':
-      return <CreditCard className="h-4 w-4 text-blue-600" />;
+      return <CreditCard className="h-3 w-3 text-blue-600" />;
     case 'fixed-expense':
-      return <Briefcase className="h-4 w-4 text-orange-600" />;
+      return <Briefcase className="h-3 w-3 text-orange-600" />;
     case 'debt-payment':
-      return <ArrowDownCircle className="h-4 w-4 text-red-600" />;
+      return <ArrowDownCircle className="h-3 w-3 text-red-600" />;
     default:
-      return <DollarSign className="h-4 w-4 text-gray-600" />;
+      return <DollarSign className="h-3 w-3 text-gray-600" />;
   }
 };
 
@@ -404,50 +404,52 @@ export function RecurringCalendarView({ items, onMonthChange }: RecurringCalenda
     
     if (!dayData || dayData.items.length === 0) {
       return (
-        <div className="flex flex-col items-start justify-start h-full w-full p-2">
+        <div className="h-32 w-full flex flex-col p-2">
           <span className={cn(
-            "text-lg font-semibold self-start",
-            isToday && "bg-primary text-primary-foreground px-2 py-1 rounded-full font-bold"
+            "text-sm font-medium self-start",
+            isToday && "bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-bold text-xs"
           )}>{dayOfMonth}</span>
         </div>
       );
     }
     
     return (
-      <div className="flex flex-col items-start justify-start h-full w-full p-2 space-y-1">
+      <div className="h-32 w-full flex flex-col p-2">
         <span className={cn(
-          "text-lg font-semibold self-start",
-          isToday && "bg-primary text-primary-foreground px-2 py-1 rounded-full font-bold"
+          "text-sm font-medium self-start mb-1 flex-shrink-0",
+          isToday && "bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-bold text-xs"
         )}>{dayOfMonth}</span>
         
-        <div className="space-y-1 w-full overflow-hidden">
-          {dayData.items.slice(0, 3).map((item, index) => (
+        <div className="flex-1 min-h-0 space-y-1 overflow-hidden">
+          {dayData.items.slice(0, 2).map((item, index) => (
             <div
               key={item.id}
               className={cn(
-                "flex items-center space-x-1 text-sm leading-tight truncate font-medium px-2 py-1 rounded-md border",
+                "flex items-center space-x-1 text-[11px] leading-tight truncate font-medium px-1 py-0.5 rounded border",
                 getItemTextColor(item.type),
                 getItemBackgroundColor(item.type)
               )}
             >
-              {getItemIcon(item.type)}
-              <span className="truncate flex-1">{item.name}</span>
+              <div className="flex-shrink-0">
+                {getItemIcon(item.type)}
+              </div>
+              <span className="truncate flex-1 text-[11px]">{item.name}</span>
             </div>
           ))}
           
-          {dayData.items.length > 3 && (
-            <p className="text-sm text-muted-foreground leading-tight font-medium">
-              +{dayData.items.length - 3} more
-            </p>
+          {dayData.items.length > 2 && (
+            <div className="text-[11px] text-muted-foreground leading-tight font-medium px-1">
+              +{dayData.items.length - 2} more
+            </div>
           )}
         </div>
         
-        <div className="w-full mt-auto pt-1">
+        <div className="flex-shrink-0 mt-1 pt-1 border-t border-muted/20">
           <div className={cn(
-            "text-sm font-bold leading-tight",
+            "text-[11px] font-bold leading-tight truncate",
             dayData.netAmount >= 0 ? "text-green-600" : "text-red-600"
           )}>
-            Total: ${Math.abs(dayData.netAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ${Math.abs(dayData.netAmount).toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </div>
         </div>
       </div>
@@ -493,15 +495,6 @@ export function RecurringCalendarView({ items, onMonthChange }: RecurringCalenda
 
   return (
     <Card className="shadow-lg mt-4">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <CalendarDays className="mr-2 h-5 w-5 text-primary" />
-          Monthly Calendar View
-        </CardTitle>
-        <CardDescription>
-          All recurring items and debt payments for {format(month, 'MMMM yyyy')}
-        </CardDescription>
-      </CardHeader>
       <CardContent className="flex justify-center p-2 sm:p-4">
         <Calendar
           mode="single"
@@ -514,17 +507,18 @@ export function RecurringCalendarView({ items, onMonthChange }: RecurringCalenda
           classNames={{
               day_selected: "bg-primary/20 text-primary-foreground ring-1 ring-primary",
               day_today: "",
-              head_cell: "w-full text-muted-foreground font-semibold text-base pb-2 text-center",
-              table: "w-full border-collapse",
-              row: "flex w-full mt-0 border-t", 
+              head_cell: "w-[14.28%] text-muted-foreground font-semibold text-sm pb-2 text-center table-cell",
+              head_row: "table-row",
+              table: "w-full border-collapse table-fixed",
+              row: "table-row border-t", 
               cell: cn( 
-                "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-full",
+                "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 table-cell align-top",
                 "[&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
-                "border-l" 
+                "border-l w-[14.28%]" 
               ),
               day: cn( 
-                "h-36 sm:h-40 w-full rounded-none p-0 font-normal aria-selected:opacity-100 transition-colors hover:bg-accent/50",
-                "focus:bg-accent/70 focus:outline-none"
+                "h-32 w-full rounded-none p-0 font-normal aria-selected:opacity-100 transition-colors hover:bg-accent/50",
+                "focus:bg-accent/70 focus:outline-none block"
               ),
               day_outside: "text-muted-foreground/50 aria-selected:bg-accent/30",
               months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",

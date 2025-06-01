@@ -5,192 +5,201 @@ import { ExpenseChart } from "@/components/dashboard/expense-chart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, CreditCard, Users, TrendingUp } from "lucide-react";
 import { RecurringList } from "@/components/recurring/recurring-list";
-import type { UnifiedRecurringListItem, RecurringItem, Account, Transaction } from "@/types";
+import type { UnifiedRecurringListItem, RecurringItem, Account, Transaction, DebtAccount, Category, FinancialGoal, VariableExpense } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccounts } from "@/lib/api/accounts";
 import { getTransactions } from "@/lib/api/transactions";
 import { getRecurringItems } from "@/lib/api/recurring";
+import { getDebtAccounts } from "@/lib/api/debts";
+import { getCategories } from "@/lib/api/categories";
+import { getFinancialGoals } from "@/lib/api/goals";
+import { getVariableExpenses } from "@/lib/api/variable-expenses";
+import { createTransaction } from "@/lib/api/transactions";
 import { formatCurrency } from "@/lib/utils";
 import { SetupGuide } from "@/components/dashboard/setup-guide";
+import { SavingsGoalsCard } from "@/components/dashboard/savings-goals-card";
+import { UpcomingExpensesCard } from "@/components/dashboard/upcoming-expenses-card";
+import { RecentTransactionsCard } from "@/components/dashboard/recent-transactions-card";
+import { RecurringCalendarOverlay } from "@/components/dashboard/recurring-calendar-overlay";
+import { CalendarAccessCard } from "@/components/dashboard/calendar-access-card";
+import { AddEditTransactionDialog } from "@/components/transactions/add-edit-transaction-dialog";
+import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence } from "@/lib/utils/date-calculations";
+import { startOfDay, isSameDay } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 export function DashboardContent() {
   const { user } = useAuth();
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [upcomingItems, setUpcomingItems] = useState<UnifiedRecurringListItem[]>([]);
-  const [totalBalance, setTotalBalance] = useState<number>(0);
-  const [monthlySpending, setMonthlySpending] = useState<number>(0);
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [upcomingItems, setUpcomingItems] = useState<UnifiedRecurringListItem[]>([]);
+  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
+  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
+  const [goals, setGoals] = useState<FinancialGoal[]>([]);
+  const [variableExpenses, setVariableExpenses] = useState<VariableExpense[]>([]);
+  const [totalBalance, setTotalBalance] = useState(0);
+  const [monthlySpending, setMonthlySpending] = useState(0);
+  const [isCalendarOverlayOpen, setIsCalendarOverlayOpen] = useState(false);
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
 
-  // Fetch data when user is available
   useEffect(() => {
     console.log('Dashboard useEffect triggered, user:', user);
-    console.log('User ID:', user?.id);
-    
+    setIsLoading(true);
+    setError(null);
+
     async function fetchData() {
       if (!user?.id) {
-        console.log('No user ID found, setting loading to false');
         setIsLoading(false);
         return;
       }
 
-      console.log('Starting to fetch data for user:', user.id);
       try {
-        setIsLoading(true);
-        
-        // Fetch accounts data
-        const { accounts: accountsData, error: accountsError } = await getAccounts(user.id);
+        // Fetch all data in parallel
+        const [
+          { accounts: accountsData, error: accountsError },
+          { transactions: transactionsData, error: transactionsError },
+          { items: recurringData, error: recurringError },
+          { accounts: debtData, error: debtError },
+          { categories: categoriesData, error: categoriesError },
+          { goals: goalsData, error: goalsError },
+          { expenses: variableExpensesData, error: variableExpensesError }
+        ] = await Promise.all([
+          getAccounts(user.id),
+          getTransactions(user.id),
+          getRecurringItems(user.id),
+          getDebtAccounts(user.id),
+          getCategories(user.id),
+          getFinancialGoals(user.id),
+          getVariableExpenses(user.id)
+        ]);
+
         if (accountsError) {
           throw new Error(`Error fetching accounts: ${accountsError}`);
         }
-        
-        if (accountsData) {
-          setAccounts(accountsData);
-          // Calculate total balance
-          const balance = accountsData.reduce((sum, account) => sum + account.balance, 0);
-          setTotalBalance(balance);
-        }
 
-        // Get current month date range
-        const today = new Date();
-        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-        // Fetch current month transactions
-        const { transactions: transactionsData, error: transactionsError } = await getTransactions(
-          user.id,
-          {
-            startDate: firstDayOfMonth,
-            endDate: lastDayOfMonth,
-            type: 'expense'
-          }
-        );
-        
         if (transactionsError) {
           throw new Error(`Error fetching transactions: ${transactionsError}`);
         }
-        
-        if (transactionsData) {
-          setTransactions(transactionsData);
-          // Calculate monthly spending
-          const spending = transactionsData.reduce((sum, tx) => sum + tx.amount, 0);
-          setMonthlySpending(spending);
-        }
 
-        // Fetch recurring items for upcoming expenses
-        const { items: recurringData, error: recurringError } = await getRecurringItems(user.id);
         if (recurringError) {
           throw new Error(`Error fetching recurring items: ${recurringError}`);
         }
-        
-        if (recurringData) {
-          // Filter to only show upcoming subscription and fixed expenses
-          const today = new Date();
-          const nextMonth = new Date(today);
-          nextMonth.setMonth(today.getMonth() + 1);
-          
-          const filtered = recurringData
-            .filter(item => item.type === 'subscription' || item.type === 'fixed-expense')
-            .map(item => {
-              // Determine next occurrence date based on frequency
-              let nextOccurrenceDate = new Date(today);
-              if (item.lastRenewalDate) {
-                nextOccurrenceDate = new Date(item.lastRenewalDate);
-                
-                // Add appropriate time based on frequency
-                switch(item.frequency) {
-                  case 'daily':
-                    nextOccurrenceDate.setDate(nextOccurrenceDate.getDate() + 1);
-                    break;
-                  case 'weekly':
-                    nextOccurrenceDate.setDate(nextOccurrenceDate.getDate() + 7);
-                    break;
-                  case 'bi-weekly':
-                    nextOccurrenceDate.setDate(nextOccurrenceDate.getDate() + 14);
-                    break;
-                  case 'monthly':
-                    nextOccurrenceDate.setMonth(nextOccurrenceDate.getMonth() + 1);
-                    break;
-                  case 'quarterly':
-                    nextOccurrenceDate.setMonth(nextOccurrenceDate.getMonth() + 3);
-                    break;
-                  case 'yearly':
-                    nextOccurrenceDate.setFullYear(nextOccurrenceDate.getFullYear() + 1);
-                    break;
-                  case 'semi-monthly':
-                    // For semi-monthly, we need special handling
-                    if (item.semiMonthlyFirstPayDate && item.semiMonthlySecondPayDate) {
-                      // Use the closer of the two dates
-                      const firstDate = new Date(item.semiMonthlyFirstPayDate);
-                      firstDate.setMonth(today.getMonth());
-                      firstDate.setFullYear(today.getFullYear());
-                      
-                      const secondDate = new Date(item.semiMonthlySecondPayDate);
-                      secondDate.setMonth(today.getMonth());
-                      secondDate.setFullYear(today.getFullYear());
-                      
-                      // If both dates are in the past, move to next month
-                      if (firstDate < today && secondDate < today) {
-                        firstDate.setMonth(firstDate.getMonth() + 1);
-                        secondDate.setMonth(secondDate.getMonth() + 1);
-                      }
-                      
-                      // Choose the earlier of the future dates
-                      if (firstDate >= today && (secondDate < today || firstDate < secondDate)) {
-                        nextOccurrenceDate = firstDate;
-                      } else {
-                        nextOccurrenceDate = secondDate;
-                      }
-                    } else {
-                      // Fallback if we don't have both dates
-                      nextOccurrenceDate.setMonth(nextOccurrenceDate.getMonth() + 1);
-                    }
-                    break;
-                }
-              } else if (item.startDate && item.startDate > today) {
-                // If not started yet, use start date
-                nextOccurrenceDate = new Date(item.startDate);
-              }
-              
-              // Determine status
-              let status: 'Ended' | 'Today' | 'Upcoming' = 'Upcoming';
-              if (item.endDate && item.endDate < today) {
-                status = 'Ended';
-              } else if (
-                nextOccurrenceDate.getDate() === today.getDate() &&
-                nextOccurrenceDate.getMonth() === today.getMonth() &&
-                nextOccurrenceDate.getFullYear() === today.getFullYear()
-              ) {
-                status = 'Today';
-              }
-              
-              return {
-                id: item.id,
-                name: item.name,
-                itemDisplayType: item.type, // This maps RecurringItemType to UnifiedListItemType
-                amount: item.amount,
-                frequency: item.frequency,
-                nextOccurrenceDate,
-                status,
-                isDebt: false,
-                endDate: item.endDate,
-                semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
-                semiMonthlySecondPayDate: item.semiMonthlySecondPayDate,
-                notes: item.notes,
-                source: 'recurring' as const,
-                categoryId: item.categoryId
-              };
-            });
-          
-          // Sort by date
-          filtered.sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime());
-          
-          // Only show upcoming or today items
-          const activeItems = filtered.filter(item => item.status !== 'Ended');
-          
-          setUpcomingItems(activeItems);
+
+        if (debtError) {
+          throw new Error(`Error fetching debt accounts: ${debtError}`);
         }
+
+        if (categoriesError) {
+          throw new Error(`Error fetching categories: ${categoriesError}`);
+        }
+
+        if (goalsError) {
+          throw new Error(`Error fetching goals: ${goalsError}`);
+        }
+
+        if (variableExpensesError) {
+          throw new Error(`Error fetching variable expenses: ${variableExpensesError}`);
+        }
+        
+        setAccounts(accountsData || []);
+
+        // Convert raw transaction dates to Date objects
+        const processedTransactions = (transactionsData || []).map((tx: Transaction) => ({
+          ...tx,
+          date: new Date(tx.date)
+        }));
+        setTransactions(processedTransactions);
+        setCategories(categoriesData || []);
+
+        // Calculate total balance
+        const balance = (accountsData || []).reduce((sum: number, account: Account) => sum + account.balance, 0);
+        setTotalBalance(balance);
+
+        // Calculate monthly spending (only variable expenses, fixed expenses, and subscriptions)
+        const spending = (transactionsData || [])
+          .filter((tx: Transaction) => tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription')
+          .reduce((sum: number, tx: Transaction) => sum + Math.abs(tx.amount), 0);
+        setMonthlySpending(spending);
+
+        const allUpcomingItems: UnifiedRecurringListItem[] = [];
+
+        // Process recurring items (subscriptions and fixed expenses)
+        if (recurringData) {
+          const today = startOfDay(new Date());
+          
+          const recurringItems = recurringData.map((item: RecurringItem) => {
+            // Use the shared calculation function
+            const nextOccurrenceDate = calculateNextRecurringItemOccurrence(item);
+            const itemEndDate = item.endDate ? startOfDay(new Date(item.endDate)) : null;
+            let status: UnifiedRecurringListItem['status'] = "Upcoming";
+
+            if (itemEndDate && itemEndDate < today && isSameDay(nextOccurrenceDate, itemEndDate)) {
+               status = "Ended";
+            } else if (isSameDay(nextOccurrenceDate, today)) {
+              status = "Today";
+            } else if (nextOccurrenceDate < today) {
+              status = "Ended";
+            }
+            
+            return {
+              id: item.id,
+              name: item.name,
+              itemDisplayType: item.type, // This maps RecurringItemType to UnifiedListItemType
+              amount: item.amount,
+              frequency: item.frequency,
+              nextOccurrenceDate,
+              status,
+              isDebt: false,
+              endDate: item.endDate,
+              semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
+              semiMonthlySecondPayDate: item.semiMonthlySecondPayDate,
+              notes: item.notes,
+              source: 'recurring' as const,
+              categoryId: item.categoryId
+            };
+          });
+
+          allUpcomingItems.push(...recurringItems);
+        }
+
+        // Process debt accounts
+        if (debtData) {
+          const today = startOfDay(new Date());
+          
+          const debtItems = debtData.map((debt: DebtAccount) => {
+            // Use the shared calculation function
+            const nextOccurrenceDate = calculateNextDebtOccurrence(debt);
+            
+            return {
+              id: debt.id,
+              name: `${debt.name} (Payment)`,
+              itemDisplayType: 'debt-payment' as const,
+              amount: debt.minimumPayment,
+              frequency: debt.paymentFrequency,
+              nextOccurrenceDate,
+              status: isSameDay(nextOccurrenceDate, today) ? 'Today' as const : 'Upcoming' as const,
+              isDebt: true,
+              source: 'debt' as const,
+            };
+          });
+
+          allUpcomingItems.push(...debtItems);
+        }
+
+        // Sort by date and filter out ended items
+        const activeItems = allUpcomingItems
+          .filter(item => item.status !== 'Ended')
+          .sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime());
+        
+        setUpcomingItems(activeItems);
+
+        setRecurringItems(recurringData || []);
+        setDebtAccounts(debtData || []);
+        setGoals(goalsData || []);
+        setVariableExpenses(variableExpensesData || []);
       } catch (err: any) {
         console.error("Error loading dashboard data:", err);
         setError(err.message);
@@ -204,22 +213,52 @@ export function DashboardContent() {
 
   // Get category spending breakdown
   const getCategorySpending = () => {
-    const categories: Record<string, number> = {};
+    const categorySpending: Record<string, number> = {};
     
-    // Group transactions by category
+    // Helper function to get predefined category labels
+    const getPredefinedCategoryLabel = (value: string) => {
+      const categoryLabels: Record<string, string> = {
+        'housing': 'Housing',
+        'food': 'Food',
+        'utilities': 'Utilities',
+        'transportation': 'Transportation',
+        'health': 'Health',
+        'personal': 'Personal',
+        'home-family': 'Home/Family',
+        'media-productivity': 'Media/Productivity'
+      };
+      return categoryLabels[value] || value;
+    };
+    
+    // Filter transactions for expense categories and group by category
     transactions.forEach(tx => {
-      const categoryName = tx.categoryId || 'Uncategorized';
-      if (!categories[categoryName]) {
-        categories[categoryName] = 0;
+      // Only include transactions that are variable expenses, fixed expenses, or subscriptions
+      if (tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription') {
+        let categoryName = 'Uncategorized';
+        
+        if (tx.categoryId) {
+          // First check if it's a UUID (category from database)
+          const category = categories.find(cat => cat.id === tx.categoryId);
+          if (category) {
+            categoryName = category.name;
+          } else {
+            // Fallback to predefined category mapping
+            categoryName = getPredefinedCategoryLabel(tx.categoryId);
+          }
+        }
+        
+        if (!categorySpending[categoryName]) {
+          categorySpending[categoryName] = 0;
+        }
+        categorySpending[categoryName] += Math.abs(tx.amount); // Use absolute value for expenses
       }
-      categories[categoryName] += tx.amount;
     });
     
-    // Convert to array and sort by amount
-    return Object.entries(categories)
+    // Convert to array and sort by amount (highest spending first)
+    return Object.entries(categorySpending)
       .map(([name, amount]) => ({ name, amount }))
       .sort((a, b) => b.amount - a.amount)
-      .slice(0, 3); // Get top 3 categories
+      .slice(0, 3); // Get top 3 categories with most spending
   };
 
   const topCategories = getCategorySpending();
@@ -233,6 +272,61 @@ export function DashboardContent() {
   const handleEditItem = (item: RecurringItem) => {
     console.log(`Edit item ${item.id}`);
     // TODO: Implement edit functionality
+  };
+
+  const handleAddTransaction = () => {
+    setIsTransactionModalOpen(true);
+  };
+
+  const handleSaveTransaction = async (
+    data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">
+  ) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to save transactions.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const transactionWithUserId = { ...data, userId: user.id };
+      const result = await createTransaction(transactionWithUserId);
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: `Failed to create transaction: ${result.error}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (result.transaction) {
+        // Add the new transaction to the list
+        setTransactions(prev => [result.transaction!, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        
+        // Recalculate totals
+        const newSpending = [...transactions, result.transaction]
+          .filter((tx: Transaction) => tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription')
+          .reduce((sum: number, tx: Transaction) => sum + Math.abs(tx.amount), 0);
+        setMonthlySpending(newSpending);
+        
+        toast({ 
+          title: "Transaction Added", 
+          description: `"${result.transaction.description}" has been added.` 
+        });
+      }
+    } catch (error) {
+      console.error("Error saving transaction:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while saving the transaction.",
+        variant: "destructive"
+      });
+    }
+
+    setIsTransactionModalOpen(false);
   };
 
   if (isLoading) {
@@ -283,9 +377,14 @@ export function DashboardContent() {
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(monthlySpending)}</div>
             <p className="text-xs text-muted-foreground">
-              {transactions.length > 0 
-                ? `From ${transactions.length} transaction${transactions.length > 1 ? 's' : ''}`
-                : 'No transactions this month'}
+              {(() => {
+                const expenseTransactionCount = transactions.filter(tx => 
+                  tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription'
+                ).length;
+                return expenseTransactionCount > 0 
+                  ? `From ${expenseTransactionCount} expense transaction${expenseTransactionCount > 1 ? 's' : ''}`
+                  : 'No expense transactions this month';
+              })()}
             </p>
             {topCategories.length > 0 && (
               <div className="mt-4 space-y-2">
@@ -305,58 +404,54 @@ export function DashboardContent() {
           </CardContent>
         </Card>
         
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Investment Performance</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {/* This could be connected to real investment data if available */}
-            <div className="text-center py-2">
-              <p className="text-muted-foreground text-sm">Investment tracking coming soon</p>
-            </div>
-          </CardContent>
-        </Card>
+        <SavingsGoalsCard />
       </div>
 
-      {/* Second row: Statistics Overview and Upcoming Expenses */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {/* Statistics Overview */}
-        <div className="md:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Spending Trends</CardTitle>
-              <CardDescription>Your expense history for the current period</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ExpenseChart />
-            </CardContent>
-          </Card>
+      {/* Second row: Chart and Upcoming Expenses */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Chart section - takes up 2 columns */}
+        <div className="lg:col-span-2">
+          <ExpenseChart />
         </div>
-
-        {/* Upcoming Expenses */}
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Upcoming Expenses</CardTitle>
-              {upcomingItems.length > 0 && (
-                <CardDescription>You have {upcomingItems.length} upcoming payments</CardDescription>
-              )}
-            </CardHeader>
-            <CardContent>
-              {upcomingItems.length > 0 ? (
-                <RecurringList 
-                  items={upcomingItems} 
-                  onDeleteItem={handleDeleteItem}
-                  onEditItem={handleEditItem}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">No upcoming payments found.</p>
-              )}
-            </CardContent>
-          </Card>
+        
+        {/* Right column: Calendar Access + Upcoming Expenses - takes up 1 column */}
+        <div className="flex flex-col gap-4 h-full min-h-[500px]">
+          <CalendarAccessCard onViewCalendar={() => setIsCalendarOverlayOpen(true)} />
+          <div className="flex-1 flex">
+            <UpcomingExpensesCard items={upcomingItems} />
+          </div>
         </div>
       </div>
+
+      {/* Third row: Recent Transactions */}
+      <div className="grid gap-4">
+        <RecentTransactionsCard 
+          transactions={transactions}
+          categories={categories}
+          accounts={accounts}
+          limit={10}
+          onAddTransaction={handleAddTransaction}
+        />
+      </div>
+
+      <RecurringCalendarOverlay 
+        isOpen={isCalendarOverlayOpen}
+        onClose={() => setIsCalendarOverlayOpen(false)}
+        items={upcomingItems}
+      />
+
+      <AddEditTransactionDialog
+        isOpen={isTransactionModalOpen}
+        onOpenChange={setIsTransactionModalOpen}
+        onSave={handleSaveTransaction}
+        categories={categories}
+        accounts={accounts}
+        recurringItems={recurringItems}
+        debtAccounts={debtAccounts}
+        goals={goals}
+        variableExpenses={variableExpenses}
+      />
     </div>
   );
 }
+
