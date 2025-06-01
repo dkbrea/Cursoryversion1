@@ -1,6 +1,6 @@
 "use client";
 
-import type { Transaction, Category, Account } from "@/types";
+import type { Transaction, Category, Account, DebtAccount } from "@/types";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -21,12 +21,13 @@ interface TransactionTableProps {
   transactions: Transaction[];
   categories: Category[];
   accounts: Account[];
+  debtAccounts: DebtAccount[];
   onDeleteTransaction: (transactionId: string) => void;
   onEditTransaction: (transaction: Transaction) => void;
 }
 
 export function TransactionTable({
-  transactions, categories, accounts,
+  transactions, categories, accounts, debtAccounts,
   onDeleteTransaction, onEditTransaction,
 }: TransactionTableProps) {
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
@@ -69,8 +70,20 @@ export function TransactionTable({
     return category ? category.name : "Uncategorized";
   };
   
-  const getAccountName = (accountId: string) => {
-    return accounts.find(acc => acc.id === accountId)?.name || "N/A";
+  const getAccountName = (transaction: Transaction) => {
+    // For debt account transactions, look in debtAccounts
+    if (transaction.debtAccountId) {
+      const debtAccount = debtAccounts.find(acc => acc.id === transaction.debtAccountId);
+      return debtAccount ? debtAccount.name : "Unknown Debt Account";
+    }
+    
+    // For regular account transactions, look in accounts
+    if (transaction.accountId) {
+      const account = accounts.find(acc => acc.id === transaction.accountId);
+      return account ? account.name : "Unknown Account";
+    }
+    
+    return "No Account";
   }
 
   const handleDeleteClick = (transaction: Transaction) => {
@@ -106,7 +119,7 @@ export function TransactionTable({
             <TableRow key={transaction.id}>
               <TableCell>{format(new Date(transaction.date), "MMM dd, yy")}</TableCell>
               <TableCell className="font-medium">{transaction.description}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">{getAccountName(transaction.accountId)}</TableCell>
+              <TableCell className="text-xs text-muted-foreground">{getAccountName(transaction)}</TableCell>
               <TableCell>
                 <Badge variant="outline" className="text-xs">
                   {getCategoryName(transaction.categoryId, transaction)}

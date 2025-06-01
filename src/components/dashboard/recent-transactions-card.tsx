@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpIcon, ArrowDownIcon, ArrowRightIcon, Plus } from "lucide-react";
-import type { Transaction, Category, Account } from "@/types";
+import type { Transaction, Category, Account, DebtAccount } from "@/types";
 
 interface RecentTransactionsCardProps {
   transactions: Transaction[];
   categories: Category[];
   accounts: Account[];
+  debtAccounts: DebtAccount[];
   limit?: number;
   onAddTransaction?: () => void;
 }
@@ -19,6 +20,7 @@ export function RecentTransactionsCard({
   transactions, 
   categories, 
   accounts, 
+  debtAccounts,
   limit = 5, 
   onAddTransaction
 }: RecentTransactionsCardProps) {
@@ -50,9 +52,20 @@ export function RecentTransactionsCard({
     return categoryLabels[categoryId] || categoryId;
   };
 
-  const getAccountName = (accountId: string) => {
-    const account = accounts.find(acc => acc.id === accountId);
-    return account?.name || 'Unknown Account';
+  const getAccountName = (transaction: Transaction) => {
+    // For debt account transactions, look in debtAccounts
+    if (transaction.debtAccountId) {
+      const debtAccount = debtAccounts.find(acc => acc.id === transaction.debtAccountId);
+      return debtAccount ? debtAccount.name : "Unknown Debt Account";
+    }
+    
+    // For regular account transactions, look in accounts
+    if (transaction.accountId) {
+      const account = accounts.find(acc => acc.id === transaction.accountId);
+      return account ? account.name : "Unknown Account";
+    }
+    
+    return "No Account";
   };
 
   const getTransactionTypeColor = (type: string, detailedType?: string) => {
@@ -152,7 +165,7 @@ export function RecentTransactionsCard({
                   </div>
                   
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{getAccountName(transaction.accountId)}</span>
+                    <span>{getAccountName(transaction)}</span>
                     <span>•</span>
                     <span>{getCategoryName(transaction.categoryId)}</span>
                     <span>•</span>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -23,7 +22,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Icons.Dashboard },
   { href: "/transactions", label: "Transactions", icon: Icons.Transactions },
-  { href: "/categories", label: "Categories", icon: Icons.Categories },
   { href: "/accounts", label: "Accounts", icon: Icons.Accounts },
   { href: "/debts", label: "Debt Plan", icon: Icons.Debts },
   { href: "/recurring", label: "Recurring", icon: Icons.Recurring },

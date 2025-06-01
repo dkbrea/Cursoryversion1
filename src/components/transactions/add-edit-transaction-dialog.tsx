@@ -292,7 +292,7 @@ export function AddEditTransactionDialog({
 
     const transactionData = {
       date: startOfDay(values.date),
-      description: values.description || "N/A", 
+      description: values.description || "",
       amount: values.amount, 
       type: baseTransactionType, 
       detailedType: values.detailedType,

@@ -571,6 +571,7 @@ export function DashboardContent() {
           transactions={transactions}
           categories={categories}
           accounts={accounts}
+          debtAccounts={debtAccounts}
           limit={10}
           onAddTransaction={handleAddTransaction}
         />
