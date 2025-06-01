@@ -47,6 +47,8 @@ const getDebtAccountTypeIcon = (type: DebtAccountType) => {
    switch (type) {
     case "credit-card": // Debt-side credit card
       return <Icons.DebtTypeCreditCard className="h-5 w-5 text-destructive" />;
+    case "line-of-credit":
+      return <Icons.DebtTypeLineOfCredit className="h-5 w-5 text-destructive" />;
     case "student-loan":
       return <Icons.DebtTypeStudentLoan className="h-5 w-5 text-destructive" />;
     case "personal-loan":

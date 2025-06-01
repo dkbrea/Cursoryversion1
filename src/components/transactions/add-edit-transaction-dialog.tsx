@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Transaction, Category, Account, TransactionDetailedType, RecurringItem, DebtAccount, FinancialGoalWithContribution, VariableExpense } from "@/types";
 import { transactionDetailedTypes } from "@/types";
 import { useState, useEffect, type ReactNode } from "react";
@@ -31,10 +32,11 @@ const formSchema = z.object({
   sourceId: z.string().optional(),
   amount: z.number({ required_error: "Amount is required.", invalid_type_error: "Amount must be a number." }).min(0, { message: "Amount cannot be negative." }),
   categoryId: z.string().nullable().optional(),
-  accountId: z.string({ required_error: "Account selection is required." }),
+  accountId: z.string().optional(), // Now optional since we might use debt account
   toAccountId: z.string().nullable().optional(),
   notes: z.string().optional(),
   tags: z.string().optional(),
+  isDebtTransaction: z.boolean().optional(),
 }).superRefine((data, ctx) => {
     // Require sourceId for all types except manual variable expenses
     if (!data.sourceId) {
@@ -69,6 +71,15 @@ const formSchema = z.object({
             code: z.ZodIssueCode.custom,
             path: ["amount"],
             message: "Amount must be greater than 0.",
+        });
+    }
+    
+    // Require accountId selection
+    if (!data.accountId || data.accountId.trim() === '') {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["accountId"],
+            message: "Account selection is required.",
         });
     }
     
@@ -132,14 +143,16 @@ export function AddEditTransactionDialog({
       sourceId: undefined,
       amount: 0,
       categoryId: null,
-      accountId: undefined,
+      accountId: '',
       toAccountId: null,
       notes: "",
       tags: "",
+      isDebtTransaction: false,
     },
   });
 
   const selectedDetailedType = form.watch("detailedType");
+  const isDebtTransaction = form.watch("isDebtTransaction");
 
   // Helper function to get predefined category labels
   const getPredefinedCategoryLabel = (value: string) => {
@@ -165,15 +178,17 @@ export function AddEditTransactionDialog({
         sourceId: transactionToEdit.sourceId || undefined,
         amount: Math.abs(transactionToEdit.amount), // User always edits positive amount
         categoryId: transactionToEdit.categoryId || null,
-        accountId: transactionToEdit.accountId,
+        accountId: transactionToEdit.accountId || '',
         toAccountId: transactionToEdit.toAccountId || null,
         notes: transactionToEdit.notes || "",
         tags: transactionToEdit.tags?.join(", ") || "",
+        isDebtTransaction: false, // Default to false, let user check if needed
       });
     } else if (!isOpen && !transactionToEdit) { 
       form.reset({
         date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
-        amount: 0, categoryId: null, accountId: undefined, toAccountId: null, notes: "", tags: "",
+        amount: 0, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
+        isDebtTransaction: false,
       });
     }
   }, [transactionToEdit, isOpen, form]);
@@ -271,6 +286,10 @@ export function AddEditTransactionDialog({
       }
     }
 
+    // Determine if this is a debt account transaction
+    const isDebtAccountTransaction = values.isDebtTransaction && 
+      (values.detailedType === 'variable-expense' || values.detailedType === 'fixed-expense' || values.detailedType === 'subscription');
+
     const transactionData = {
       date: startOfDay(values.date),
       description: values.description || "N/A", 
@@ -279,10 +298,13 @@ export function AddEditTransactionDialog({
       detailedType: values.detailedType,
       sourceId: values.sourceId || undefined,
       categoryId: finalCategoryId,
-      accountId: values.accountId, // This is "From Account"
+      // Use accountId or debtAccountId based on whether this is a debt transaction
+      accountId: isDebtAccountTransaction ? undefined : values.accountId,
+      debtAccountId: isDebtAccountTransaction ? values.accountId : undefined,
       toAccountId: values.detailedType === 'goal-contribution' ? values.toAccountId : null,
       notes: values.notes || undefined,
       tags: values.tags ? values.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
+      isDebtTransaction: values.isDebtTransaction,
     };
     
     onSave(transactionData, transactionToEdit?.id);
@@ -323,12 +345,32 @@ export function AddEditTransactionDialog({
 
   const availableAssetAccounts = accounts.filter(acc => acc.type !== 'credit card' || acc.balance >=0);
 
+  // Get the appropriate accounts list based on transaction type and debt checkbox
+  const getAvailableAccounts = () => {
+    // For expense types with debt checkbox checked, show only revolving debt accounts
+    if ((selectedDetailedType === 'variable-expense' || selectedDetailedType === 'fixed-expense' || selectedDetailedType === 'subscription') && isDebtTransaction) {
+      // Filter to only include revolving debt accounts (credit cards and lines of credit)
+      const revolvingDebtAccounts = debtAccounts.filter(debt => 
+        debt.type === 'credit-card' || debt.type === 'line-of-credit'
+      );
+      return revolvingDebtAccounts.map(debt => ({
+        id: debt.id,
+        name: debt.name,
+        type: debt.type,
+        balance: debt.balance
+      }));
+    }
+    // Otherwise show regular asset accounts
+    return availableAssetAccounts;
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!isLoading && !open) {
         form.reset({ 
             date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
-            amount: 0, categoryId: null, accountId: undefined, toAccountId: null, notes: "", tags: "",
+            amount: 0, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
+            isDebtTransaction: false,
         });
       }
       if (!isLoading) onOpenChange(open); 
@@ -392,6 +434,11 @@ export function AddEditTransactionDialog({
                               form.setValue('description', '', {shouldValidate: true});
                               form.setValue('amount', 0, {shouldValidate: true});
                               form.setValue('categoryId', null, {shouldValidate: true});
+                              form.setValue('accountId', '', {shouldValidate: true});
+                              // Reset debt transaction checkbox for non-expense types
+                              if (config.type !== 'variable-expense' && config.type !== 'fixed-expense' && config.type !== 'subscription') {
+                                form.setValue('isDebtTransaction', false, {shouldValidate: true});
+                              }
                               if (config.type !== 'goal-contribution') {
                                 form.setValue('toAccountId', null, {shouldValidate: true});
                               }
@@ -549,21 +596,61 @@ export function AddEditTransactionDialog({
               )}
             />
             
+            {/* Debt Transaction Checkbox - Only for expense types */}
+            {(selectedDetailedType === 'variable-expense' || selectedDetailedType === 'fixed-expense' || selectedDetailedType === 'subscription') && (
+              <FormField
+                control={form.control}
+                name="isDebtTransaction"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox 
+                        checked={field.value || false}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          // Reset account selection when toggling debt transaction
+                          form.setValue('accountId', '');
+                        }}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>This expense occurred on a debt account (like a credit card or line of credit)</FormLabel>
+                      <FormDescription>
+                        Check this if you used a credit card, line of credit, or other revolving debt account for this expense
+                      </FormDescription>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            
             {/* From Account - Always present */}
             <FormField
               control={form.control}
               name="accountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{selectedDetailedType === 'goal-contribution' ? 'From Account *' : 'Account *'}</FormLabel>
+                  <FormLabel>
+                    {selectedDetailedType === 'goal-contribution' 
+                      ? 'From Account *' 
+                      : isDebtTransaction && (selectedDetailedType === 'variable-expense' || selectedDetailedType === 'fixed-expense' || selectedDetailedType === 'subscription')
+                        ? 'Debt Account *'
+                        : 'Account *'
+                    }
+                  </FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || ""} >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select account" />
+                        <SelectValue placeholder={
+                          isDebtTransaction && (selectedDetailedType === 'variable-expense' || selectedDetailedType === 'fixed-expense' || selectedDetailedType === 'subscription')
+                            ? "Select debt account"
+                            : "Select account"
+                        } />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {availableAssetAccounts.map(account => (
+                      {getAvailableAccounts().map(account => (
                         <SelectItem key={account.id} value={account.id}>
                           {account.name} ({account.type})
                         </SelectItem>
@@ -590,7 +677,7 @@ export function AddEditTransactionDialog({
                         </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                        {availableAssetAccounts.map(account => (
+                        {getAvailableAccounts().map(account => (
                             <SelectItem key={account.id} value={account.id}>
                             {account.name} ({account.type})
                             </SelectItem>
@@ -671,7 +758,8 @@ export function AddEditTransactionDialog({
                 if (!transactionToEdit) { 
                      form.reset({
                         date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
-                        amount: 0, categoryId: null, accountId: undefined, toAccountId: null, notes: "", tags: "",
+                        amount: 0, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
+                        isDebtTransaction: false,
                      });
                 }
               }} disabled={isLoading}>

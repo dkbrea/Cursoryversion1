@@ -1,4 +1,3 @@
-
 import type { SVGProps } from "react";
 import {
   Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3, RefreshCw, Settings2, Clock, BarChartBig as LucideBarChartBig, Info, PieChart as LucidePieChart, Download, CalendarDays, History, FileText as FileTextIconLucide, Bot, Percent, Activity, Lightbulb, ListChecks, ArrowUp, ArrowRight
@@ -53,6 +52,7 @@ export const Icons = {
   AccountTypeOther: HelpCircle,
   MoreHorizontal: MoreHorizontal,
   DebtTypeCreditCard: CreditCard,
+  DebtTypeLineOfCredit: CreditCard, // Using same icon as credit card since they're both revolving credit
   DebtTypeStudentLoan: Library,
   DebtTypePersonalLoan: DollarSign,
   DebtTypeMortgage: Landmark,

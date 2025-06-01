@@ -96,7 +96,8 @@ export interface Database {
           type: TransactionType,
           detailed_type: 'income' | 'variable-expense' | 'fixed-expense' | 'subscription' | 'debt-payment' | 'goal-contribution' | null,
           category_id: number | null,
-          account_id: string,
+          account_id: string | null,
+          debt_account_id: string | null,
           to_account_id: string | null,
           source_id: string | null,
           source: string | null,
@@ -113,7 +114,8 @@ export interface Database {
           type: TransactionType,
           detailed_type?: 'income' | 'variable-expense' | 'fixed-expense' | 'subscription' | 'debt-payment' | 'goal-contribution' | null,
           category_id?: number | null,
-          account_id: string,
+          account_id?: string | null,
+          debt_account_id?: string | null,
           to_account_id?: string | null,
           source_id?: string | null,
           source?: string | null,
@@ -130,7 +132,8 @@ export interface Database {
           type?: TransactionType,
           detailed_type?: 'income' | 'variable-expense' | 'fixed-expense' | 'subscription' | 'debt-payment' | 'goal-contribution' | null,
           category_id?: number | null,
-          account_id?: string,
+          account_id?: string | null,
+          debt_account_id?: string | null,
           to_account_id?: string | null,
           source_id?: string | null,
           source?: string | null,
@@ -156,6 +159,12 @@ export interface Database {
             foreignKeyName: "transactions_account_id_fkey",
             columns: ["account_id"],
             referencedRelation: "accounts",
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_debt_account_id_fkey",
+            columns: ["debt_account_id"],
+            referencedRelation: "debt_accounts",
             referencedColumns: ["id"]
           },
           {
@@ -192,7 +201,7 @@ export interface Database {
         Row: {
           id: string
           name: string
-          type: 'credit-card' | 'student-loan' | 'personal-loan' | 'mortgage' | 'auto-loan' | 'other'
+          type: 'credit-card' | 'line-of-credit' | 'student-loan' | 'personal-loan' | 'mortgage' | 'auto-loan' | 'other'
           balance: number
           apr: number
           minimum_payment: number
@@ -205,7 +214,7 @@ export interface Database {
         Insert: {
           id?: string
           name: string
-          type: 'credit-card' | 'student-loan' | 'personal-loan' | 'mortgage' | 'auto-loan' | 'other'
+          type: 'credit-card' | 'line-of-credit' | 'student-loan' | 'personal-loan' | 'mortgage' | 'auto-loan' | 'other'
           balance?: number
           apr: number
           minimum_payment: number
@@ -218,7 +227,7 @@ export interface Database {
         Update: {
           id?: string
           name?: string
-          type?: 'credit-card' | 'student-loan' | 'personal-loan' | 'mortgage' | 'auto-loan' | 'other'
+          type?: 'credit-card' | 'line-of-credit' | 'student-loan' | 'personal-loan' | 'mortgage' | 'auto-loan' | 'other'
           balance?: number
           apr?: number
           minimum_payment?: number

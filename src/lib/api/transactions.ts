@@ -25,6 +25,30 @@ const updateAccountBalance = async (accountId: string, amount: number, operation
   }
 };
 
+// Helper function to update debt account balance
+const updateDebtAccountBalance = async (debtAccountId: string, amount: number, operation: 'add' | 'subtract') => {
+  const { data: debtAccount, error: fetchError } = await supabase
+    .from('debt_accounts')
+    .select('balance')
+    .eq('id', debtAccountId)
+    .single();
+
+  if (fetchError || !debtAccount) {
+    throw new Error(`Failed to fetch debt account balance: ${fetchError?.message || 'Debt account not found'}`);
+  }
+
+  const newBalance = operation === 'add' ? debtAccount.balance + amount : debtAccount.balance - amount;
+
+  const { error: updateError } = await supabase
+    .from('debt_accounts')
+    .update({ balance: newBalance })
+    .eq('id', debtAccountId);
+
+  if (updateError) {
+    throw new Error(`Failed to update debt account balance: ${updateError.message}`);
+  }
+};
+
 export const getTransactions = async (
   userId: string, 
   options?: { 
@@ -89,7 +113,8 @@ export const getTransactions = async (
       type: item.type as TransactionType,
       detailedType: item.detailed_type as TransactionDetailedType | undefined,
       categoryId: item.category_id ? String(item.category_id) : undefined,
-      accountId: item.account_id,
+      accountId: item.account_id || undefined,
+      debtAccountId: item.debt_account_id || undefined,
       toAccountId: item.to_account_id || undefined,
       sourceId: item.source_id || undefined,
       userId: item.user_id,
@@ -127,7 +152,8 @@ export const getTransaction = async (transactionId: string): Promise<{ transacti
       type: data.type as TransactionType,
       detailedType: data.detailed_type as TransactionDetailedType | undefined,
       categoryId: data.category_id ? String(data.category_id) : undefined,
-      accountId: data.account_id,
+      accountId: data.account_id || undefined,
+      debtAccountId: data.debt_account_id || undefined,
       toAccountId: data.to_account_id || undefined,
       sourceId: data.source_id || undefined,
       userId: data.user_id,
@@ -148,6 +174,12 @@ export const createTransaction = async (
   transaction: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<{ transaction: Transaction | null; error?: string }> => {
   try {
+    // Determine which account to use for balance updates
+    const accountIdForBalance = transaction.accountId || transaction.debtAccountId;
+    if (!accountIdForBalance) {
+      return { transaction: null, error: 'Either accountId or debtAccountId must be provided' };
+    }
+
     // Manual transaction creation with balance updates
     const { data: txData, error: txError } = await supabase
       .from('transactions')
@@ -158,7 +190,8 @@ export const createTransaction = async (
         type: transaction.type,
         detailed_type: transaction.detailedType,
         category_id: transaction.categoryId as any || null,
-        account_id: transaction.accountId,
+        account_id: transaction.accountId || null,
+        debt_account_id: transaction.debtAccountId || null,
         to_account_id: transaction.toAccountId,
         source_id: transaction.sourceId,
         source: transaction.source,
@@ -194,13 +227,21 @@ export const createTransaction = async (
     try {
       if (transaction.type === 'income') {
         // Income: Add to the account balance (use absolute value)
-        await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'add');
+        if (transaction.accountId) {
+          await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'add');
+        }
       } else if (transaction.type === 'expense') {
-        // Expense: Subtract from the account balance (use absolute value) 
-        await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'subtract');
+        // For expenses, update the appropriate account balance
+        if (transaction.debtAccountId) {
+          // For debt account expenses, update debt account balance (increase debt)
+          await updateDebtAccountBalance(transaction.debtAccountId, Math.abs(transaction.amount), 'add');
+        } else if (transaction.accountId) {
+          // For regular account expenses, subtract from account balance
+          await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'subtract');
+        }
         
         // If this is a debt payment, also reduce the debt account balance
-        if (transaction.detailedType === 'debt-payment' && transaction.sourceId) {
+        if (transaction.detailedType === 'debt-payment' && transaction.sourceId && transaction.accountId) {
           console.log('Processing debt payment - reducing debt balance');
           console.log('Debt account ID:', transaction.sourceId, 'Payment amount:', transaction.amount);
           
@@ -208,35 +249,10 @@ export const createTransaction = async (
           const paymentAmount = Math.abs(transaction.amount);
           console.log('Absolute payment amount:', paymentAmount);
           
-          // First get the current debt balance
-          const { data: debtAccount, error: fetchError } = await supabase
-            .from('debt_accounts')
-            .select('balance')
-            .eq('id', transaction.sourceId)
-            .single();
-            
-          if (fetchError || !debtAccount) {
-            console.error('Failed to fetch debt account:', fetchError);
-            throw new Error(`Failed to fetch debt account: ${fetchError?.message || 'Account not found'}`);
-          }
-          
-          // Calculate new balance and update (always subtract the payment)
-          const newDebtBalance = debtAccount.balance - paymentAmount;
-          console.log('Current debt balance:', debtAccount.balance, 'New debt balance:', newDebtBalance);
-          
-          const { error: debtUpdateError } = await supabase
-            .from('debt_accounts')
-            .update({ balance: newDebtBalance })
-            .eq('id', transaction.sourceId);
-            
-          if (debtUpdateError) {
-            console.error('Failed to update debt balance:', debtUpdateError);
-            throw new Error(`Failed to update debt balance: ${debtUpdateError.message}`);
-          }
-          
+          await updateDebtAccountBalance(transaction.sourceId, paymentAmount, 'subtract');
           console.log('Debt balance updated successfully');
         }
-      } else if (transaction.type === 'transfer' && transaction.toAccountId) {
+      } else if (transaction.type === 'transfer' && transaction.toAccountId && transaction.accountId) {
         // Transfer: Subtract from source account, add to destination account (use absolute values)
         await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'subtract');
         await updateAccountBalance(transaction.toAccountId, Math.abs(transaction.amount), 'add');
@@ -267,9 +283,18 @@ export const updateTransaction = async (
 
     // Reverse the original transaction's balance effect
     if (originalTx.type === 'income') {
-      await updateAccountBalance(originalTx.accountId, Math.abs(originalTx.amount), 'subtract');
+      if (originalTx.accountId) {
+        await updateAccountBalance(originalTx.accountId, Math.abs(originalTx.amount), 'subtract');
+      }
     } else if (originalTx.type === 'expense') {
-      await updateAccountBalance(originalTx.accountId, Math.abs(originalTx.amount), 'add');
+      // Handle both regular account and debt account expenses
+      if (originalTx.debtAccountId) {
+        // Reverse debt account expense (reduce debt)
+        await updateDebtAccountBalance(originalTx.debtAccountId, Math.abs(originalTx.amount), 'subtract');
+      } else if (originalTx.accountId) {
+        // Reverse regular account expense (add back to account)
+        await updateAccountBalance(originalTx.accountId, Math.abs(originalTx.amount), 'add');
+      }
       
       // If the original transaction was a debt payment, reverse the debt balance effect
       if (originalTx.detailedType === 'debt-payment' && originalTx.sourceId) {
@@ -279,31 +304,10 @@ export const updateTransaction = async (
         const originalPaymentAmount = Math.abs(originalTx.amount);
         console.log('Original payment amount (abs):', originalPaymentAmount);
         
-        const { data: debtAccount, error: fetchError } = await supabase
-          .from('debt_accounts')
-          .select('balance')
-          .eq('id', originalTx.sourceId)
-          .single();
-          
-        if (fetchError || !debtAccount) {
-          throw new Error(`Failed to fetch debt account: ${fetchError?.message || 'Account not found'}`);
-        }
-        
-        // Add back the payment amount (reverse the reduction)
-        const newDebtBalance = debtAccount.balance + originalPaymentAmount;
-        
-        const { error: debtUpdateError } = await supabase
-          .from('debt_accounts')
-          .update({ balance: newDebtBalance })
-          .eq('id', originalTx.sourceId);
-          
-        if (debtUpdateError) {
-          throw new Error(`Failed to reverse debt balance: ${debtUpdateError.message}`);
-        }
-        
+        await updateDebtAccountBalance(originalTx.sourceId, originalPaymentAmount, 'add');
         console.log('Original debt payment effect reversed');
       }
-    } else if (originalTx.type === 'transfer' && originalTx.toAccountId) {
+    } else if (originalTx.type === 'transfer' && originalTx.toAccountId && originalTx.accountId) {
       await updateAccountBalance(originalTx.accountId, Math.abs(originalTx.amount), 'add');
       await updateAccountBalance(originalTx.toAccountId, Math.abs(originalTx.amount), 'subtract');
     }
@@ -317,6 +321,7 @@ export const updateTransaction = async (
     if (updates.detailedType !== undefined) updateData.detailed_type = updates.detailedType;
     if (updates.categoryId !== undefined) updateData.category_id = updates.categoryId || null;
     if (updates.accountId !== undefined) updateData.account_id = updates.accountId;
+    if (updates.debtAccountId !== undefined) updateData.debt_account_id = updates.debtAccountId;
     if (updates.toAccountId !== undefined) updateData.to_account_id = updates.toAccountId;
     if (updates.sourceId !== undefined) updateData.source_id = updates.sourceId;
     if (updates.source !== undefined) updateData.source = updates.source;
@@ -369,9 +374,18 @@ export const updateTransaction = async (
 
     // Apply the new transaction's balance effect
     if (updatedTx.type === 'income') {
-      await updateAccountBalance(updatedTx.accountId, Math.abs(updatedTx.amount), 'add');
+      if (updatedTx.accountId) {
+        await updateAccountBalance(updatedTx.accountId, Math.abs(updatedTx.amount), 'add');
+      }
     } else if (updatedTx.type === 'expense') {
-      await updateAccountBalance(updatedTx.accountId, Math.abs(updatedTx.amount), 'subtract');
+      // Handle both regular account and debt account expenses
+      if (updatedTx.debtAccountId) {
+        // Apply debt account expense (increase debt)
+        await updateDebtAccountBalance(updatedTx.debtAccountId, Math.abs(updatedTx.amount), 'add');
+      } else if (updatedTx.accountId) {
+        // Apply regular account expense (subtract from account)
+        await updateAccountBalance(updatedTx.accountId, Math.abs(updatedTx.amount), 'subtract');
+      }
       
       // If the updated transaction is a debt payment, apply the debt balance effect
       if (updatedTx.detailedType === 'debt-payment' && updatedTx.sourceId) {
@@ -381,31 +395,10 @@ export const updateTransaction = async (
         const newPaymentAmount = Math.abs(updatedTx.amount);
         console.log('New payment amount (abs):', newPaymentAmount);
         
-        const { data: debtAccount, error: fetchError } = await supabase
-          .from('debt_accounts')
-          .select('balance')
-          .eq('id', updatedTx.sourceId)
-          .single();
-          
-        if (fetchError || !debtAccount) {
-          throw new Error(`Failed to fetch debt account: ${fetchError?.message || 'Account not found'}`);
-        }
-        
-        // Subtract the payment amount from debt balance
-        const newDebtBalance = debtAccount.balance - newPaymentAmount;
-        
-        const { error: debtUpdateError } = await supabase
-          .from('debt_accounts')
-          .update({ balance: newDebtBalance })
-          .eq('id', updatedTx.sourceId);
-          
-        if (debtUpdateError) {
-          throw new Error(`Failed to update debt balance: ${debtUpdateError.message}`);
-        }
-        
+        await updateDebtAccountBalance(updatedTx.sourceId, newPaymentAmount, 'subtract');
         console.log('New debt payment effect applied');
       }
-    } else if (updatedTx.type === 'transfer' && updatedTx.toAccountId) {
+    } else if (updatedTx.type === 'transfer' && updatedTx.toAccountId && updatedTx.accountId) {
       await updateAccountBalance(updatedTx.accountId, Math.abs(updatedTx.amount), 'subtract');
       await updateAccountBalance(updatedTx.toAccountId, Math.abs(updatedTx.amount), 'add');
     }
@@ -426,9 +419,18 @@ export const deleteTransaction = async (transactionId: string): Promise<{ succes
 
     // Reverse the transaction's balance effect
     if (transaction.type === 'income') {
-      await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'subtract');
+      if (transaction.accountId) {
+        await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'subtract');
+      }
     } else if (transaction.type === 'expense') {
-      await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'add');
+      // Handle both regular account and debt account expenses
+      if (transaction.debtAccountId) {
+        // Reverse debt account expense (reduce debt)
+        await updateDebtAccountBalance(transaction.debtAccountId, Math.abs(transaction.amount), 'subtract');
+      } else if (transaction.accountId) {
+        // Reverse regular account expense (add back to account)
+        await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'add');
+      }
       
       // If the deleted transaction was a debt payment, reverse the debt balance effect
       if (transaction.detailedType === 'debt-payment' && transaction.sourceId) {
@@ -438,31 +440,10 @@ export const deleteTransaction = async (transactionId: string): Promise<{ succes
         const deletedPaymentAmount = Math.abs(transaction.amount);
         console.log('Deleted payment amount (abs):', deletedPaymentAmount);
         
-        const { data: debtAccount, error: fetchError } = await supabase
-          .from('debt_accounts')
-          .select('balance')
-          .eq('id', transaction.sourceId)
-          .single();
-          
-        if (fetchError || !debtAccount) {
-          throw new Error(`Failed to fetch debt account: ${fetchError?.message || 'Account not found'}`);
-        }
-        
-        // Add back the payment amount (reverse the reduction)
-        const newDebtBalance = debtAccount.balance + deletedPaymentAmount;
-        
-        const { error: debtUpdateError } = await supabase
-          .from('debt_accounts')
-          .update({ balance: newDebtBalance })
-          .eq('id', transaction.sourceId);
-          
-        if (debtUpdateError) {
-          throw new Error(`Failed to reverse debt balance: ${debtUpdateError.message}`);
-        }
-        
+        await updateDebtAccountBalance(transaction.sourceId, deletedPaymentAmount, 'add');
         console.log('Debt payment effect reversed from deleted transaction');
       }
-    } else if (transaction.type === 'transfer' && transaction.toAccountId) {
+    } else if (transaction.type === 'transfer' && transaction.toAccountId && transaction.accountId) {
       await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'add');
       await updateAccountBalance(transaction.toAccountId, Math.abs(transaction.amount), 'subtract');
     }

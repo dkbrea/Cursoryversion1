@@ -5,7 +5,7 @@ import { ExpenseChart } from "@/components/dashboard/expense-chart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, CreditCard, Users, TrendingUp } from "lucide-react";
 import { RecurringList } from "@/components/recurring/recurring-list";
-import type { UnifiedRecurringListItem, RecurringItem, Account, Transaction, DebtAccount, Category, FinancialGoal, VariableExpense } from "@/types";
+import type { UnifiedRecurringListItem, RecurringItem, Account, Transaction, DebtAccount, Category, FinancialGoal, FinancialGoalWithContribution, VariableExpense } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccounts } from "@/lib/api/accounts";
 import { getTransactions } from "@/lib/api/transactions";
@@ -39,6 +39,7 @@ export function DashboardContent() {
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
+  const [goalsWithContributions, setGoalsWithContributions] = useState<FinancialGoalWithContribution[]>([]);
   const [variableExpenses, setVariableExpenses] = useState<VariableExpense[]>([]);
   const [totalBalance, setTotalBalance] = useState(0);
   const [monthlySpending, setMonthlySpending] = useState(0);
@@ -200,6 +201,14 @@ export function DashboardContent() {
         setDebtAccounts(debtData || []);
         setGoals(goalsData || []);
         setVariableExpenses(variableExpensesData || []);
+
+        // Convert goals to FinancialGoalWithContribution format for the transaction dialog
+        const goalsConverted: FinancialGoalWithContribution[] = (goalsData || []).map(goal => ({
+          ...goal,
+          monthlyContribution: 0, // Default value - could be calculated based on target date
+          monthsRemaining: 0 // Default value - could be calculated based on target date
+        }));
+        setGoalsWithContributions(goalsConverted);
       } catch (err: any) {
         console.error("Error loading dashboard data:", err);
         setError(err.message);
@@ -290,8 +299,141 @@ export function DashboardContent() {
       return;
     }
 
+    // Handle predefined category mapping
+    let finalCategoryId = data.categoryId;
+    
+    // For income transactions, always use "Income" category
+    if (data.detailedType === 'income') {
+      const incomeCategoryName = 'Income';
+      let incomeCategory = categories.find(cat => cat.name === incomeCategoryName);
+      
+      if (incomeCategory) {
+        finalCategoryId = incomeCategory.id;
+      } else {
+        // Create Income category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: incomeCategoryName,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategories(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create Income category:', error);
+          finalCategoryId = null;
+        }
+      }
+    } else if (data.detailedType === 'goal-contribution') {
+      // For goal contribution transactions, always use "Savings" category
+      const savingsCategoryName = 'Savings';
+      let savingsCategory = categories.find(cat => cat.name === savingsCategoryName);
+      
+      if (savingsCategory) {
+        finalCategoryId = savingsCategory.id;
+      } else {
+        // Create Savings category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: savingsCategoryName,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategories(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create Savings category:', error);
+          finalCategoryId = null;
+        }
+      }
+    } else if (data.detailedType === 'debt-payment') {
+      // For debt payment transactions, always use "Debt" category
+      const debtCategoryName = 'Debt';
+      let debtCategory = categories.find(cat => cat.name === debtCategoryName);
+      
+      if (debtCategory) {
+        finalCategoryId = debtCategory.id;
+      } else {
+        // Create Debt category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: debtCategoryName,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategories(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create Debt category:', error);
+          finalCategoryId = null;
+        }
+      }
+    } else if (finalCategoryId && typeof finalCategoryId === 'string' && finalCategoryId.startsWith('PREDEFINED:')) {
+      // Handle other predefined categories (for expenses)
+      const predefinedValue = finalCategoryId.replace('PREDEFINED:', '');
+      
+      // Map predefined value to display label
+      const categoryLabels: Record<string, string> = {
+        'housing': 'Housing',
+        'food': 'Food',
+        'utilities': 'Utilities',
+        'transportation': 'Transportation',
+        'health': 'Health',
+        'personal': 'Personal',
+        'home-family': 'Home/Family',
+        'media-productivity': 'Media/Productivity'
+      };
+      
+      const categoryLabel = categoryLabels[predefinedValue] || predefinedValue;
+      
+      // Try to find existing category with this name
+      let existingCategory = categories.find(cat => cat.name === categoryLabel);
+      
+      if (existingCategory) {
+        finalCategoryId = existingCategory.id;
+      } else {
+        // Create new category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: categoryLabel,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategories(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create category:', error);
+          finalCategoryId = null;
+        }
+      }
+    }
+
     try {
-      const transactionWithUserId = { ...data, userId: user.id };
+      const transactionWithUserId = { 
+        ...data, 
+        userId: user.id,
+        categoryId: finalCategoryId 
+      };
       const result = await createTransaction(transactionWithUserId);
       if (result.error) {
         toast({
@@ -448,7 +590,7 @@ export function DashboardContent() {
         accounts={accounts}
         recurringItems={recurringItems}
         debtAccounts={debtAccounts}
-        goals={goals}
+        goals={goalsWithContributions}
         variableExpenses={variableExpenses}
       />
     </div>

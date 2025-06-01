@@ -26,7 +26,8 @@ export interface Transaction {
   type: TransactionType; 
   detailedType?: TransactionDetailedType; 
   categoryId?: string | null; 
-  accountId: string; 
+  accountId?: string; // Now optional since we might use debtAccountId instead
+  debtAccountId?: string; // New field for debt account transactions
   toAccountId?: string | null; 
   sourceId?: string; 
   userId: string;
@@ -57,9 +58,9 @@ export interface Account {
 }
 
 // Debt Management Types
-export type DebtAccountType = 'credit-card' | 'student-loan' | 'personal-loan' | 'mortgage' | 'auto-loan' | 'other';
+export type DebtAccountType = 'credit-card' | 'line-of-credit' | 'student-loan' | 'personal-loan' | 'mortgage' | 'auto-loan' | 'other';
 
-export const debtAccountTypes: DebtAccountType[] = ['credit-card', 'student-loan', 'personal-loan', 'mortgage', 'auto-loan', 'other'];
+export const debtAccountTypes: DebtAccountType[] = ['credit-card', 'line-of-credit', 'student-loan', 'personal-loan', 'mortgage', 'auto-loan', 'other'];
 
 export type PaymentFrequency = 'monthly' | 'bi-weekly' | 'weekly' | 'annually' | 'other';
 export const paymentFrequencies: PaymentFrequency[] = ['monthly', 'bi-weekly', 'weekly', 'annually', 'other'];

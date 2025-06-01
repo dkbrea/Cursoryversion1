@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { DebtAccount } from "@/types";
@@ -29,6 +28,8 @@ const getDebtTypeIcon = (type: DebtAccount["type"]) => {
   switch (type) {
     case "credit-card":
       return <Icons.DebtTypeCreditCard className="h-5 w-5" />;
+    case "line-of-credit":
+      return <Icons.DebtTypeLineOfCredit className="h-5 w-5" />;
     case "student-loan":
       return <Icons.DebtTypeStudentLoan className="h-5 w-5" />;
     case "personal-loan":
@@ -91,7 +92,7 @@ export function DebtList({ debtAccounts, onDeleteDebtAccount, onEditDebtAccount 
                 </div>
                 <div>
                     <p className="text-xs text-muted-foreground">Payment Day</p>
-                    <p className="font-medium">{getDayOrdinal(debt.paymentDayOfMonth)}</p>
+                    <p className="font-medium">{debt.paymentDayOfMonth !== undefined ? getDayOrdinal(debt.paymentDayOfMonth) : 'Not set'}</p>
                 </div>
                 <div>
                     <p className="text-xs text-muted-foreground">Frequency</p>
