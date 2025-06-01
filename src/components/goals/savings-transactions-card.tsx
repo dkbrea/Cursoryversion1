@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { SavingsTransactionItem, Transaction } from "@/types";
@@ -32,7 +31,7 @@ export function SavingsTransactionsCard() {
         // First get all goal contributions transactions
         const { data: transactionsData, error: transactionsError } = await supabase
           .from('transactions')
-          .select('id, date, amount, goal_id, source, notes, created_at')
+          .select('id, date, amount, source_id, source, notes, created_at')
           .eq('user_id', user.id)
           .eq('detailed_type', 'goal-contribution')
           .order('date', { ascending: sortOrder === 'oldest' })
@@ -47,7 +46,7 @@ export function SavingsTransactionsCard() {
         }
         
         // Get goal names for all transactions
-        const goalIds = [...new Set(transactionsData.map(t => t.goal_id).filter(Boolean))];
+        const goalIds = [...new Set(transactionsData.map(t => t.source_id).filter(Boolean))] as string[];
         
         const { data: goalsData, error: goalsError } = await supabase
           .from('financial_goals')
@@ -64,9 +63,9 @@ export function SavingsTransactionsCard() {
         
         // Transform transactions to SavingsTransactionItems
         const savingsTransactions: SavingsTransactionItem[] = transactionsData.map(transaction => ({
-          id: transaction.id,
+          id: String(transaction.id),
           date: new Date(transaction.date),
-          goalName: goalMap[transaction.goal_id] || 'Unknown Goal',
+          goalName: transaction.source_id ? goalMap[transaction.source_id] || 'Unknown Goal' : 'Unknown Goal',
           amount: transaction.amount,
           method: transaction.source === 'automatic' ? 'Auto-Save' : 'Manual',
           // For demo purposes, we'll set statuses based on some logic

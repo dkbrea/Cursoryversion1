@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +7,7 @@ import { Download, Loader2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceDot } from "recharts";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import { useState, useEffect } from "react";
-import type { GoalPerformanceDataPoint, FinancialGoal } from "@/types";
+import type { GoalPerformanceDataPoint } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
@@ -28,7 +27,7 @@ export function GoalPerformanceChartCard() {
   const [performanceData, setPerformanceData] = useState<GoalPerformanceDataPoint[]>([]);
   const [selectedGoal, setSelectedGoal] = useState<string>('all');
   const [timeRange, setTimeRange] = useState<string>('last-6-months');
-  const [goals, setGoals] = useState<FinancialGoal[]>([]);
+  const [goals, setGoals] = useState<{id: string; name: string}[]>([]);
   const [activeDotData, setActiveDotData] = useState<GoalPerformanceDataPoint | null>(null);
   const { user } = useAuth();
 
@@ -75,7 +74,7 @@ export function GoalPerformanceChartCard() {
         // Fetch goal contributions (transactions with detailed_type = 'goal-contribution')
         let query = supabase
           .from('transactions')
-          .select('date, amount, goal_id')
+          .select('date, amount, source_id')
           .eq('user_id', user.id)
           .eq('detailed_type', 'goal-contribution')
           .gte('date', startDate.toISOString())
@@ -84,7 +83,7 @@ export function GoalPerformanceChartCard() {
           
         // Filter by goal if not 'all'
         if (selectedGoal !== 'all') {
-          query = query.eq('goal_id', selectedGoal);
+          query = query.eq('source_id', selectedGoal);
         }
         
         const { data, error } = await query;
