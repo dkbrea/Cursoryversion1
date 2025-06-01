@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Account, DebtAccount, AccountType as AssetAccountType, DebtAccountType } from "@/types";
@@ -167,9 +166,9 @@ export function AccountList({ accounts, onDeleteAccount, onSetPrimaryAccount, on
                       <div className="w-full sm:w-auto h-9"></div> // Spacer
                   )}
                   <div className="flex gap-2 w-full sm:w-auto justify-end">
-                    {/* <Button variant="ghost" size="sm" onClick={() => onEditAccount(assetAccount)} className="text-muted-foreground hover:text-primary">
+                    <Button variant="ghost" size="sm" onClick={() => onEditAccount(assetAccount)} className="text-muted-foreground hover:text-primary" disabled={isUpdating}>
                       <Icons.Edit className="h-4 w-4" />
-                    </Button> */}
+                    </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button 

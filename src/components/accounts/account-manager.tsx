@@ -1,10 +1,10 @@
-
 "use client";
 
-import type { Account, AccountType, DebtAccount } from "@/types";
+import type { Account, DebtAccount } from "@/types";
 import { useState, useEffect } from "react";
 import { AccountList } from "./account-list";
 import { AddAccountDialog } from "./add-account-dialog";
+import { EditAccountDialog } from "./edit-account-dialog";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,8 @@ export function AccountManager() {
   const [assetAccounts, setAssetAccounts] = useState<Account[]>([]);
   const [debtAccountsList, setDebtAccountsList] = useState<DebtAccount[]>([]);
   const [isAddAccountDialogOpen, setIsAddAccountDialogOpen] = useState(false);
+  const [isEditAccountDialogOpen, setIsEditAccountDialogOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
@@ -218,8 +220,13 @@ export function AccountManager() {
     }
   };
   
-  const handleEditAccount = async (updatedAccount: Account) => {
-    // This handler currently only manages asset accounts.
+  const handleEditAccount = (account: Account) => {
+    setEditingAccount(account);
+    setIsEditAccountDialogOpen(true);
+  };
+  
+  const handleAccountUpdate = async (updatedAccount: Account) => {
+    // This handler updates the account via API
     if (!user?.id) return;
     
     setIsUpdating(true);
@@ -275,6 +282,13 @@ export function AccountManager() {
           </Button>
         </AddAccountDialog>
       </div>
+
+      <EditAccountDialog
+        account={editingAccount}
+        isOpen={isEditAccountDialogOpen}
+        onOpenChange={setIsEditAccountDialogOpen}
+        onAccountUpdated={handleAccountUpdate}
+      />
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-12">

@@ -181,7 +181,7 @@ export function ExpenseChart() {
             
           const expenseTotal = transactions
             .filter(tx => tx.type === 'expense')
-            .reduce((sum, tx) => sum + tx.amount, 0);
+            .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
             
           setTotalIncome(incomeTotal);
           setTotalExpense(expenseTotal);
@@ -371,7 +371,7 @@ export function ExpenseChart() {
               <span className="text-sm text-muted-foreground">Expenses</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-lg font-bold">{formatCurrency(totalExpense)}</span>
+              <span className="text-lg font-bold">-{formatCurrency(totalExpense)}</span>
               <span className="text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded">-3%</span>
             </div>
           </div>

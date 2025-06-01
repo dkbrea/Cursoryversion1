@@ -259,7 +259,7 @@ export const makeDebtPayment = async (
   try {
     // Start a transaction to update the debt account and create a transaction record
     const { error } = await supabase.rpc('make_debt_payment', {
-      p_debt_account_id: parseInt(accountId),
+      p_debt_account_id: accountId, // Pass as string UUID, not integer
       p_amount: amount,
       p_user_id: userId,
       p_from_account_id: fromAccountId,
@@ -267,13 +267,19 @@ export const makeDebtPayment = async (
     });
 
     if (error) {
+      console.log('RPC make_debt_payment failed, using fallback logic:', error.message);
+      
       // If the RPC function doesn't exist, fall back to manual updates
       // Get the debt account to update its balance
       const { account, error: fetchError } = await getDebtAccount(accountId);
       
       if (fetchError || !account) {
+        console.error('Failed to fetch debt account:', fetchError);
         return { success: false, error: fetchError || 'Debt account not found' };
       }
+      
+      console.log('Current debt balance:', account.balance, 'Payment amount:', amount);
+      console.log('New debt balance will be:', account.balance - amount);
       
       // Update the debt account balance
       const { error: updateError } = await supabase
@@ -282,28 +288,72 @@ export const makeDebtPayment = async (
         .eq('id', accountId);
         
       if (updateError) {
+        console.error('Failed to update debt balance:', updateError);
         return { success: false, error: updateError.message };
       }
       
-      // Create a transaction record for this payment
-      const { error: txError } = await supabase
-        .from('transactions')
-        .insert({
-          date: new Date().toISOString(),
-          name: `Payment to ${account.name}`,
-          category: 'Debt Payment',
-          amount: -amount, // Negative because it's an expense from the account
-          account: fromAccountId || 'Primary', // Default account, should be replaced with actual account
-          transaction_type: 'expense',
-          user_id: userId,
-          debt_account_id: parseInt(accountId),
-          is_debt_payment: true,
-          notes: notes
-        });
+      console.log('Debt balance updated successfully');
+      
+      // Create a transaction record for this payment using the correct API
+      const { createTransaction } = await import('./transactions');
+      
+      // Validate that we have a source account ID
+      if (!fromAccountId) {
+        console.error('No source account ID provided');
+        return { success: false, error: 'Source account ID is required for debt payments' };
+      }
+      
+      console.log('Creating transaction - fromAccountId:', fromAccountId, 'amount:', amount);
+      
+      // Find or create a "Debt Payment" category
+      let categoryId: string | undefined;
+      try {
+        const { getCategories, createCategory } = await import('./categories');
+        const { categories } = await getCategories(userId);
+        
+        let debtCategory = categories?.find(cat => cat.name === 'Debt Payment');
+        
+        if (!debtCategory) {
+          // Create the category if it doesn't exist
+          const { category: newCategory } = await createCategory({
+            name: 'Debt Payment',
+            userId: userId
+          });
+          debtCategory = newCategory;
+        }
+        
+        categoryId = debtCategory?.id;
+        console.log('Using category ID:', categoryId);
+      } catch (error) {
+        console.warn('Could not create/find debt payment category:', error);
+        // Continue without category if creation fails
+      }
+      
+      const transactionData = {
+        date: new Date(),
+        description: `Payment to ${account.name}`,
+        amount: amount,
+        type: 'expense' as const,
+        detailedType: 'debt-payment' as const,
+        accountId: fromAccountId,
+        categoryId: categoryId,
+        notes: notes,
+        userId: userId,
+        tags: ['debt-payment']
+      };
+      
+      console.log('Transaction data:', transactionData);
+      
+      const { transaction, error: txError } = await createTransaction(transactionData);
         
       if (txError) {
-        return { success: false, error: txError.message };
+        console.error('Failed to create transaction:', txError);
+        return { success: false, error: `Failed to create transaction: ${txError}` };
       }
+      
+      console.log('Transaction created successfully:', transaction?.id);
+    } else {
+      console.log('RPC make_debt_payment succeeded');
     }
 
     return { success: true };
