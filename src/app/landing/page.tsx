@@ -4,17 +4,16 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 import { ChevronRight, Star, Users, TrendingUp, ArrowRight, CheckCircle, ArrowUpRight, Sparkles, DollarSign, Shield, PieChart, BarChart3, Wallet, CreditCard, Target, Calculator } from 'lucide-react'
+import { useAuth } from '@/contexts/auth-context'
 
 export default function LandingPage() {
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const { isAuthenticated, loading } = useAuth()
   const [isVisible, setIsVisible] = useState(false)
   const [scrollY, setScrollY] = useState(0)
   const [scrollProgress, setScrollProgress] = useState(0)
   const [currentSection, setCurrentSection] = useState(0)
   const heroRef = useRef<HTMLElement>(null)
   const [visibleElements, setVisibleElements] = useState(new Set())
-  const cursorRef = useRef<HTMLDivElement>(null)
-  const cursorFollowerRef = useRef<HTMLDivElement>(null)
   
   // Text scramble state
   const [scrambledText, setScrambledText] = useState("Master Your Money System")
@@ -105,22 +104,6 @@ export default function LandingPage() {
   useEffect(() => {
     setIsVisible(true)
     
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY })
-      
-      // Custom cursor movement
-      if (cursorRef.current) {
-        cursorRef.current.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`
-      }
-      if (cursorFollowerRef.current) {
-        setTimeout(() => {
-          if (cursorFollowerRef.current) {
-            cursorFollowerRef.current.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`
-          }
-        }, 100)
-      }
-    }
-
     const handleScroll = () => {
       const scrollTop = window.scrollY
       const docHeight = document.documentElement.scrollHeight - window.innerHeight
@@ -183,13 +166,11 @@ export default function LandingPage() {
       const button = btn as HTMLElement
       
       const handleMouseEnter = () => {
-        if (cursorRef.current) cursorRef.current.style.transform += ' scale(1.5)'
-        if (cursorFollowerRef.current) cursorFollowerRef.current.style.transform += ' scale(1.5)'
+        // Removed custom cursor effects
       }
       
       const handleMouseLeave = () => {
-        if (cursorRef.current) cursorRef.current.style.transform = cursorRef.current.style.transform.replace(' scale(1.5)', '')
-        if (cursorFollowerRef.current) cursorFollowerRef.current.style.transform = cursorFollowerRef.current.style.transform.replace(' scale(1.5)', '')
+        // Removed custom cursor effects
         button.style.transform = 'translate(0px, 0px)'
       }
       
@@ -210,11 +191,9 @@ export default function LandingPage() {
       button.addEventListener('mousemove', handleMouseMove)
     })
 
-    window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('scroll', handleScroll)
     
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('scroll', handleScroll)
       if (textInterval) clearTimeout(textInterval)
       observer.disconnect()
@@ -244,8 +223,13 @@ export default function LandingPage() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center">
-              <div className="text-2xl font-bold gradient-text cursor-pointer">
-                Unbroken Pockets
+              <div className="cursor-pointer">
+                <div className="text-2xl font-bold gradient-text leading-tight">
+                  Pocket Ledger
+                </div>
+                <div className="text-xs text-muted-foreground font-medium tracking-wide">
+                  by Unbroken Pockets
+                </div>
               </div>
             </div>
             
@@ -267,38 +251,39 @@ export default function LandingPage() {
             
             {/* Authentication Buttons */}
             <div className="flex items-center space-x-4">
-              <Link href="/auth">
-                <Button 
-                  variant="ghost" 
-                  className="magnetic-button text-muted-foreground hover:text-primary border border-primary/20 hover:border-primary hover:bg-primary/5 transition-all duration-300"
-                >
-                  Sign In
-                </Button>
-              </Link>
-              <Link href="/auth">
-                <Button 
-                  className="magnetic-button bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300"
-                >
-                  Sign Up
-                </Button>
-              </Link>
+              {isAuthenticated ? (
+                <Link href="/dashboard">
+                  <Button 
+                    variant="ghost" 
+                    className="magnetic-button text-muted-foreground hover:text-primary border border-primary/20 hover:border-primary hover:bg-primary/5 transition-all duration-300"
+                  >
+                    Go to Dashboard
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link href="/auth">
+                    <Button 
+                      variant="ghost" 
+                      className="magnetic-button text-muted-foreground hover:text-primary border border-primary/20 hover:border-primary hover:bg-primary/5 transition-all duration-300"
+                    >
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link href="/auth">
+                    <Button 
+                      className="magnetic-button bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300"
+                    >
+                      Sign Up
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Custom Cursor */}
-      <div 
-        ref={cursorRef}
-        className="fixed w-5 h-5 bg-primary/50 rounded-full pointer-events-none z-[9999] mix-blend-mode-difference transition-transform duration-100"
-        style={{ transform: 'translate(-50%, -50%)' }}
-      />
-      <div 
-        ref={cursorFollowerRef}
-        className="fixed w-10 h-10 border border-primary/30 rounded-full pointer-events-none z-[9998] mix-blend-mode-difference transition-transform duration-300"
-        style={{ transform: 'translate(-50%, -50%)' }}
-      />
-      
       {/* Progress Bar */}
       <div className="fixed top-0 left-0 h-1 bg-gradient-to-r from-primary to-accent z-[999] transition-all duration-100" style={{ width: `${scrollProgress}%` }} />
       
@@ -317,60 +302,157 @@ export default function LandingPage() {
         ))}
       </div>
 
-      {/* Dynamic animated background */}
-      <div className="fixed inset-0 pointer-events-none">
+      {/* Enhanced Modern Background System */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        {/* Mesh Gradient Background */}
         <div 
-          className="absolute inset-0 opacity-20 transition-all duration-1000 ease-out"
+          className="absolute inset-0 opacity-30"
           style={{
             background: `
-              radial-gradient(600px circle at ${mousePosition.x}px ${mousePosition.y}px, rgba(120, 87, 214, 0.15), transparent 40%),
-              radial-gradient(800px circle at ${mousePosition.x * 0.5}px ${mousePosition.y * 0.8}px, rgba(75, 0, 130, 0.1), transparent 50%)
+              radial-gradient(800px circle at 60% 40%, rgba(120, 87, 214, 0.15), transparent 50%),
+              radial-gradient(600px circle at 30% 70%, rgba(138, 43, 226, 0.1), transparent 40%),
+              radial-gradient(400px circle at 80% 20%, rgba(75, 0, 130, 0.08), transparent 30%),
+              linear-gradient(135deg, rgba(120, 87, 214, 0.03) 0%, rgba(138, 43, 226, 0.05) 50%, rgba(75, 0, 130, 0.03) 100%)
             `
           }}
         />
-        
-        {/* Financial symbols floating in background */}
-        <div className="absolute inset-0 overflow-hidden opacity-[0.02]">
-          <div className="absolute top-[15%] left-[10%] text-8xl text-primary font-bold">$</div>
-          <div className="absolute bottom-[20%] right-[15%] text-8xl text-primary font-bold">€</div>
-          <div className="absolute top-[60%] left-[80%] text-8xl text-primary font-bold">£</div>
-          <div className="absolute bottom-[10%] left-[25%] text-9xl text-primary font-bold transform -rotate-12">📈</div>
+
+        {/* Enhanced Bubble System */}
+        <div className="absolute inset-0">
+          {[...Array(25)].map((_, i) => {
+            const size = Math.random() * 60 + 20; // 20-80px bubbles
+            const opacity = Math.random() * 0.3 + 0.1; // 0.1-0.4 opacity
+            const animationDuration = Math.random() * 8 + 6; // 6-14s duration
+            const delay = Math.random() * 5; // 0-5s delay
+            
+            return (
+              <div
+                key={i}
+                className="absolute rounded-full bg-gradient-to-br from-primary/20 via-accent/10 to-primary/5 animate-float blur-sm"
+                style={{
+                  width: `${size}px`,
+                  height: `${size}px`,
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  opacity: opacity,
+                  animationDelay: `${delay}s`,
+                  animationDuration: `${animationDuration}s`
+                }}
+              />
+            );
+          })}
         </div>
-        
-        {/* Background shapes that move with mouse */}
+
+        {/* Large Glass Orbs */}
+        <div className="absolute inset-0">
+          {[...Array(8)].map((_, i) => {
+            const size = Math.random() * 120 + 80; // 80-200px orbs
+            const opacity = Math.random() * 0.15 + 0.05; // 0.05-0.2 opacity
+            const animationDuration = Math.random() * 12 + 8; // 8-20s duration
+            const delay = Math.random() * 6; // 0-6s delay
+            
+            return (
+              <div
+                key={i}
+                className="absolute rounded-full bg-gradient-to-br from-white/10 via-primary/5 to-accent/10 backdrop-blur-md border border-white/5 animate-float"
+                style={{
+                  width: `${size}px`,
+                  height: `${size}px`,
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  opacity: opacity,
+                  animationDelay: `${delay}s`,
+                  animationDuration: `${animationDuration}s`
+                }}
+              />
+            );
+          })}
+        </div>
+
+        {/* Extra Large Bubbles */}
+        <div className="absolute inset-0">
+          {[...Array(4)].map((_, i) => {
+            const size = Math.random() * 200 + 150; // 150-350px extra large bubbles
+            const opacity = Math.random() * 0.1 + 0.03; // 0.03-0.13 opacity (more subtle)
+            const animationDuration = Math.random() * 20 + 15; // 15-35s duration (slower)
+            const delay = Math.random() * 10; // 0-10s delay
+            
+            return (
+              <div
+                key={i}
+                className="absolute rounded-full bg-gradient-to-br from-primary/10 via-accent/5 to-primary/3 animate-float blur-md"
+                style={{
+                  width: `${size}px`,
+                  height: `${size}px`,
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  opacity: opacity,
+                  animationDelay: `${delay}s`,
+                  animationDuration: `${animationDuration}s`
+                }}
+              />
+            );
+          })}
+        </div>
+
+        {/* Small Particle Bubbles */}
+        <div className="absolute inset-0">
+          {[...Array(30)].map((_, i) => {
+            const size = Math.random() * 8 + 4; // 4-12px particles
+            const opacity = Math.random() * 0.4 + 0.2; // 0.2-0.6 opacity
+            const animationDuration = Math.random() * 6 + 4; // 4-10s duration
+            const delay = Math.random() * 8; // 0-8s delay
+            
+            return (
+              <div
+                key={i}
+                className="absolute rounded-full bg-gradient-to-r from-primary/40 to-accent/40 animate-float"
+                style={{
+                  width: `${size}px`,
+                  height: `${size}px`,
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  opacity: opacity,
+                  animationDelay: `${delay}s`,
+                  animationDuration: `${animationDuration}s`
+                }}
+              />
+            );
+          })}
+        </div>
+
+        {/* Enhanced Grid Pattern with Depth */}
         <div 
-          className="absolute top-1/4 left-1/4 w-32 h-32 border border-primary/10 rounded-full animate-rotate-slow transition-transform duration-1000"
-          style={{ 
-            transform: `translate(${mousePosition.x * 0.02}px, ${mousePosition.y * 0.02}px) rotate(${scrollY * 0.1}deg)` 
-          }}
-        />
-        <div 
-          className="absolute top-3/4 right-1/4 w-24 h-24 border border-accent/20 rounded-lg animate-float transition-transform duration-1000" 
-          style={{ 
-            animationDelay: '1s',
-            transform: `translate(${mousePosition.x * -0.03}px, ${mousePosition.y * -0.03}px)` 
-          }} 
-        />
-        <div 
-          className="absolute bottom-1/4 left-1/3 w-16 h-16 bg-gradient-to-r from-primary/5 to-accent/5 rounded-full animate-pulse-glow transition-transform duration-1000" 
-          style={{ 
-            animationDelay: '2s',
-            transform: `translate(${mousePosition.x * 0.015}px, ${mousePosition.y * 0.015}px)` 
-          }} 
-        />
-        
-        {/* Grid pattern */}
-        <div 
-          className="absolute inset-0 opacity-[0.02]"
+          className="absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage: `
-              linear-gradient(rgba(120, 87, 214, 0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(120, 87, 214, 0.1) 1px, transparent 1px)
+              linear-gradient(rgba(120, 87, 214, 0.3) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(120, 87, 214, 0.3) 1px, transparent 1px),
+              linear-gradient(rgba(138, 43, 226, 0.2) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(138, 43, 226, 0.2) 1px, transparent 1px)
             `,
-            backgroundSize: '50px 50px',
-            transform: `translateY(${scrollY * 0.1}px)`
+            backgroundSize: '60px 60px, 60px 60px, 20px 20px, 20px 20px',
+            transform: `translateY(${scrollY * 0.05}px)`
           }}
         />
+
+        {/* Spotlight Effects */}
+        <div className="absolute inset-0">
+          <div 
+            className="absolute w-96 h-96 bg-gradient-radial from-primary/10 via-primary/5 to-transparent rounded-full blur-3xl"
+            style={{
+              top: '20%',
+              left: '10%'
+            }}
+          />
+          <div 
+            className="absolute w-80 h-80 bg-gradient-radial from-accent/8 via-accent/4 to-transparent rounded-full blur-3xl"
+            style={{
+              bottom: '20%',
+              right: '15%'
+            }}
+          />
+        </div>
       </div>
       
       {/* Hero Section */}
@@ -390,35 +472,36 @@ export default function LandingPage() {
             </h1>
           </div>
 
-          {/* Floating badge with glow */}
-          <div className="relative inline-flex items-center gap-2 px-6 py-3 rounded-full border border-primary/20 bg-gradient-to-r from-card/80 to-card/40 backdrop-blur-md mb-8 animate-in fade-in slide-in-from-bottom duration-700 delay-300 hover-lift shimmer-wrapper">
-            <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-            <span className="text-sm font-medium gradient-text">Experience peace of mind with your finances</span>
-            <ChevronRight className="w-4 h-4 text-primary" />
-          </div>
-
           {/* Enhanced subtitle */}
-          <p className="text-xl sm:text-2xl text-muted-foreground max-w-3xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom duration-1000 delay-1100">
+          <p className="text-xl sm:text-2xl text-muted-foreground max-w-3xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom duration-1000 delay-500">
             Take control of your financial future with our all-in-one personal finance solution.
             <br />
             <span className="gradient-text font-semibold text-2xl">Experience peace of mind knowing your finances are unbroken.</span>
           </p>
 
           {/* Enhanced CTA section */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-in fade-in slide-in-from-bottom duration-1000 delay-1300">
-            <Button size="lg" className="magnetic-button group relative overflow-hidden px-12 py-6 text-lg font-semibold bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transform hover:scale-105 transition-all duration-300 animate-glow">
-              <span className="relative z-10 flex items-center">
-                Start Your Financial Journey
-                <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-2" />
-              </span>
-              <div className="absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            </Button>
-            <Button variant="outline" size="lg" className="magnetic-button px-8 py-4 text-lg group border-2 border-primary/20 hover:border-primary bg-transparent backdrop-blur-sm hover:bg-primary/5">
-              <span className="flex items-center">
-                View Demo
-                <ArrowUpRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
-              </span>
-            </Button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-in fade-in slide-in-from-bottom duration-1000 delay-700">
+            {isAuthenticated ? (
+              <Link href="/dashboard">
+                <Button size="lg" className="magnetic-button group relative overflow-hidden px-12 py-6 text-lg font-semibold bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transform hover:scale-105 transition-all duration-300 animate-glow">
+                  <span className="relative z-10 flex items-center">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-2" />
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/auth">
+                <Button size="lg" className="magnetic-button group relative overflow-hidden px-12 py-6 text-lg font-semibold bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transform hover:scale-105 transition-all duration-300 animate-glow">
+                  <span className="relative z-10 flex items-center">
+                    Start Your Financial Journey
+                    <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-2" />
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                </Button>
+              </Link>
+            )}
           </div>
 
           {/* Financial metrics preview */}
@@ -799,16 +882,31 @@ export default function LandingPage() {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-8">
-            <Button size="lg" className="magnetic-button px-16 py-8 text-xl font-semibold group bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transform hover:scale-105 transition-all duration-300 animate-glow">
-              <span className="flex items-center">
-                Get Started Today
-                <ArrowRight className="ml-3 w-6 h-6 transition-transform group-hover:translate-x-2" />
-              </span>
-            </Button>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <CheckCircle className="w-5 h-5 text-green-500" />
-              <span className="text-lg">Free to start • No credit card required</span>
-            </div>
+            {isAuthenticated ? (
+              <Link href="/dashboard">
+                <Button size="lg" className="magnetic-button px-16 py-8 text-xl font-semibold group bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transform hover:scale-105 transition-all duration-300 animate-glow">
+                  <span className="flex items-center">
+                    Go to Dashboard
+                    <ArrowRight className="ml-3 w-6 h-6 transition-transform group-hover:translate-x-2" />
+                  </span>
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/auth">
+                <Button size="lg" className="magnetic-button px-16 py-8 text-xl font-semibold group bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transform hover:scale-105 transition-all duration-300 animate-glow">
+                  <span className="flex items-center">
+                    Get Started Today
+                    <ArrowRight className="ml-3 w-6 h-6 transition-transform group-hover:translate-x-2" />
+                  </span>
+                </Button>
+              </Link>
+            )}
+            {!isAuthenticated && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <span className="text-lg">Free to start • No credit card required</span>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -816,7 +914,12 @@ export default function LandingPage() {
       {/* Enhanced Footer */}
       <footer className="border-t border-border/30 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-md py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
-          <div className="text-3xl font-bold gradient-text mb-6">Unbroken Pockets</div>
+          <div className="mb-6">
+            <div className="text-3xl font-bold gradient-text mb-2">Pocket Ledger</div>
+            <div className="text-sm text-muted-foreground font-medium tracking-wide">
+              by Unbroken Pockets
+            </div>
+          </div>
           <p className="text-muted-foreground mb-8 text-lg">
             Master your money, master your life.
           </p>

@@ -15,27 +15,24 @@ export interface Database {
         Row: {
           id: string
           email: string
-          first_name: string
-          last_name: string
-          avatar?: string | null
+          name: string
+          avatar_url?: string | null
           created_at?: string | null
           updated_at?: string | null
         }
         Insert: {
           id?: string
           email: string
-          first_name: string
-          last_name: string
-          avatar?: string | null
+          name: string
+          avatar_url?: string | null
           created_at?: string | null
           updated_at?: string | null
         }
         Update: {
           id?: string
           email?: string
-          first_name?: string
-          last_name?: string
-          avatar?: string | null
+          name?: string
+          avatar_url?: string | null
           created_at?: string | null
           updated_at?: string | null
         }
@@ -574,6 +571,7 @@ export interface Database {
         email_notifications: boolean,
         browser_notifications: boolean,
         mobile_notifications: boolean,
+        timezone?: string | null,
         setup_progress: Json,
         created_at: string,
         updated_at: string
@@ -588,6 +586,7 @@ export interface Database {
         email_notifications?: boolean,
         browser_notifications?: boolean,
         mobile_notifications?: boolean,
+        timezone?: string | null,
         setup_progress?: Json,
         created_at?: string,
         updated_at?: string
@@ -602,6 +601,7 @@ export interface Database {
         email_notifications?: boolean,
         browser_notifications?: boolean,
         mobile_notifications?: boolean,
+        timezone?: string | null,
         setup_progress?: Json,
         created_at?: string,
         updated_at?: string

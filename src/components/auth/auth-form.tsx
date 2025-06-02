@@ -26,6 +26,7 @@ const loginSchema = z.object({
 });
 
 const registerSchema = z.object({
+  firstName: z.string().min(1, { message: "First name is required." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters." }),
@@ -51,6 +52,7 @@ export function AuthForm() {
   const registerForm = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
+      firstName: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -109,6 +111,11 @@ export function AuthForm() {
       const { data, error } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
+        options: {
+          data: {
+            first_name: values.firstName,
+          }
+        }
       });
       
       if (error) {
@@ -119,6 +126,20 @@ export function AuthForm() {
       
       // Email confirmation check
       if (data?.user) {
+        // Create a user profile in our users table using the existing name column
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert({
+            id: data.user.id,
+            email: data.user.email || '',
+            name: values.firstName, // Use the name column
+          });
+
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+          // Don't prevent registration if profile creation fails
+        }
+
         // If identities length is 0, email confirmation is required
         if (data.user.identities?.length === 0) {
           setError("Please check your email for a confirmation link. You must verify your email before logging in.");
@@ -204,6 +225,19 @@ export function AuthForm() {
       <TabsContent value="register">
         <Form {...registerForm}>
           <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
+            <FormField
+              control={registerForm.control}
+              name="firstName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>First Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="John" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={registerForm.control}
               name="email"

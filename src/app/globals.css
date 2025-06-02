@@ -198,8 +198,8 @@ body {
 }
 
 .animate-gradient {
-  background-size: 400% 400%;
-  animation: gradient-shift 3s ease infinite;
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease-in-out infinite;
 }
 
 .animate-text-reveal {
@@ -387,10 +387,10 @@ body {
   background-clip: text;
 }
 
-/* Custom Cursor Enhancements */
-.landing-page * {
+/* Custom Cursor Enhancements - REMOVED */
+/* .landing-page * {
   cursor: none !important;
-}
+} */
 
 .custom-cursor {
   pointer-events: none;
@@ -536,4 +536,9 @@ a:hover ~ .custom-cursor {
   body * {
     cursor: auto !important;
   }
+}
+
+/* Background gradients */
+.bg-gradient-radial {
+  background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
 }

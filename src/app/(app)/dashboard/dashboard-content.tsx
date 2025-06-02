@@ -27,6 +27,8 @@ import { startOfDay, endOfDay, addDays, isSameDay, format, addWeeks, addMonths, 
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle } from "lucide-react";
 import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence } from "@/lib/utils/date-calculations";
+import { getUserPreferences, type UserPreferences } from "@/lib/api/user-preferences";
+import { getPersonalizedGreeting } from "@/lib/utils/time-greeting";
 
 export function DashboardContent() {
   const { user } = useAuth();
@@ -48,37 +50,37 @@ export function DashboardContent() {
   const [goalRefreshTrigger, setGoalRefreshTrigger] = useState(0);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
   const [isCalendarOverlayOpen, setIsCalendarOverlayOpen] = useState(false);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
 
   useEffect(() => {
     console.log('Dashboard useEffect triggered, user:', user);
-    if (!user?.id) return;
-
+    
     async function fetchData() {
       if (!user?.id) {
-        console.log('No user ID, skipping data fetch');
+        console.log('No user found, skipping data fetch');
+        setIsLoading(false);
         return;
       }
 
-      console.log('Starting data fetch for dashboard');
-      setError(null);
-      
-      try {
-        // Get current month date range for filtering transactions
-        const now = new Date();
-        const monthStart = startOfMonth(now);
-        const monthEnd = endOfMonth(now);
+      console.log('Starting to fetch dashboard data for user:', user.id);
 
+      try {
+        // Fetch user preferences first to get timezone
+        const { preferences } = await getUserPreferences(user.id);
+        setUserPreferences(preferences);
+
+        // ... existing data fetching code ...
         const [
-          { accounts: accountsData, error: accountsError },
-          { transactions: transactionsData, error: transactionsError },
-          { items: recurringData, error: recurringError },
-          { accounts: debtData, error: debtError },
-          { categories: categoriesData, error: categoriesError },
-          { goals: goalsData, error: goalsError },
-          { expenses: variableExpensesData, error: variableExpensesError }
+          accountsResult, 
+          transactionsResult, 
+          recurringResult,
+          debtResult, 
+          categoriesResult, 
+          goalsResult,
+          variableExpensesResult
         ] = await Promise.all([
           getAccounts(user.id),
-          getTransactions(user.id, { startDate: monthStart, endDate: monthEnd }),
+          getTransactions(user.id),
           getRecurringItems(user.id),
           getDebtAccounts(user.id),
           getCategories(user.id),
@@ -86,97 +88,73 @@ export function DashboardContent() {
           getVariableExpenses(user.id)
         ]);
 
-        if (accountsError) {
-          throw new Error(`Error fetching accounts: ${accountsError}`);
-        }
+        console.log('Data fetched:', { 
+          accounts: accountsResult?.accounts?.length, 
+          transactions: transactionsResult?.transactions?.length,
+          recurringItems: recurringResult?.items?.length,
+          debtAccounts: debtResult?.accounts?.length
+        });
 
-        if (transactionsError) {
-          throw new Error(`Error fetching transactions: ${transactionsError}`);
-        }
+        const accountsData = accountsResult?.accounts || [];
+        const transactionsData = transactionsResult?.transactions || [];
+        const categoriesData = categoriesResult?.categories || [];
+        const recurringData = recurringResult?.items || [];
+        const debtData = debtResult?.accounts || [];
+        const goalsData = goalsResult?.goals || [];
+        const variableExpensesData = variableExpensesResult?.expenses || [];
 
-        if (recurringError) {
-          throw new Error(`Error fetching recurring items: ${recurringError}`);
-        }
-
-        if (debtError) {
-          throw new Error(`Error fetching debt accounts: ${debtError}`);
-        }
-
-        if (categoriesError) {
-          throw new Error(`Error fetching categories: ${categoriesError}`);
-        }
-
-        if (goalsError) {
-          throw new Error(`Error fetching goals: ${goalsError}`);
-        }
-
-        if (variableExpensesError) {
-          throw new Error(`Error fetching variable expenses: ${variableExpensesError}`);
-        }
-        
-        setAccounts(accountsData || []);
-
-        // Convert raw transaction dates to Date objects
-        const processedTransactions = (transactionsData || []).map((tx: Transaction) => ({
-          ...tx,
-          date: new Date(tx.date)
-        }));
-        setTransactions(processedTransactions);
-        setCategories(categoriesData || []);
+        setAccounts(accountsData);
+        setTransactions(transactionsData);
+        setCategories(categoriesData);
 
         // Calculate total balance
-        const balance = (accountsData || []).reduce((sum: number, account: Account) => sum + account.balance, 0);
+        const balance = accountsData.reduce((sum, account) => sum + account.balance, 0);
         setTotalBalance(balance);
 
-        // Calculate monthly spending (only variable expenses, fixed expenses, and subscriptions)
-        const spending = (transactionsData || [])
-          .filter((tx: Transaction) => tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription')
-          .reduce((sum: number, tx: Transaction) => sum + Math.abs(tx.amount), 0);
+        // Calculate monthly spending (current month)
+        const now = new Date();
+        const startOfCurrentMonth = startOfMonth(now);
+        const endOfCurrentMonth = endOfMonth(now);
+        
+        const monthlyTransactions = transactionsData.filter(tx => {
+          const txDate = new Date(tx.date);
+          return txDate >= startOfCurrentMonth && 
+                 txDate <= endOfCurrentMonth && 
+                 (tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription');
+        });
+        
+        const spending = monthlyTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
         setMonthlySpending(spending);
 
+        // Process upcoming items (recurring + debt payments)
         const allUpcomingItems: UnifiedRecurringListItem[] = [];
 
-        // Process recurring items (subscriptions and fixed expenses)
-        if (recurringData) {
+        // Process recurring items
+        if (recurringData && recurringData.length > 0) {
           const today = startOfDay(new Date());
           
-          const recurringItems = recurringData.map((item: RecurringItem) => {
+          const recurringUpcomingItems = recurringData.map((item: RecurringItem) => {
             // Use the shared calculation function
             const nextOccurrenceDate = calculateNextRecurringItemOccurrence(item);
-            const itemEndDate = item.endDate ? startOfDay(new Date(item.endDate)) : null;
-            let status: UnifiedRecurringListItem['status'] = "Upcoming";
-
-            if (itemEndDate && itemEndDate < today && isSameDay(nextOccurrenceDate, itemEndDate)) {
-               status = "Ended";
-            } else if (isSameDay(nextOccurrenceDate, today)) {
-              status = "Today";
-            } else if (nextOccurrenceDate < today) {
-              status = "Ended";
-            }
             
             return {
               id: item.id,
               name: item.name,
-              itemDisplayType: item.type, // This maps RecurringItemType to UnifiedListItemType
+              itemDisplayType: item.type,
               amount: item.amount,
               frequency: item.frequency,
               nextOccurrenceDate,
-              status,
+              status: isSameDay(nextOccurrenceDate, today) ? 'Today' as const : 'Upcoming' as const,
               isDebt: false,
-              endDate: item.endDate,
-              semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
-              semiMonthlySecondPayDate: item.semiMonthlySecondPayDate,
-              notes: item.notes,
               source: 'recurring' as const,
-              categoryId: item.categoryId
             };
           });
 
-          allUpcomingItems.push(...recurringItems);
+          allUpcomingItems.push(...recurringUpcomingItems);
         }
 
         // Process debt accounts
-        if (debtData) {
+        if (debtData && debtData.length > 0) {
           const today = startOfDay(new Date());
           
           const debtItems = debtData.map((debt: DebtAccount) => {
@@ -206,13 +184,13 @@ export function DashboardContent() {
         
         setUpcomingItems(activeItems);
         
-        setRecurringItems(recurringData || []);
-        setDebtAccounts(debtData || []);
-        setGoals(goalsData || []);
-        setVariableExpenses(variableExpensesData || []);
+        setRecurringItems(recurringData);
+        setDebtAccounts(debtData);
+        setGoals(goalsData);
+        setVariableExpenses(variableExpensesData);
 
         // Convert goals to FinancialGoalWithContribution format for the transaction dialog
-        const goalsConverted: FinancialGoalWithContribution[] = (goalsData || []).map((goal: FinancialGoal) => ({
+        const goalsConverted: FinancialGoalWithContribution[] = goalsData.map((goal: FinancialGoal) => ({
           ...goal,
           monthlyContribution: 0, // Default value - could be calculated based on target date
           monthsRemaining: 0 // Default value - could be calculated based on target date
@@ -227,7 +205,7 @@ export function DashboardContent() {
     }
 
     fetchData();
-  }, [user?.id]);
+  }, [user, goalRefreshTrigger]);
 
   // Get category spending breakdown
   const getCategorySpending = () => {
@@ -718,7 +696,14 @@ export function DashboardContent() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+          {getPersonalizedGreeting(user?.name, userPreferences?.timezone)}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Your financial overview and recent activity
+        </p>
+      </div>
       
       {/* Setup Guide */}
       <SetupGuide />

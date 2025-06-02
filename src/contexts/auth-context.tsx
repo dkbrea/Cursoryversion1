@@ -4,13 +4,14 @@ import type { User } from "@/types";
 import { useRouter } from "next/navigation";
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import { getCurrentUser, signIn, signOut } from "@/lib/api/auth";
+import { getCurrentUser, signIn, signOut, updateUserProfile } from "@/lib/api/auth";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (updates: { firstName?: string; lastName?: string; avatar?: string }) => Promise<{ success: boolean; error?: string }>;
   loading: boolean;
 }
 
@@ -116,8 +117,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateProfile = async (updates: { firstName?: string; lastName?: string; avatar?: string }) => {
+    try {
+      if (!user) {
+        return { success: false, error: "No user logged in" };
+      }
+
+      const result = await updateUserProfile(user.id, updates);
+      
+      if (result.error) {
+        return { success: false, error: result.error };
+      }
+
+      if (result.user) {
+        setUser(result.user);
+        return { success: true };
+      }
+
+      return { success: false, error: "Failed to update profile" };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, updateProfile, loading }}>
       {children}
     </AuthContext.Provider>
   );
