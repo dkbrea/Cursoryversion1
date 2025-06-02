@@ -225,7 +225,7 @@ export default function LandingPage() {
             <div className="flex items-center">
               <div className="cursor-pointer">
                 <div className="text-2xl font-bold gradient-text leading-tight">
-                  Pocket Ledger
+                  Unbroken Pockets
                 </div>
                 <div className="text-xs text-muted-foreground font-medium tracking-wide">
                   by Unbroken Pockets
@@ -915,7 +915,7 @@ export default function LandingPage() {
       <footer className="border-t border-border/30 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-md py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
           <div className="mb-6">
-            <div className="text-3xl font-bold gradient-text mb-2">Pocket Ledger</div>
+            <div className="text-3xl font-bold gradient-text mb-2">Unbroken Pockets</div>
             <div className="text-sm text-muted-foreground font-medium tracking-wide">
               by Unbroken Pockets
             </div>

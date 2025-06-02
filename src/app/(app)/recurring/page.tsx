@@ -1,9 +1,8 @@
-
 import { RecurringManager } from "@/components/recurring/recurring-manager";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Recurring Items - Pocket Ledger",
+  title: "Recurring Items - Unbroken Pockets",
   description: "Manage your recurring income, subscriptions, and fixed expenses.",
 };
 

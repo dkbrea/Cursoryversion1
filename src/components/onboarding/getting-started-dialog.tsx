@@ -19,10 +19,10 @@ export function GettingStartedDialog({ open, onOpenChange }: GettingStartedDialo
   
   const steps = [
     {
-      title: "Welcome to Pocket Ledger!",
+      title: "Welcome to Unbroken Pockets!",
       description: "Your personal finance management solution. Let's get you started with a quick tour.",
       icon: <Wallet className="h-12 w-12 text-primary" />,
-      content: "Pocket Ledger helps you track expenses, manage budgets, and reach your financial goals all in one place."
+      content: "Unbroken Pockets helps you track expenses, manage budgets, and reach your financial goals all in one place."
     },
     {
       title: "Track Your Expenses",

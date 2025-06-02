@@ -56,7 +56,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex h-16 items-center border-b border-sidebar-border px-6 flex-shrink-0">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
           <Icons.Wallet className="h-6 w-6" />
-          <span>Pocket Ledger</span>
+          <span>Unbroken Pockets</span>
         </Link>
       </div>
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto overflow-x-hidden">

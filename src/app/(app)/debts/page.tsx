@@ -1,9 +1,8 @@
-
 import { DebtManager } from "@/components/debts/debt-manager";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Debt Plan - Pocket Ledger",
+  title: "Debt Plan - Unbroken Pockets",
   description: "Manage your debts and choose a payoff strategy (Snowball or Avalanche).",
 };
 

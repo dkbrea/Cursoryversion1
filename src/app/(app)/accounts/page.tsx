@@ -2,7 +2,7 @@ import { AccountManager } from "@/components/accounts/account-manager";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Manage Accounts - Pocket Ledger",
+  title: "Manage Accounts - Unbroken Pockets",
   description: "Add, view, and manage your financial accounts.",
 };
 

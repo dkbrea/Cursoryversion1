@@ -1,4 +1,4 @@
-# Pocket Ledger - Personal Finance Management App
+# Unbroken Pockets - Personal Finance Management App
 
 A comprehensive personal finance management application built with Next.js and Supabase.
 

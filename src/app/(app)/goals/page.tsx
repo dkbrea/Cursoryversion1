@@ -1,9 +1,8 @@
-
 import { GoalDashboard } from "@/components/goals/goal-dashboard";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Goal & Savings - Pocket Ledger",
+  title: "Goal & Savings - Unbroken Pockets",
   description: "Track, manage, and achieve your financial goals and savings.",
 };
 

@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/contexts/auth-context";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pocket Ledger",
+  title: "Unbroken Pockets",
   description: "Manage your finances with ease.",
 };
 
@@ -33,6 +35,8 @@ export default function RootLayout({
           {children}
           <Toaster />
         </AuthProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

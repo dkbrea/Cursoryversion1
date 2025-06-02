@@ -1,9 +1,8 @@
-
 import { BudgetManager } from "@/components/budget/budget-manager";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Budget - Pocket Ledger",
+  title: "Budget - Unbroken Pockets",
   description: "Manage your zero-based budget.",
 };
 

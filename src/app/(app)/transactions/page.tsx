@@ -2,7 +2,7 @@ import { TransactionManager } from "@/components/transactions/transaction-manage
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Manage Transactions - Pocket Ledger",
+  title: "Manage Transactions - Unbroken Pockets",
   description: "Manually add, view, categorize, and manage your financial transactions.",
 };
 
