@@ -918,15 +918,30 @@ export default function LandingPage() {
             Master your money, master your life.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-8 text-muted-foreground">
-            {['Privacy Policy', 'Terms of Service', 'Contact Us', 'Support'].map((link) => (
-              <a 
-                key={link}
-                href="#" 
-                className="hover:text-primary transition-colors duration-300 hover:scale-105 transform text-lg cursor-pointer"
-              >
-                {link}
-              </a>
-            ))}
+            <Link 
+              href="/privacy-policy"
+              className="hover:text-primary transition-colors duration-300 hover:scale-105 transform text-lg cursor-pointer"
+            >
+              Privacy Policy
+            </Link>
+            <Link 
+              href="/terms-of-service"
+              className="hover:text-primary transition-colors duration-300 hover:scale-105 transform text-lg cursor-pointer"
+            >
+              Terms of Service
+            </Link>
+            <Link 
+              href="/contact"
+              className="hover:text-primary transition-colors duration-300 hover:scale-105 transform text-lg cursor-pointer"
+            >
+              Contact Us
+            </Link>
+            <Link 
+              href="/contact"
+              className="hover:text-primary transition-colors duration-300 hover:scale-105 transform text-lg cursor-pointer"
+            >
+              Support
+            </Link>
           </div>
         </div>
       </footer>
