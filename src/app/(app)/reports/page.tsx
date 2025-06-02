@@ -1,7 +1,9 @@
+"use client";
 
-import type { Metadata } from "next";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Icons } from "@/components/icons"; // Corrected import
 import { SpendingByCategoryReport } from "@/components/reports/spending-by-category-report";
 import { IncomeAnalysisReport } from "@/components/reports/income-analysis-report";
@@ -11,22 +13,40 @@ import { NetWorthTrendReport } from "@/components/reports/net-worth-trend-report
 import { GoalProgressReport } from "@/components/reports/goal-progress-report";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-
-export const metadata: Metadata = {
-  title: "Reports - Pocket Ledger",
-  description: "Visualize and analyze your financial data.",
-};
+export type TimePeriod = 'last-30-days' | 'last-3-months' | 'last-6-months' | 'last-12-months' | 'last-2-years';
 
 export default function ReportsPage() {
+  const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('last-6-months');
+
+  const getPeriodLabel = (period: TimePeriod) => {
+    switch (period) {
+      case 'last-30-days': return 'Last 30 days';
+      case 'last-3-months': return 'Last 3 months';
+      case 'last-6-months': return 'Last 6 months';
+      case 'last-12-months': return 'Last 12 months';
+      case 'last-2-years': return 'Last 2 years';
+      default: return 'Last 6 months';
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Reports</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" disabled>
-            <Icons.CalendarDays className="mr-2 h-4 w-4" />
-            Last 6 months
-          </Button>
+          <Select value={selectedPeriod} onValueChange={(value: TimePeriod) => setSelectedPeriod(value)}>
+            <SelectTrigger className="w-[180px]">
+              <Icons.CalendarDays className="mr-2 h-4 w-4" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="last-30-days">Last 30 days</SelectItem>
+              <SelectItem value="last-3-months">Last 3 months</SelectItem>
+              <SelectItem value="last-6-months">Last 6 months</SelectItem>
+              <SelectItem value="last-12-months">Last 12 months</SelectItem>
+              <SelectItem value="last-2-years">Last 2 years</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" disabled>
             <Icons.Download className="mr-2 h-4 w-4" />
             Export
@@ -51,23 +71,23 @@ export default function ReportsPage() {
         </TabsList>
 
         <TabsContent value="spending-by-category" className="mt-6">
-          <SpendingByCategoryReport />
+          <SpendingByCategoryReport timePeriod={selectedPeriod} />
         </TabsContent>
         <TabsContent value="income-analysis" className="mt-6">
-          <IncomeAnalysisReport />
+          <IncomeAnalysisReport timePeriod={selectedPeriod} />
         </TabsContent>
         <TabsContent value="spending-trends" className="mt-6">
-          <SpendingTrendsReport />
+          <SpendingTrendsReport timePeriod={selectedPeriod} />
         </TabsContent>
         <TabsContent value="tax-report" className="mt-6">
-          <TaxReport />
+          <TaxReport timePeriod={selectedPeriod} />
         </TabsContent>
       </Tabs>
 
       {/* Creative Bottom Section */}
       <div className="grid gap-6 mt-8 md:grid-cols-1 lg:grid-cols-2">
-        <NetWorthTrendReport />
-        <GoalProgressReport />
+        <NetWorthTrendReport timePeriod={selectedPeriod} />
+        <GoalProgressReport timePeriod={selectedPeriod} />
       </div>
     </div>
   );

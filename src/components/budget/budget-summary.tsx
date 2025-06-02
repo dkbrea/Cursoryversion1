@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,6 +13,8 @@ interface BudgetSummaryProps {
   totalDebtPayments: number;
   totalGoalContributions: number;
   totalBudgetedVariable: number;
+  totalSpentVariable?: number;
+  remainingVariable?: number;
   onAddCategoryClick: () => void;
 }
 
@@ -24,12 +25,17 @@ export function BudgetSummary({
   totalDebtPayments,
   totalGoalContributions,
   totalBudgetedVariable,
+  totalSpentVariable = 0,
+  remainingVariable,
   onAddCategoryClick
 }: BudgetSummaryProps) {
 
   const totalFixedOutflows = totalActualFixedExpenses + totalSubscriptions + totalDebtPayments + totalGoalContributions;
   const leftToAllocate = totalIncome - totalFixedOutflows - totalBudgetedVariable;
   const totalAllocated = totalBudgetedVariable + totalFixedOutflows;
+  
+  // Calculate remaining variable if not provided
+  const calculatedRemainingVariable = remainingVariable ?? Math.max(0, totalBudgetedVariable - totalSpentVariable);
   
   let progressPercentage = 0;
   if (totalIncome > 0) {
@@ -137,8 +143,10 @@ export function BudgetSummary({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-teal-600">$0.00</div>
-            <p className="text-xs text-muted-foreground">0.0% of variable budget (placeholder)</p>
+            <div className="text-2xl font-bold text-teal-600">${totalSpentVariable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <p className="text-xs text-muted-foreground">
+              {totalBudgetedVariable > 0 ? ((totalSpentVariable / totalBudgetedVariable) * 100).toFixed(1) : '0.0'}% of variable budget
+            </p>
           </CardContent>
         </Card>
          <Card className="shadow-md">
@@ -149,8 +157,10 @@ export function BudgetSummary({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">${totalBudgetedVariable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-             <p className="text-xs text-muted-foreground">100.0% of variable budget left (placeholder)</p>
+            <div className="text-2xl font-bold text-green-600">${calculatedRemainingVariable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+             <p className="text-xs text-muted-foreground">
+               {totalBudgetedVariable > 0 ? ((calculatedRemainingVariable / totalBudgetedVariable) * 100).toFixed(1) : '0.0'}% of variable budget left
+             </p>
           </CardContent>
         </Card>
       </div>

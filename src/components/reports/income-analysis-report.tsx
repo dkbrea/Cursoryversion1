@@ -5,10 +5,12 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import type { Transaction, Category } from "@/types";
+import type { TimePeriod } from "@/app/(app)/reports/page";
 import { Icons } from "@/components/icons";
 import { useAuth } from "@/contexts/auth-context";
 import { getTransactions } from "@/lib/api/transactions";
 import { getCategories } from "@/lib/api/categories";
+import { getDateRangeForPeriod, getPeriodLabel } from "@/lib/utils/date-utils";
 import { format, startOfMonth, subMonths } from "date-fns";
 
 interface IncomeSource {
@@ -26,24 +28,28 @@ interface MonthlyIncome {
 }
 
 // Define colors for income sources
-const incomeColors = {
-  Salary: "#16a34a", // green-600
-  Freelance: "#2563eb", // blue-600
-  Investment: "#7c3aed", // violet-600
-  Business: "#f59e0b", // amber-500
-  "Side Hustle": "#06b6d4", // cyan-500
-  Bonus: "#10b981", // emerald-500
-  Other: "#64748b", // slate-500
-  Uncategorized: "#9ca3af", // gray-400
-};
+const incomeColors = [
+  "#16a34a", // green-600
+  "#2563eb", // blue-600
+  "#7c3aed", // violet-600
+  "#f59e0b", // amber-500
+  "#06b6d4", // cyan-500
+  "#10b981", // emerald-500
+  "#64748b", // slate-500
+  "#9ca3af", // gray-400
+];
 
-const chartConfig = {
+const monthlyChartConfig = {
   income: { label: "Income", color: "hsl(var(--chart-2))" },
   expenses: { label: "Expenses", color: "hsl(var(--chart-5))" },
   net: { label: "Net Income", color: "hsl(var(--chart-1))" },
 };
 
-export function IncomeAnalysisReport() {
+interface IncomeAnalysisReportProps {
+  timePeriod: TimePeriod;
+}
+
+export function IncomeAnalysisReport({ timePeriod }: IncomeAnalysisReportProps) {
   const { user } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [incomeData, setIncomeData] = useState<IncomeSource[]>([]);
@@ -53,31 +59,33 @@ export function IncomeAnalysisReport() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Helper function to get predefined category labels for income
+  // Helper function to get predefined income labels
   const getPredefinedIncomeLabel = (value: string) => {
     const incomeLabels: Record<string, string> = {
       'salary': 'Salary',
       'freelance': 'Freelance',
       'investment': 'Investment',
       'business': 'Business',
-      'side-hustle': 'Side Hustle',
-      'bonus': 'Bonus',
-      'other-income': 'Other'
+      'pension': 'Pension',
+      'social-security': 'Social Security',
+      'rental': 'Rental Income',
+      'other': 'Other'
     };
     return incomeLabels[value] || value;
   };
 
-  // Function to get income sources from real user data
+  // Function to get income breakdown from transactions
   const getIncomeBreakdown = (transactions: Transaction[], categories: Category[]) => {
-    const incomeBySource: Record<string, number> = {};
+    const incomeSources: Record<string, number> = {};
     let totalIncomeAmount = 0;
     let totalExpenseAmount = 0;
 
+    // Process income transactions
     transactions.forEach(tx => {
-      if (tx.type === 'income') {
+      if (tx.type === 'income' || tx.detailedType === 'income') {
         totalIncomeAmount += tx.amount;
         
-        let sourceName = 'Uncategorized';
+        let sourceName = 'Other Income';
         if (tx.categoryId) {
           const category = categories.find(cat => cat.id === tx.categoryId);
           if (category) {
@@ -87,55 +95,82 @@ export function IncomeAnalysisReport() {
           }
         }
         
-        if (!incomeBySource[sourceName]) {
-          incomeBySource[sourceName] = 0;
+        if (!incomeSources[sourceName]) {
+          incomeSources[sourceName] = 0;
         }
-        incomeBySource[sourceName] += tx.amount;
-      } else if (tx.type === 'expense' || (tx.detailedType && ['variable-expense', 'fixed-expense', 'subscription'].includes(tx.detailedType))) {
+        incomeSources[sourceName] += tx.amount;
+      } else if (tx.type === 'expense') {
         totalExpenseAmount += Math.abs(tx.amount);
       }
     });
 
-    const incomeSourcesArray = Object.entries(incomeBySource)
-      .map(([name, amount]) => ({
+    // Convert to array and calculate percentages
+    const incomeSourcesArray = Object.entries(incomeSources)
+      .map(([name, amount], index) => ({
         name,
         amount,
         percentage: totalIncomeAmount > 0 ? parseFloat(((amount / totalIncomeAmount) * 100).toFixed(1)) : 0,
-        color: incomeColors[name as keyof typeof incomeColors] || incomeColors.Other
+        color: incomeColors[index % incomeColors.length]
       }))
       .sort((a, b) => b.amount - a.amount);
 
     return { incomeSourcesArray, totalIncomeAmount, totalExpenseAmount };
   };
 
-  // Function to get monthly income trends
+  // Function to get monthly income data
   const getMonthlyIncomeData = (transactions: Transaction[]) => {
     const monthlyTotals: Record<string, { income: number; expenses: number }> = {};
-    
-    // Initialize last 6 months
-    for (let i = 5; i >= 0; i--) {
-      const monthDate = startOfMonth(subMonths(new Date(), i));
+
+    // Calculate number of months based on time period
+    let monthsToShow = 6; // default
+    switch (timePeriod) {
+      case 'last-30-days':
+        monthsToShow = 1;
+        break;
+      case 'last-3-months':
+        monthsToShow = 3;
+        break;
+      case 'last-6-months':
+        monthsToShow = 6;
+        break;
+      case 'last-12-months':
+        monthsToShow = 12;
+        break;
+      case 'last-2-years':
+        monthsToShow = 24;
+        break;
+    }
+
+    // Initialize months
+    const endDate = new Date();
+    for (let i = 0; i < monthsToShow; i++) {
+      const monthDate = new Date(endDate);
+      monthDate.setMonth(endDate.getMonth() - i);
       const monthKey = format(monthDate, "MMM ''yy");
       monthlyTotals[monthKey] = { income: 0, expenses: 0 };
     }
 
+    // Process transactions
     transactions.forEach(tx => {
       const monthKey = format(new Date(tx.date), "MMM ''yy");
       if (monthlyTotals[monthKey]) {
-        if (tx.type === 'income') {
+        if (tx.type === 'income' || tx.detailedType === 'income') {
           monthlyTotals[monthKey].income += tx.amount;
-        } else if (tx.type === 'expense' || (tx.detailedType && ['variable-expense', 'fixed-expense', 'subscription'].includes(tx.detailedType))) {
+        } else if (tx.type === 'expense') {
           monthlyTotals[monthKey].expenses += Math.abs(tx.amount);
         }
       }
     });
 
-    return Object.entries(monthlyTotals).map(([month, data]) => ({
-      month,
-      income: data.income,
-      expenses: data.expenses,
-      net: data.income - data.expenses
-    }));
+    // Convert to array format
+    return Object.entries(monthlyTotals)
+      .map(([month, data]) => ({
+        month,
+        income: data.income,
+        expenses: data.expenses,
+        net: data.income - data.expenses
+      }))
+      .reverse();
   };
 
   useEffect(() => {
@@ -151,10 +186,8 @@ export function IncomeAnalysisReport() {
         setIsLoading(true);
         setError(null);
 
-        // Calculate date range for last 6 months
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 6);
+        // Calculate date range based on selected time period
+        const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
         // Fetch transactions and categories in parallel
         const [transactionsResult, categoriesResult] = await Promise.all([
@@ -190,7 +223,7 @@ export function IncomeAnalysisReport() {
     };
 
     fetchData();
-  }, [user?.id]);
+  }, [user?.id, timePeriod]);
 
   if (!isClient) {
     return (
@@ -245,16 +278,18 @@ export function IncomeAnalysisReport() {
             <Icons.BarChartBig className="mr-3 h-6 w-6 text-primary" />
             Income Analysis
           </CardTitle>
+          <CardDescription>Breakdown of your income by source for the {getPeriodLabel(timePeriod).toLowerCase()}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col justify-center items-center h-[400px] space-y-4">
-          <p className="text-muted-foreground">No income data found for the last 6 months.</p>
+          <p className="text-muted-foreground">No income data found for the {getPeriodLabel(timePeriod).toLowerCase()}.</p>
           <p className="text-sm text-muted-foreground">Add some income transactions to see your income analysis here.</p>
         </CardContent>
       </Card>
     );
   }
 
-  const averageMonthlyIncome = monthlyData.length > 0 ? totalIncome / 6 : 0;
+  const monthsInPeriod = monthlyData.length || 1;
+  const averageMonthlyIncome = monthsInPeriod > 0 ? totalIncome / monthsInPeriod : 0;
   const netIncome = totalIncome - totalExpenses;
   const savingsRate = totalIncome > 0 ? ((netIncome / totalIncome) * 100) : 0;
 
@@ -321,7 +356,7 @@ export function IncomeAnalysisReport() {
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="text-xl font-semibold">Income Sources</CardTitle>
-              <CardDescription>Breakdown of your income by source for the last 6 months</CardDescription>
+              <CardDescription>Breakdown of your income by source for the {getPeriodLabel(timePeriod).toLowerCase()}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -348,11 +383,11 @@ export function IncomeAnalysisReport() {
         {/* Income vs Expenses Trend */}
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl font-semibold">Income vs Expenses Trend</CardTitle>
-            <CardDescription>Monthly comparison of income and expenses</CardDescription>
+            <CardTitle className="text-xl font-semibold">Income vs Expenses</CardTitle>
+            <CardDescription>Monthly comparison for the {getPeriodLabel(timePeriod).toLowerCase()}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+            <ChartContainer config={monthlyChartConfig} className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />

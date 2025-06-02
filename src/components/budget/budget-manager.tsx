@@ -4,7 +4,7 @@ import type {
     RecurringItem, DebtAccount, BudgetCategory, VariableExpense, FinancialGoal, FinancialGoalWithContribution,
     MonthlyForecast, MonthlyForecastVariableExpense, MonthlyForecastGoalContribution,
     MonthlyForecastIncomeItem, MonthlyForecastFixedExpenseItem, MonthlyForecastSubscriptionItem, MonthlyForecastDebtPaymentItem,
-    DebtAccountType
+    DebtAccountType, Transaction
 } from "@/types";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ import {
 } from "date-fns";
 import { saveForecastOverride, getForecastOverridesForMonth } from "@/lib/api/forecast-overrides-v2";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getTransactions } from "@/lib/api/transactions";
 
 export function BudgetManager() {
   const { toast } = useToast();
@@ -34,6 +35,7 @@ export function BudgetManager() {
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [variableExpenses, setVariableExpenses] = useState<VariableExpense[]>([]);
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
   const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<VariableExpense | null>(null);
@@ -189,6 +191,52 @@ export function BudgetManager() {
 
     fetchData();
   }, [user?.id, toast]);
+
+  // Fetch transactions for the selected month
+  const fetchTransactionsForMonth = useCallback(async (monthDate: Date) => {
+    if (!user?.id) return;
+    
+    try {
+      const monthStart = startOfMonth(monthDate);
+      const monthEnd = endOfMonth(monthDate);
+      
+      const { transactions: monthTransactions, error } = await getTransactions(user.id, {
+        startDate: monthStart,
+        endDate: monthEnd
+      });
+      
+      if (error) {
+        console.error('Error fetching transactions:', error);
+        return;
+      }
+      
+      setTransactions(monthTransactions || []);
+    } catch (error) {
+      console.error('Error fetching transactions for month:', error);
+    }
+  }, [user?.id]);
+
+  // Fetch transactions when selected month changes
+  useEffect(() => {
+    fetchTransactionsForMonth(selectedMonth);
+  }, [selectedMonth, fetchTransactionsForMonth]);
+
+  // Calculate variable expense spending for selected month
+  const variableExpenseSpending = useMemo(() => {
+    // Calculate total spending from all variable expense transactions for the selected month
+    const totalSpent = transactions
+      .filter(tx => tx.detailedType === 'variable-expense')
+      .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+    
+    const totalBudgeted = variableExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const remaining = Math.max(0, totalBudgeted - totalSpent);
+    
+    return {
+      totalSpent,
+      totalBudgeted,
+      remaining
+    };
+  }, [transactions, variableExpenses]);
 
   const [currentMonthSummary, setCurrentMonthSummary] = useState({
     totalIncome: 0,
@@ -1550,6 +1598,8 @@ export function BudgetManager() {
             })()}
             totalGoalContributions={getSelectedMonthData().totalGoalContributions}
             totalBudgetedVariable={getSelectedMonthData().totalVariableExpenses}
+            totalSpentVariable={variableExpenseSpending.totalSpent}
+            remainingVariable={variableExpenseSpending.remaining}
             onAddCategoryClick={() => setIsAddCategoryDialogOpen(true)}
           />
           <VariableExpenseList

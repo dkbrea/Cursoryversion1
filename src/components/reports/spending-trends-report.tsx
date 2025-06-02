@@ -5,12 +5,15 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import type { Transaction, Category } from "@/types";
+import type { TimePeriod } from "@/app/(app)/reports/page";
 import { Icons } from "@/components/icons";
 import { useAuth } from "@/contexts/auth-context";
 import { getTransactions } from "@/lib/api/transactions";
 import { getCategories } from "@/lib/api/categories";
+import { getDateRangeForPeriod, getPeriodLabel } from "@/lib/utils/date-utils";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 interface MonthlySpending {
   month: string;
@@ -53,7 +56,11 @@ const chartConfig = {
   total: { label: "Total Spending", color: "hsl(var(--chart-1))" },
 };
 
-export function SpendingTrendsReport() {
+interface SpendingTrendsReportProps {
+  timePeriod: TimePeriod;
+}
+
+export function SpendingTrendsReport({ timePeriod }: SpendingTrendsReportProps) {
   const { user } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [monthlyData, setMonthlyData] = useState<MonthlySpending[]>([]);
@@ -81,12 +88,34 @@ export function SpendingTrendsReport() {
 
   // Function to get monthly spending trends
   const getSpendingTrends = (transactions: Transaction[], categories: Category[]) => {
-    const monthlyTotals: Record<string, Record<string, number>> = {};
+    const monthlyTotals: Record<string, { total: number; [key: string]: number }> = {};
     const categorySpending: Record<string, Record<string, number>> = {};
     
-    // Initialize last 6 months
-    for (let i = 5; i >= 0; i--) {
-      const monthDate = startOfMonth(subMonths(new Date(), i));
+    // Calculate number of months based on time period
+    let monthsToShow = 6; // default
+    switch (timePeriod) {
+      case 'last-30-days':
+        monthsToShow = 1;
+        break;
+      case 'last-3-months':
+        monthsToShow = 3;
+        break;
+      case 'last-6-months':
+        monthsToShow = 6;
+        break;
+      case 'last-12-months':
+        monthsToShow = 12;
+        break;
+      case 'last-2-years':
+        monthsToShow = 24;
+        break;
+    }
+
+    // Initialize months
+    const endDate = new Date();
+    for (let i = 0; i < monthsToShow; i++) {
+      const monthDate = new Date(endDate);
+      monthDate.setMonth(endDate.getMonth() - i);
       const monthKey = format(monthDate, "MMM ''yy");
       monthlyTotals[monthKey] = { total: 0 };
       categorySpending[monthKey] = {};
@@ -131,7 +160,7 @@ export function SpendingTrendsReport() {
       ...Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'total'))
     }));
 
-    return { monthlyDataArray, categorySpending };
+    return { monthlyDataArray: monthlyDataArray.reverse(), categorySpending };
   };
 
   // Function to calculate category trends and insights
@@ -204,10 +233,8 @@ export function SpendingTrendsReport() {
         setIsLoading(true);
         setError(null);
 
-        // Calculate date range for last 6 months
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 6);
+        // Calculate date range based on selected time period
+        const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
         // Fetch transactions and categories in parallel
         const [transactionsResult, categoriesResult] = await Promise.all([
@@ -247,7 +274,7 @@ export function SpendingTrendsReport() {
     };
 
     fetchData();
-  }, [user?.id]);
+  }, [user?.id, timePeriod]);
 
   if (!isClient) {
     return (
@@ -302,9 +329,10 @@ export function SpendingTrendsReport() {
             <Icons.LineChartIcon className="mr-3 h-6 w-6 text-primary" />
             Spending Trends
           </CardTitle>
+          <CardDescription>Your spending patterns over the {getPeriodLabel(timePeriod).toLowerCase()}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col justify-center items-center h-[400px] space-y-4">
-          <p className="text-muted-foreground">No spending data found for the last 6 months.</p>
+          <p className="text-muted-foreground">No spending data found for the {getPeriodLabel(timePeriod).toLowerCase()}.</p>
           <p className="text-sm text-muted-foreground">Add some expense transactions to see your spending trends here.</p>
         </CardContent>
       </Card>
@@ -312,151 +340,121 @@ export function SpendingTrendsReport() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Icons.DollarSign className="h-5 w-5 text-red-600" />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Spending (6M)</p>
-                <p className="text-2xl font-bold text-red-600">${totalSpending.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Icons.CalendarDays className="h-5 w-5 text-blue-600" />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Monthly Average</p>
-                <p className="text-2xl font-bold text-blue-600">${avgMonthlySpending.toFixed(2)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Icons.Activity className="h-5 w-5 text-purple-600" />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Categories Tracked</p>
-                <p className="text-2xl font-bold text-purple-600">{categoryTrends.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+    <Card className="shadow-lg">
+      <CardHeader>
+        <CardTitle className="text-2xl font-semibold flex items-center">
+          <Icons.LineChartIcon className="mr-3 h-6 w-6 text-primary" />
+          Spending Trends
+        </CardTitle>
+        <CardDescription>Your spending patterns over the {getPeriodLabel(timePeriod).toLowerCase()}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Spending</CardTitle>
+              <CardDescription>Your total spending over the {getPeriodLabel(timePeriod).toLowerCase()}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${totalSpending.toLocaleString()}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Average Monthly</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${avgMonthlySpending.toFixed(2)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Spending Periods</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{monthlyData.filter(m => m.total > 0).length}</div>
+              <p className="text-xs text-muted-foreground">months with activity</p>
+            </CardContent>
+          </Card>
+        </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Monthly Spending Trend */}
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold">Monthly Spending Trend</CardTitle>
-            <CardDescription>Your total spending over the last 6 months</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer config={chartConfig} className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" fontSize={12} />
-                  <YAxis fontSize={12} tickFormatter={(value) => `$${value/1000}k`} />
-                  <Tooltip content={<ChartTooltipContent />} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="total" 
-                    stroke="var(--color-total)" 
-                    strokeWidth={3}
-                    dot={{ r: 4, fill: "var(--color-total)" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
+        {/* Monthly Spending Chart */}
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Monthly Spending Trend</h3>
+          <ChartContainer config={chartConfig} className="h-[300px] w-full">
+            <ResponsiveContainer>
+              <LineChart data={monthlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                <YAxis 
+                  tickFormatter={(value) => `$${value.toLocaleString()}`}
+                  tickLine={false} 
+                  axisLine={false} 
+                />
+                <Tooltip content={<ChartTooltipContent />} />
+                <Line 
+                  type="monotone" 
+                  dataKey="total" 
+                  stroke="var(--color-total)" 
+                  strokeWidth={3}
+                  dot={{ fill: "var(--color-total)", r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </div>
 
-        {/* Category Trends */}
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold">Category Changes</CardTitle>
-            <CardDescription>Month-over-month spending changes by category</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 max-h-[300px] overflow-y-auto">
-              {categoryTrends.map((trend) => (
+        {/* Category Trends and Insights */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Category Trends */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Category Trends</h3>
+            <div className="space-y-3">
+              {categoryTrends.map((trend, index) => (
                 <div key={trend.category} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center gap-3">
                     <div 
                       className="w-3 h-3 rounded-full" 
                       style={{ backgroundColor: trend.color }}
                     />
-                    <div>
-                      <p className="font-medium">{trend.category}</p>
-                      <p className="text-sm text-muted-foreground">
-                        ${trend.currentMonth.toLocaleString()} this month
-                      </p>
-                    </div>
+                    <span className="font-medium">{trend.category}</span>
                   </div>
                   <div className="text-right">
-                    <Badge 
-                      variant={trend.change >= 0 ? "destructive" : "default"}
-                      className={trend.change >= 0 ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"}
-                    >
-                      {trend.change >= 0 ? '+' : ''}${trend.change.toFixed(0)}
-                    </Badge>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {trend.changePercent >= 0 ? '+' : ''}{trend.changePercent.toFixed(1)}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Insights */}
-      {insights.length > 0 && (
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold flex items-center">
-              <Icons.Lightbulb className="mr-2 h-5 w-5 text-yellow-500" />
-              Spending Insights
-            </CardTitle>
-            <CardDescription>Notable changes in your spending patterns</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {insights.map((insight, index) => (
-                <div key={index} className={`p-4 rounded-lg border-l-4 ${
-                  insight.type === 'increase' 
-                    ? 'border-l-red-500 bg-red-50 dark:bg-red-950/30' 
-                    : 'border-l-green-500 bg-green-50 dark:bg-green-950/30'
-                }`}>
-                  <div className="flex items-start space-x-3">
-                    {insight.type === 'increase' ? (
-                      <Icons.TrendingUp className="h-5 w-5 text-red-500 mt-0.5" />
-                    ) : (
-                      <Icons.TrendingDown className="h-5 w-5 text-green-500 mt-0.5" />
-                    )}
-                    <div>
-                      <p className="font-medium text-foreground">{insight.description}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Consider {insight.type === 'increase' ? 'reviewing this category for potential savings' : 'maintaining this positive trend'}
-                      </p>
+                    <div className="font-semibold">${trend.currentMonth.toLocaleString()}</div>
+                    <div className={`text-xs flex items-center ${trend.changePercent >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {trend.changePercent >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                      {Math.abs(trend.changePercent).toFixed(1)}%
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          </div>
+
+          {/* Insights */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Spending Insights</h3>
+            <div className="space-y-3">
+              {insights.length > 0 ? insights.map((insight, index) => (
+                <div key={index} className="p-3 rounded-lg border bg-muted/20">
+                  <div className={`flex items-center gap-2 mb-1 ${insight.type === 'increase' ? 'text-red-600' : 'text-green-600'}`}>
+                    {insight.type === 'increase' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                    <span className="font-medium text-sm">
+                      {insight.type === 'increase' ? 'Increased Spending' : 'Decreased Spending'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{insight.description}</p>
+                </div>
+              )) : (
+                <p className="text-sm text-muted-foreground p-3 rounded-lg border bg-muted/20">
+                  No significant spending changes detected in the selected period.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

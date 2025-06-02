@@ -20,12 +20,76 @@ import { SetupGuide } from "@/components/dashboard/setup-guide";
 import { SavingsGoalsCard } from "@/components/dashboard/savings-goals-card";
 import { UpcomingExpensesCard } from "@/components/dashboard/upcoming-expenses-card";
 import { RecentTransactionsCard } from "@/components/dashboard/recent-transactions-card";
-import { RecurringCalendarOverlay } from "@/components/dashboard/recurring-calendar-overlay";
 import { CalendarAccessCard } from "@/components/dashboard/calendar-access-card";
 import { AddEditTransactionDialog } from "@/components/transactions/add-edit-transaction-dialog";
-import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence } from "@/lib/utils/date-calculations";
-import { startOfDay, isSameDay } from "date-fns";
+import { startOfDay, endOfDay, addDays, isSameDay, format, addWeeks, addMonths, subMonths, startOfMonth, getDate, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { AlertTriangle } from "lucide-react";
+
+// Helper function to calculate next occurrence date for recurring items
+const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
+  const today = startOfDay(new Date());
+  let baseDate: Date;
+  
+  if (item.type === 'subscription' && item.lastRenewalDate) {
+    baseDate = startOfDay(new Date(item.lastRenewalDate));
+  } else if (item.startDate) {
+    baseDate = startOfDay(new Date(item.startDate));
+  } else {
+    baseDate = today;
+  }
+  
+  let nextDate = new Date(baseDate);
+  
+  // For subscriptions, advance to next occurrence after last renewal
+  if (item.type === 'subscription' && item.lastRenewalDate) {
+    switch (item.frequency) {
+      case "daily": nextDate = addDays(baseDate, 1); break;
+      case "weekly": nextDate = addWeeks(baseDate, 1); break;
+      case "bi-weekly": nextDate = addWeeks(baseDate, 2); break;
+      case "monthly": nextDate = addMonths(baseDate, 1); break;
+      case "quarterly": nextDate = addMonths(baseDate, 3); break;
+      case "yearly": nextDate = addMonths(baseDate, 12); break;
+    }
+  }
+  
+  // Advance to next occurrence if current date has passed
+  while (nextDate < today) {
+    switch (item.frequency) {
+      case "daily": nextDate = addDays(nextDate, 1); break;
+      case "weekly": nextDate = addWeeks(nextDate, 1); break;
+      case "bi-weekly": nextDate = addWeeks(nextDate, 2); break;
+      case "monthly": nextDate = addMonths(nextDate, 1); break;
+      case "quarterly": nextDate = addMonths(nextDate, 3); break;
+      case "yearly": nextDate = addMonths(nextDate, 12); break;
+      default: nextDate = addDays(nextDate, 1); break;
+    }
+  }
+  
+  return nextDate;
+};
+
+// Helper function to calculate next occurrence date for debt payments
+const calculateNextDebtOccurrence = (debt: DebtAccount): Date => {
+  const today = startOfDay(new Date());
+  
+  if (debt.nextDueDate) {
+    return startOfDay(new Date(debt.nextDueDate));
+  }
+  
+  // Fallback calculation based on payment frequency and day of month
+  let nextDate = new Date(today);
+  if (debt.paymentDayOfMonth) {
+    nextDate.setDate(debt.paymentDayOfMonth);
+    
+    // If payment day has passed this month, move to next month
+    if (nextDate <= today) {
+      nextDate = addMonths(nextDate, 1);
+    }
+  }
+  
+  return nextDate;
+};
 
 export function DashboardContent() {
   const { user } = useAuth();
@@ -43,24 +107,29 @@ export function DashboardContent() {
   const [variableExpenses, setVariableExpenses] = useState<VariableExpense[]>([]);
   const [totalBalance, setTotalBalance] = useState(0);
   const [monthlySpending, setMonthlySpending] = useState(0);
-  const [isCalendarOverlayOpen, setIsCalendarOverlayOpen] = useState(false);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [goalRefreshTrigger, setGoalRefreshTrigger] = useState(0);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
 
   useEffect(() => {
     console.log('Dashboard useEffect triggered, user:', user);
-    setIsLoading(true);
-    setError(null);
+    if (!user?.id) return;
 
     async function fetchData() {
       if (!user?.id) {
-        setIsLoading(false);
+        console.log('No user ID, skipping data fetch');
         return;
       }
 
+      console.log('Starting data fetch for dashboard');
+      setError(null);
+      
       try {
-        // Fetch all data in parallel
+        // Get current month date range for filtering transactions
+        const now = new Date();
+        const monthStart = startOfMonth(now);
+        const monthEnd = endOfMonth(now);
+
         const [
           { accounts: accountsData, error: accountsError },
           { transactions: transactionsData, error: transactionsError },
@@ -71,7 +140,7 @@ export function DashboardContent() {
           { expenses: variableExpensesData, error: variableExpensesError }
         ] = await Promise.all([
           getAccounts(user.id),
-          getTransactions(user.id),
+          getTransactions(user.id, { startDate: monthStart, endDate: monthEnd }),
           getRecurringItems(user.id),
           getDebtAccounts(user.id),
           getCategories(user.id),
@@ -205,7 +274,7 @@ export function DashboardContent() {
         setVariableExpenses(variableExpensesData || []);
 
         // Convert goals to FinancialGoalWithContribution format for the transaction dialog
-        const goalsConverted: FinancialGoalWithContribution[] = (goalsData || []).map(goal => ({
+        const goalsConverted: FinancialGoalWithContribution[] = (goalsData || []).map((goal: FinancialGoal) => ({
           ...goal,
           monthlyContribution: 0, // Default value - could be calculated based on target date
           monthsRemaining: 0 // Default value - could be calculated based on target date
@@ -779,7 +848,7 @@ export function DashboardContent() {
         
         {/* Right column: Calendar Access + Upcoming Expenses - takes up 1 column */}
         <div className="flex flex-col gap-3 h-full min-h-[500px]">
-          <CalendarAccessCard onViewCalendar={() => setIsCalendarOverlayOpen(true)} />
+          <CalendarAccessCard onViewCalendar={() => {}} />
           <UpcomingExpensesCard items={upcomingItems} />
         </div>
       </div>
@@ -1079,15 +1148,14 @@ export function DashboardContent() {
         />
       </div>
 
-      <RecurringCalendarOverlay 
-        isOpen={isCalendarOverlayOpen}
-        onClose={() => setIsCalendarOverlayOpen(false)}
-        items={upcomingItems}
-      />
-
       <AddEditTransactionDialog
         isOpen={isTransactionModalOpen}
-        onOpenChange={setIsTransactionModalOpen}
+        onOpenChange={(open) => {
+          setIsTransactionModalOpen(open);
+          if (!open) {
+            setTransactionToEdit(null);
+          }
+        }}
         onSave={handleSaveTransaction}
         categories={categories}
         accounts={accounts}

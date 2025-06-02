@@ -1,32 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { FinancialGoalWithContribution } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Icons } from "@/components/icons";
-import { format, differenceInCalendarMonths, isPast, startOfDay } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import type { FinancialGoal } from "@/types";
+import type { TimePeriod } from "@/app/(app)/reports/page";
 import { useAuth } from "@/contexts/auth-context";
 import { getFinancialGoals } from "@/lib/api/goals";
+import { Icons } from "@/components/icons";
 
-const getGoalIcon = (iconKey: FinancialGoalWithContribution['icon']) => {
-    const iconMap: Record<FinancialGoalWithContribution['icon'], React.ElementType> = {
-        'default': Icons.GoalDefault, 'home': Icons.Home, 'car': Icons.Car,
-        'plane': Icons.Plane, 'briefcase': Icons.Briefcase, 'graduation-cap': Icons.GraduationCap,
-        'gift': Icons.Gift, 'piggy-bank': Icons.PiggyBank, 'trending-up': Icons.TrendingUp,
-        'shield-check': Icons.ShieldCheck,
-    };
-    const IconComponent = iconMap[iconKey] || Icons.GoalDefault;
-    return <IconComponent className="h-5 w-5 text-primary" />;
-};
+interface GoalProgressReportProps {
+  timePeriod: TimePeriod;
+}
 
-export function GoalProgressReport() {
+export function GoalProgressReport({ timePeriod }: GoalProgressReportProps) {
   const { user } = useAuth();
   const [isClient, setIsClient] = useState(false);
-  const [processedGoals, setProcessedGoals] = useState<FinancialGoalWithContribution[]>([]);
+  const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,44 +34,14 @@ export function GoalProgressReport() {
         setIsLoading(true);
         setError(null);
 
-        // Fetch financial goals
         const goalsResult = await getFinancialGoals(user.id);
 
         if (goalsResult.error) {
           throw new Error(goalsResult.error);
         }
 
-        const goals = goalsResult.goals || [];
-        
-        // Process the goals to calculate months remaining and monthly contributions
-        const today = startOfDay(new Date());
-        const calculatedGoals = goals.map(goal => {
-          const targetDate = startOfDay(new Date(goal.targetDate));
-          let monthsRemaining = differenceInCalendarMonths(targetDate, today);
-          let monthlyContribution = 0;
-          const amountNeeded = goal.targetAmount - goal.currentAmount;
-
-          if (amountNeeded <= 0) {
-            monthsRemaining = 0;
-            monthlyContribution = 0;
-          } else if (isPast(targetDate) || monthsRemaining < 0) {
-            monthsRemaining = 0;
-            monthlyContribution = amountNeeded;
-          } else if (monthsRemaining === 0) {
-            monthsRemaining = 1;
-            monthlyContribution = amountNeeded;
-          } else {
-            monthlyContribution = amountNeeded / (monthsRemaining + 1); // +1 includes current month for contribution
-          }
-
-          return {
-            ...goal,
-            monthsRemaining: Math.max(0, monthsRemaining),
-            monthlyContribution: monthlyContribution > 0 ? parseFloat(monthlyContribution.toFixed(2)) : 0,
-          };
-        }).sort((a,b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime());
-
-        setProcessedGoals(calculatedGoals);
+        const goalsData = goalsResult.goals || [];
+        setGoals(goalsData);
       } catch (err) {
         console.error('Error fetching goals data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load goals data');
@@ -96,10 +57,10 @@ export function GoalProgressReport() {
     return (
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>Goal Progress Summary</CardTitle>
+          <CardTitle>Goal Progress</CardTitle>
         </CardHeader>
         <CardContent className="flex justify-center items-center h-[300px]">
-          <p className="text-muted-foreground">Loading goals...</p>
+          <p className="text-muted-foreground">Loading chart...</p>
         </CardContent>
       </Card>
     );
@@ -110,10 +71,9 @@ export function GoalProgressReport() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-xl font-semibold flex items-center">
-            <Icons.Goals className="mr-2 h-5 w-5 text-primary"/>
-            Goal Progress Summary
+            <Icons.TrendingUp className="mr-2 h-5 w-5 text-primary"/>
+            Goal Progress
           </CardTitle>
-          <CardDescription>Overview of your financial goals and their progress.</CardDescription>
         </CardHeader>
         <CardContent className="flex justify-center items-center h-[300px]">
           <p className="text-muted-foreground">Loading your goals...</p>
@@ -127,10 +87,9 @@ export function GoalProgressReport() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-xl font-semibold flex items-center">
-            <Icons.Goals className="mr-2 h-5 w-5 text-primary"/>
-            Goal Progress Summary
+            <Icons.TrendingUp className="mr-2 h-5 w-5 text-primary"/>
+            Goal Progress
           </CardTitle>
-          <CardDescription>Overview of your financial goals and their progress.</CardDescription>
         </CardHeader>
         <CardContent className="flex justify-center items-center h-[300px]">
           <p className="text-red-500">Error: {error}</p>
@@ -138,54 +97,88 @@ export function GoalProgressReport() {
       </Card>
     );
   }
-  
+
+  if (goals.length === 0) {
+    return (
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-xl font-semibold flex items-center">
+            <Icons.TrendingUp className="mr-2 h-5 w-5 text-primary"/>
+            Goal Progress
+          </CardTitle>
+          <CardDescription>Track your financial goals and achievements</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col justify-center items-center h-[300px] space-y-4">
+          <Icons.TrendingUp className="h-16 w-16 text-muted-foreground" />
+          <div className="text-center space-y-2">
+            <p className="text-lg font-medium text-muted-foreground">No Goals Found</p>
+            <p className="text-sm text-muted-foreground">Create some financial goals to track your progress here.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Calculate stats - note: FinancialGoal doesn't have status, so we determine based on completion
+  const activeGoals = goals.filter(goal => goal.currentAmount < goal.targetAmount);
+  const completedGoals = goals.filter(goal => goal.currentAmount >= goal.targetAmount);
+  const totalProgress = activeGoals.reduce((sum, goal) => sum + (goal.currentAmount / goal.targetAmount) * 100, 0);
+  const averageProgress = activeGoals.length > 0 ? totalProgress / activeGoals.length : 0;
+
   return (
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="text-xl font-semibold flex items-center">
-            <Icons.Goals className="mr-2 h-5 w-5 text-primary"/>
-            Goal Progress Summary
+          <Icons.TrendingUp className="mr-2 h-5 w-5 text-primary"/>
+          Goal Progress
         </CardTitle>
-        <CardDescription>Overview of your financial goals and their progress.</CardDescription>
+        <CardDescription>Track your financial goals and achievements</CardDescription>
       </CardHeader>
-      <CardContent>
-        {processedGoals.length > 0 ? (
-            <ScrollArea className="h-[300px] pr-3">
-                <div className="space-y-4">
-                {processedGoals.map(goal => {
-                    const progressPercentage = goal.targetAmount > 0 ? Math.min((goal.currentAmount / goal.targetAmount) * 100, 100) : 0;
-                    const isAchieved = goal.currentAmount >= goal.targetAmount;
-                    return (
-                    <div key={goal.id} className="p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                                {getGoalIcon(goal.icon)}
-                                <span className="font-medium text-foreground">{goal.name}</span>
-                            </div>
-                            {isAchieved && <Badge variant="default" className="bg-green-500 text-white text-xs">Achieved!</Badge>}
-                        </div>
-                        <Progress value={progressPercentage} className={cn("h-2.5", isAchieved && "[&>div]:bg-green-500")} />
-                        <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                            <span>${goal.currentAmount.toLocaleString()}/${goal.targetAmount.toLocaleString()}</span>
-                            <span>{progressPercentage.toFixed(1)}%</span>
-                        </div>
-                        {!isAchieved && (
-                            <div className="text-xs text-muted-foreground mt-1.5">
-                                Target: {format(new Date(goal.targetDate), "MMM yyyy")} | 
-                                Contrib: ${goal.monthlyContribution.toLocaleString()}/mo
-                            </div>
-                        )}
-                    </div>
-                    );
-                })}
+      <CardContent className="space-y-6">
+        {/* Summary Stats */}
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-2xl font-bold text-blue-600">{activeGoals.length}</p>
+            <p className="text-xs text-muted-foreground">Active Goals</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-green-600">{completedGoals.length}</p>
+            <p className="text-xs text-muted-foreground">Completed</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-purple-600">{averageProgress.toFixed(0)}%</p>
+            <p className="text-xs text-muted-foreground">Avg Progress</p>
+          </div>
+        </div>
+
+        {/* Active Goals List */}
+        <div className="space-y-3">
+          <h4 className="font-medium">Active Goals</h4>
+          {activeGoals.slice(0, 4).map((goal) => {
+            const progressPercent = (goal.currentAmount / goal.targetAmount) * 100;
+            return (
+              <div key={goal.id} className="space-y-2 p-3 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-sm">{goal.name}</span>
+                  <Badge variant={progressPercent >= 100 ? "default" : "secondary"}>
+                    {progressPercent.toFixed(0)}%
+                  </Badge>
                 </div>
-            </ScrollArea>
-        ) : (
-            <div className="flex flex-col justify-center items-center h-[300px] space-y-4">
-              <p className="text-muted-foreground text-center">No financial goals set up yet.</p>
-              <p className="text-sm text-muted-foreground text-center">Create some goals to track your progress here.</p>
-            </div>
-        )}
+                <Progress value={Math.min(progressPercent, 100)} className="h-2" />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>${goal.currentAmount.toLocaleString()}</span>
+                  <span>${goal.targetAmount.toLocaleString()}</span>
+                </div>
+              </div>
+            );
+          })}
+          
+          {activeGoals.length > 4 && (
+            <p className="text-xs text-muted-foreground text-center pt-2">
+              +{activeGoals.length - 4} more goals
+            </p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

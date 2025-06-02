@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { FinancialGoal, FinancialGoalWithContribution } from "@/types";
@@ -209,9 +208,6 @@ export function GoalDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-end items-center gap-2 mb-2">
-        <Button variant="outline" size="sm" disabled>
-          <Bot className="mr-2 h-4 w-4" /> Ask Mowany AI
-        </Button>
         <Button variant="outline" size="sm" disabled>
           <Download className="mr-2 h-4 w-4" /> Export Report
         </Button>

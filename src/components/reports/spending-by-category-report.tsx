@@ -1,22 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import type { CategorySpending, Transaction, Category } from "@/types";
+import type { TimePeriod } from "@/app/(app)/reports/page";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { getTransactions } from "@/lib/api/transactions";
 import { getCategories } from "@/lib/api/categories";
+import { getDateRangeForPeriod, getPeriodLabel } from "@/lib/utils/date-utils";
 
 // Define colors for consistent chart display
 const reportColors = {
   Housing: "#2563eb", // blue-600
   Food: "#16a34a",    // green-600
-  Transportation: "#7c3aed", // violet-600
-  Entertainment: "#f59e0b", // amber-500
+  Transportation: "#f59e0b", // amber-500
+  Entertainment: "#7c3aed", // violet-600
   Utilities: "#dc2626", // red-600
   Other: "#64748b", // slate-500
   Uncategorized: "#9ca3af", // gray-400
@@ -24,9 +26,108 @@ const reportColors = {
   Personal: "#8b5cf6", // violet-500
   "Home/Family": "#f97316", // orange-500
   "Media/Productivity": "#10b981", // emerald-500
+  Grocery: "#8b5cf6", // violet for grocery
+  "Food & Drink": "#10b981", // emerald for food & drink
+  Shopping: "#ef4444", // red for shopping
 };
 
-export function SpendingByCategoryReport() {
+interface SpendingByCategoryReportProps {
+  timePeriod: TimePeriod;
+}
+
+// Custom bubble chart component
+const BubbleChart = ({ data }: { data: any[] }) => {
+  const [hoveredItem, setHoveredItem] = useState<any>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  // Calculate positions for bubbles (simple pack layout)
+  const packBubbles = (data: any[]) => {
+    if (data.length === 0) return [];
+    
+    const maxValue = Math.max(...data.map(d => d.value));
+    const minRadius = 30;
+    const maxRadius = 80;
+    
+    return data.map((item, index) => {
+      const radius = minRadius + (item.value / maxValue) * (maxRadius - minRadius);
+      // Simple grid-like positioning with some offset for organic look
+      const cols = Math.ceil(Math.sqrt(data.length));
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      
+      const x = (col + 0.5) * (200) + (Math.random() - 0.5) * 30;
+      const y = (row + 0.5) * (180) + (Math.random() - 0.5) * 30;
+      
+      return {
+        ...item,
+        x,
+        y,
+        radius
+      };
+    });
+  };
+
+  const bubbles = packBubbles(data);
+  const width = Math.max(400, Math.ceil(Math.sqrt(data.length)) * 200);
+  const height = Math.max(300, Math.ceil(data.length / Math.ceil(Math.sqrt(data.length))) * 180);
+
+  const handleMouseMove = (event: React.MouseEvent) => {
+    setMousePosition({ x: event.clientX, y: event.clientY });
+  };
+
+  return (
+    <div className="relative">
+      <svg width={width} height={height} onMouseMove={handleMouseMove}>
+        {bubbles.map((bubble, index) => (
+          <g key={bubble.name}>
+            <circle
+              cx={bubble.x}
+              cy={bubble.y}
+              r={bubble.radius}
+              fill={bubble.color}
+              fillOpacity={0.8}
+              stroke="white"
+              strokeWidth={3}
+              onMouseEnter={() => setHoveredItem(bubble)}
+              onMouseLeave={() => setHoveredItem(null)}
+              style={{ cursor: 'pointer' }}
+            />
+            <text
+              x={bubble.x}
+              y={bubble.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={bubble.radius > 50 ? 18 : 14}
+              fill="white"
+              fontWeight="bold"
+              pointerEvents="none"
+            >
+              {bubble.percentage}%
+            </text>
+          </g>
+        ))}
+      </svg>
+      
+      {/* Custom tooltip */}
+      {hoveredItem && (
+        <div 
+          className="absolute bg-background border rounded-lg p-3 shadow-lg pointer-events-none z-10"
+          style={{
+            left: mousePosition.x - 100,
+            top: mousePosition.y - 80,
+          }}
+        >
+          <p className="font-medium">{hoveredItem.name}</p>
+          <p className="text-sm text-muted-foreground">
+            ${hoveredItem.value.toLocaleString()} ({hoveredItem.percentage}%)
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export function SpendingByCategoryReport({ timePeriod }: SpendingByCategoryReportProps) {
   const { user } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [chartData, setChartData] = useState<CategorySpending[]>([]);
@@ -95,10 +196,8 @@ export function SpendingByCategoryReport() {
         setIsLoading(true);
         setError(null);
 
-        // Calculate date range for last 6 months
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 6);
+        // Calculate date range based on selected time period
+        const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
         // Fetch transactions and categories in parallel
         const [transactionsResult, categoriesResult] = await Promise.all([
@@ -133,8 +232,9 @@ export function SpendingByCategoryReport() {
         const dataWithPercentages = categorySpendingData.map(item => ({
           name: item.name,
           value: item.amount,
+          size: item.amount, // For treemap sizing
           color: reportColors[item.name as keyof typeof reportColors] || reportColors.Other,
-          percentage: totalSpending > 0 ? parseFloat(((item.amount / totalSpending) * 100).toFixed(1)) : 0,
+          percentage: totalSpending > 0 ? parseFloat(((item.amount / totalSpending) * 100).toFixed(0)) : 0,
         }));
 
         setChartData(dataWithPercentages);
@@ -147,7 +247,7 @@ export function SpendingByCategoryReport() {
     };
 
     fetchData();
-  }, [user?.id]);
+  }, [user?.id, timePeriod]);
 
   const totalValue = chartData.reduce((sum, entry) => sum + entry.value, 0);
 
@@ -200,10 +300,10 @@ export function SpendingByCategoryReport() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-semibold">Spending by Category</CardTitle>
+          <CardDescription>Your spending breakdown for the {getPeriodLabel(timePeriod).toLowerCase()}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col justify-center items-center h-[350px] space-y-4">
-          <p className="text-muted-foreground">No spending data found for the last 6 months.</p>
-          <p className="text-sm text-muted-foreground">Add some transactions to see your spending breakdown here.</p>
+        <CardContent className="flex justify-center items-center h-[350px]">
+          <p className="text-muted-foreground">No spending data found for the {getPeriodLabel(timePeriod).toLowerCase()}.</p>
         </CardContent>
       </Card>
     );
@@ -213,79 +313,30 @@ export function SpendingByCategoryReport() {
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="text-2xl font-semibold">Spending by Category</CardTitle>
-        <CardDescription>Your spending breakdown for the last 6 months</CardDescription>
+        <CardDescription>Your spending breakdown for the {getPeriodLabel(timePeriod).toLowerCase()}</CardDescription>
       </CardHeader>
-      <CardContent className="grid md:grid-cols-2 gap-6 items-center">
-        <div className="flex flex-col items-center">
-          <p className="text-sm text-muted-foreground mb-2">Spending Distribution</p>
-          <ChartContainer config={chartConfig} className="aspect-square h-[280px] w-full max-w-[280px] mx-auto">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Tooltip
-                  cursor={false}
-                  content={<ChartTooltipContent hideLabel nameKey="name" />}
+      <CardContent>
+        <div className="space-y-6">
+          {/* Bubble Chart */}
+          <div className="flex justify-center">
+            <BubbleChart data={chartData} />
+          </div>
+          
+          {/* Category Legend */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {chartData.map((entry, index) => (
+              <div key={entry.name} className="flex items-center space-x-3">
+                <div 
+                  className="w-4 h-4 rounded-full flex-shrink-0" 
+                  style={{ backgroundColor: entry.color }}
                 />
-                <Pie
-                  data={chartData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius="60%"
-                  outerRadius="80%"
-                  strokeWidth={2}
-                  labelLine={false}
-                >
-                  {chartData.map((entry) => (
-                    <Cell key={`cell-${entry.name}`} fill={entry.color} stroke={entry.color} />
-                  ))}
-                </Pie>
-                 {/* Custom center label */}
-                 <text
-                    x="50%"
-                    y="46%"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="text-xs fill-muted-foreground"
-                  >
-                    Total
-                  </text>
-                  <text
-                    x="50%"
-                    y="56%"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="text-2xl font-semibold fill-foreground"
-                  >
-                    ${totalValue.toLocaleString()}
-                  </text>
-              </PieChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-lg font-medium text-foreground">Breakdown by Category</h3>
-          <ul className="space-y-2.5">
-            {chartData.map((item) => (
-              <li key={item.name} className="flex items-center justify-between text-sm">
-                <div className="flex items-center">
-                  <span
-                    className="mr-2 h-3 w-3 rounded-full"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-foreground">{item.name}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{entry.name}</p>
+                  <p className="text-sm text-muted-foreground">${entry.value.toLocaleString()}</p>
                 </div>
-                <div className="text-right">
-                    <span className="font-semibold text-foreground">${item.value.toLocaleString()}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">{item.percentage}%</span>
-                </div>
-              </li>
+              </div>
             ))}
-          </ul>
-          <Button variant="link" className="p-0 h-auto text-primary text-sm" disabled>
-            View detailed breakdown <ArrowRight className="ml-1 h-4 w-4" />
-          </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

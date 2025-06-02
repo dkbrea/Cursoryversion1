@@ -5,24 +5,37 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import type { NetWorthDataPoint, Account, DebtAccount, InvestmentAccount } from "@/types";
+import type { TimePeriod } from "@/app/(app)/reports/page";
 import { Icons } from "@/components/icons";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccounts } from "@/lib/api/accounts";
 import { getDebtAccounts } from "@/lib/api/debts";
 import { getInvestmentAccounts } from "@/lib/api/investment-accounts";
 import { format, subMonths, startOfMonth } from "date-fns";
+import { getPeriodLabel } from "@/lib/utils/date-utils";
+
+interface ActualTotals {
+  bankAccounts: number;
+  investments: number;
+  liabilities: number;
+  netWorth: number;
+}
 
 const chartConfig = {
-  netWorth: { label: "Net Worth", color: "hsl(var(--chart-1))" },
-  assets: { label: "Assets", color: "hsl(var(--chart-2))" },
-  liabilities: { label: "Liabilities", color: "hsl(var(--chart-5))" },
+  assets: { label: "Assets", color: "hsl(var(--chart-1))" },
+  liabilities: { label: "Liabilities", color: "hsl(var(--chart-2))" },
+  netWorth: { label: "Net Worth", color: "hsl(var(--chart-3))" },
 };
 
-export function NetWorthTrendReport() {
+interface NetWorthTrendReportProps {
+  timePeriod: TimePeriod;
+}
+
+export function NetWorthTrendReport({ timePeriod }: NetWorthTrendReportProps) {
   const { user } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [netWorthData, setNetWorthData] = useState<NetWorthDataPoint[]>([]);
-  const [actualTotals, setActualTotals] = useState({ bankAccounts: 0, investments: 0, liabilities: 0, netWorth: 0 });
+  const [actualTotals, setActualTotals] = useState<ActualTotals>({ bankAccounts: 0, investments: 0, liabilities: 0, netWorth: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -168,7 +181,7 @@ export function NetWorthTrendReport() {
             <Icons.TrendingUp className="mr-2 h-5 w-5 text-primary"/>
             Net Worth Over Time
           </CardTitle>
-          <CardDescription>Track your total net worth including bank accounts, investments, and debts over the last 6 months.</CardDescription>
+          <CardDescription>Track your total net worth including bank accounts, investments, and debts</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col justify-center items-center h-[300px] space-y-4">
           <p className="text-muted-foreground">No accounts, investments, or debt data found.</p>
@@ -187,7 +200,7 @@ export function NetWorthTrendReport() {
             <Icons.TrendingUp className="mr-2 h-5 w-5 text-primary"/>
             Net Worth Over Time
         </CardTitle>
-        <CardDescription>Track your total net worth including bank accounts, investments, and debts over the last 6 months.</CardDescription>
+        <CardDescription>Track your total net worth including bank accounts, investments, and debts</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
