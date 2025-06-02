@@ -34,7 +34,7 @@ A comprehensive personal finance management application built with Next.js and S
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd pocket-ledger
+   cd unbroken-pockets
    ```
 
 2. **Install dependencies**

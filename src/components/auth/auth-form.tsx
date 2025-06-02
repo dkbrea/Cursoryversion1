@@ -14,11 +14,12 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/lib/supabase";
+import { useSearchParams } from "next/navigation";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -40,6 +41,15 @@ export function AuthForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // Check for error parameters from auth callback
+  useEffect(() => {
+    const urlError = searchParams.get('error');
+    if (urlError === 'verification_failed') {
+      setError('Email verification failed. The link may be expired or invalid. Please try signing up again.');
+    }
+  }, [searchParams]);
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -114,7 +124,8 @@ export function AuthForm() {
         options: {
           data: {
             first_name: values.firstName,
-          }
+          },
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
         }
       });
       

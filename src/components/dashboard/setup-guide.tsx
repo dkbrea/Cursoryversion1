@@ -7,6 +7,7 @@ import { CheckCircle, CircleDashed, ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
+import { insertRecurringItem } from "@/lib/supabase-helpers";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { AddRecurringItemDialog } from "@/components/recurring/add-recurring-item-dialog";
 import { AddDebtDialog } from "@/components/debts/add-debt-dialog";
@@ -142,19 +143,19 @@ export function SetupGuide() {
 
         // Check variable expenses (previously budget categories)
         const { count: budgetCount, error: budgetError } = await supabase
-          .from('variable_expenses')
+          .from('budget_categories')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
         // Update setup steps status
         const updatedSteps = [...setupSteps];
-        updatedSteps[0].isCompleted = accountsCount > 0;
-        updatedSteps[1].isCompleted = incomeCount > 0;
-        updatedSteps[2].isCompleted = fixedExpensesCount > 0;
-        updatedSteps[3].isCompleted = subscriptionsCount > 0;
-        updatedSteps[4].isCompleted = debtCount > 0;
-        updatedSteps[5].isCompleted = goalsCount > 0;
-        updatedSteps[6].isCompleted = budgetCount > 0;
+        updatedSteps[0].isCompleted = (accountsCount || 0) > 0;
+        updatedSteps[1].isCompleted = (incomeCount || 0) > 0;
+        updatedSteps[2].isCompleted = (fixedExpensesCount || 0) > 0;
+        updatedSteps[3].isCompleted = (subscriptionsCount || 0) > 0;
+        updatedSteps[4].isCompleted = (debtCount || 0) > 0;
+        updatedSteps[5].isCompleted = (goalsCount || 0) > 0;
+        updatedSteps[6].isCompleted = (budgetCount || 0) > 0;
         
         setSetupSteps(updatedSteps);
 
@@ -196,7 +197,7 @@ export function SetupGuide() {
       <CardHeader>
         <CardTitle>Setup Your Financial Profile</CardTitle>
         <CardDescription>
-          Complete these steps to get the most out of PocketLedger
+          Complete these steps to get the most out of Unbroken Pockets
         </CardDescription>
         <div className="mt-2 h-2 w-full bg-gray-200 rounded-full overflow-hidden">
           <div 
@@ -471,25 +472,21 @@ export function SetupGuide() {
             setIsAddingRecurringItem(true);
             
             if (user?.id) {
-              // Save to Supabase
-              const { data, error } = await supabase
-                .from('recurring_items')
-                .insert({
-                  name: itemData.name,
-                  type: itemData.type,
-                  amount: itemData.amount,
-                  frequency: itemData.frequency,
-                  start_date: itemData.startDate,
-                  last_renewal_date: itemData.lastRenewalDate,
-                  end_date: itemData.endDate,
-                  semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate,
-                  semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate,
-                  user_id: user.id,
-                  category_id: itemData.categoryId,
-                  notes: itemData.notes
-                })
-                .select()
-                .single();
+              // Save to Supabase using helper function
+              const { data, error } = await insertRecurringItem({
+                name: itemData.name,
+                type: itemData.type,
+                amount: itemData.amount,
+                frequency: itemData.frequency,
+                start_date: itemData.startDate,
+                last_renewal_date: itemData.lastRenewalDate,
+                end_date: itemData.endDate,
+                semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate,
+                semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate,
+                user_id: user.id,
+                category_id: itemData.categoryId,
+                notes: itemData.notes
+              });
                 
               if (error) throw error;
               
@@ -545,25 +542,21 @@ export function SetupGuide() {
             setIsAddingRecurringItem(true);
             
             if (user?.id) {
-              // Save to Supabase
-              const { data, error } = await supabase
-                .from('recurring_items')
-                .insert({
-                  name: itemData.name,
-                  type: itemData.type,
-                  amount: itemData.amount,
-                  frequency: itemData.frequency,
-                  start_date: itemData.startDate,
-                  last_renewal_date: itemData.lastRenewalDate,
-                  end_date: itemData.endDate,
-                  semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate,
-                  semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate,
-                  user_id: user.id,
-                  category_id: itemData.categoryId,
-                  notes: itemData.notes
-                })
-                .select()
-                .single();
+              // Save to Supabase using helper function
+              const { data, error } = await insertRecurringItem({
+                name: itemData.name,
+                type: itemData.type,
+                amount: itemData.amount,
+                frequency: itemData.frequency,
+                start_date: itemData.startDate,
+                last_renewal_date: itemData.lastRenewalDate,
+                end_date: itemData.endDate,
+                semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate,
+                semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate,
+                user_id: user.id,
+                category_id: itemData.categoryId,
+                notes: itemData.notes
+              });
                 
               if (error) throw error;
               
@@ -619,25 +612,21 @@ export function SetupGuide() {
             setIsAddingRecurringItem(true);
             
             if (user?.id) {
-              // Save to Supabase
-              const { data, error } = await supabase
-                .from('recurring_items')
-                .insert({
-                  name: itemData.name,
-                  type: itemData.type,
-                  amount: itemData.amount,
-                  frequency: itemData.frequency,
-                  start_date: itemData.startDate,
-                  last_renewal_date: itemData.lastRenewalDate,
-                  end_date: itemData.endDate,
-                  semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate,
-                  semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate,
-                  user_id: user.id,
-                  category_id: itemData.categoryId,
-                  notes: itemData.notes
-                })
-                .select()
-                .single();
+              // Save to Supabase using helper function
+              const { data, error } = await insertRecurringItem({
+                name: itemData.name,
+                type: itemData.type,
+                amount: itemData.amount,
+                frequency: itemData.frequency,
+                start_date: itemData.startDate,
+                last_renewal_date: itemData.lastRenewalDate,
+                end_date: itemData.endDate,
+                semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate,
+                semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate,
+                user_id: user.id,
+                category_id: itemData.categoryId,
+                notes: itemData.notes
+              });
                 
               if (error) throw error;
               
