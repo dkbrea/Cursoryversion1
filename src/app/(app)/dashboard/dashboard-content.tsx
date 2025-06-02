@@ -784,6 +784,138 @@ export function DashboardContent() {
         </div>
       </div>
 
+      {/* Debt Spending Card and Variable Expense Analysis - above Recent Transactions */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Debt Spending Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Spending on Credit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const debtTxs = transactions.filter(tx => !!tx.debtAccountId && tx.type === 'expense');
+              const totalDebtSpending = debtTxs.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+              const categoryMap: Record<string, number> = {};
+              debtTxs.forEach(tx => {
+                let categoryName = 'Uncategorized';
+                if (tx.categoryId) {
+                  const category = categories.find(cat => cat.id === tx.categoryId);
+                  if (category) {
+                    categoryName = category.name;
+                  } else {
+                    const categoryLabels: Record<string, string> = {
+                      'housing': 'Housing',
+                      'food': 'Food',
+                      'utilities': 'Utilities',
+                      'transportation': 'Transportation',
+                      'health': 'Health',
+                      'personal': 'Personal',
+                      'home-family': 'Home/Family',
+                      'media-productivity': 'Media/Productivity'
+                    };
+                    categoryName = categoryLabels[tx.categoryId] || tx.categoryId;
+                  }
+                }
+                if (!categoryMap[categoryName]) categoryMap[categoryName] = 0;
+                categoryMap[categoryName] += Math.abs(tx.amount);
+              });
+              const breakdown = Object.entries(categoryMap)
+                .map(([name, amount]) => ({ name, amount }))
+                .sort((a, b) => b.amount - a.amount)
+                .slice(0, 3);
+              return (
+                <>
+                  <div className="text-2xl font-bold">{formatCurrency(totalDebtSpending)}</div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Total spent using debt accounts (credit cards, lines of credit, etc.)
+                  </p>
+                  {breakdown.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {breakdown.map((cat, idx) => (
+                        <div key={cat.name} className="flex items-center">
+                          <div className={`w-2 h-2 rounded-full mr-2 ${
+                            idx === 0 ? 'bg-blue-500' : idx === 1 ? 'bg-red-500' : 'bg-green-500'
+                          }`}></div>
+                          <span className="text-xs">{cat.name}</span>
+                          <span className="ml-auto text-xs font-semibold">{formatCurrency(cat.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {debtTxs.length === 0 && (
+                    <div className="text-xs text-muted-foreground">No spending on debt accounts yet.</div>
+                  )}
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+        {/* Variable Expense Analysis Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Variable Expense Analysis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {(() => {
+                // Calculate spending for each variable expense
+                const expenseAnalysis = variableExpenses.map((expense) => {
+                  // Find transactions linked to this specific variable expense by sourceId
+                  const spent = transactions
+                    .filter(tx => tx.detailedType === 'variable-expense' && tx.sourceId === expense.id)
+                    .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+                  
+                  let status = '';
+                  let statusColor = '';
+                  if (spent > expense.amount) {
+                    status = 'Overspent';
+                    statusColor = 'text-red-600';
+                  } else if (spent < expense.amount && spent > 0) {
+                    status = 'Underspent';
+                    statusColor = 'text-green-600';
+                  } else if (spent === expense.amount && spent > 0) {
+                    status = 'On Track';
+                    statusColor = 'text-yellow-600';
+                  } else {
+                    status = 'No Spending';
+                    statusColor = 'text-gray-500';
+                  }
+                  
+                  return {
+                    ...expense,
+                    spent,
+                    status,
+                    statusColor,
+                    hasTransactions: spent > 0
+                  };
+                });
+                
+                // Sort: expenses with transactions first (by spent amount desc), then by budgeted amount desc
+                const sortedExpenses = expenseAnalysis.sort((a, b) => {
+                  if (a.hasTransactions && !b.hasTransactions) return -1;
+                  if (!a.hasTransactions && b.hasTransactions) return 1;
+                  if (a.hasTransactions && b.hasTransactions) return b.spent - a.spent;
+                  return b.amount - a.amount;
+                });
+                
+                return sortedExpenses.map((expense) => (
+                  <div key={expense.id} className="flex items-center text-xs border-b last:border-b-0 py-1">
+                    <span className="font-medium w-1/3 truncate" title={expense.name}>{expense.name}</span>
+                    <span className="w-1/4 text-right">{formatCurrency(expense.amount)}</span>
+                    <span className="w-1/4 text-right">{formatCurrency(expense.spent)}</span>
+                    <span className={`w-1/4 text-right font-semibold ${expense.statusColor}`}>{expense.status}</span>
+                  </div>
+                ));
+              })()}
+              {variableExpenses.length === 0 && (
+                <div className="text-xs text-muted-foreground">No variable expenses set.</div>
+              )}
+            </div>
+            <div className="mt-2 text-[10px] text-muted-foreground">Budgeted / Spent / Status</div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Third row: Recent Transactions */}
       <div className="grid gap-4">
         <RecentTransactionsCard 

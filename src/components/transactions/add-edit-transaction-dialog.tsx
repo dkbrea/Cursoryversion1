@@ -225,10 +225,9 @@ export function AddEditTransactionDialog({
         const item = variableExpenses.find(ve => ve.id === itemId);
         if (item) { 
           selectedItemName = item.name; 
-          selectedItemAmount = item.amount;
-          
+          // Do NOT autopopulate the amount for variable expenses
+          selectedItemAmount = undefined;
           // For variable expenses, the predefined category IS the category
-          // We'll store the predefined category value and display it properly
           selectedCategoryId = item.category; // This will be 'home-family', 'transportation', etc.
         }
     } else if (selectedDetailedType === 'debt-payment') {
@@ -240,7 +239,8 @@ export function AddEditTransactionDialog({
     }
     
     if (selectedItemName) form.setValue('description', selectedItemName, {shouldValidate: true});
-    if (selectedItemAmount !== undefined && selectedItemAmount > 0) {
+    // Only autopopulate amount for non-variable-expense types
+    if (selectedDetailedType !== 'variable-expense' && selectedItemAmount !== undefined && selectedItemAmount > 0) {
       form.setValue('amount', parseFloat(selectedItemAmount.toFixed(2)), {shouldValidate: true});
     } else {
       form.setValue('amount', 0, { shouldValidate: true }); 
@@ -448,7 +448,7 @@ export function AddEditTransactionDialog({
                             )}
                         >
                             <config.icon className={cn("mr-2 h-4 w-4", field.value === config.type ? "text-primary" : "text-muted-foreground")} />
-                            <span className="text-xs sm:text-sm">{config.label}</span>
+                            <span className="text-xs">{config.label}</span>
                         </Button>
                     ))}
                   </div>
