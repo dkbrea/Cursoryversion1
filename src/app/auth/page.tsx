@@ -1,6 +1,7 @@
 import { AuthForm } from "@/components/auth/auth-form";
 import { Icons } from "@/components/icons"; // Corrected import
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Suspense } from "react";
 
 export default function AuthPage() {
   return (
@@ -14,7 +15,9 @@ export default function AuthPage() {
           <CardDescription className="text-lg">Sign in to manage your finances</CardDescription>
         </CardHeader>
         <CardContent>
-          <AuthForm />
+          <Suspense fallback={<div className="text-center">Loading...</div>}>
+            <AuthForm />
+          </Suspense>
         </CardContent>
       </Card>
     </main>
