@@ -227,9 +227,6 @@ export default function LandingPage() {
                 <div className="text-2xl font-bold gradient-text leading-tight">
                   Unbroken Pockets
                 </div>
-                <div className="text-xs text-muted-foreground font-medium tracking-wide">
-                  by Unbroken Pockets
-                </div>
               </div>
             </div>
             
@@ -916,9 +913,6 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto text-center">
           <div className="mb-6">
             <div className="text-3xl font-bold gradient-text mb-2">Unbroken Pockets</div>
-            <div className="text-sm text-muted-foreground font-medium tracking-wide">
-              by Unbroken Pockets
-            </div>
           </div>
           <p className="text-muted-foreground mb-8 text-lg">
             Master your money, master your life.
