@@ -787,9 +787,13 @@ export function DashboardContent() {
       {/* Debt Spending Card and Variable Expense Analysis - above Recent Transactions */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Debt Spending Card */}
-        <Card>
+        <Card className="border-l-4 border-l-red-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Spending on Credit</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center">
+              <CreditCard className="h-4 w-4 mr-2 text-red-500" />
+              Credit Spending
+            </CardTitle>
+            <div className="text-xs text-muted-foreground">This Month</div>
           </CardHeader>
           <CardContent>
             {(() => {
@@ -823,40 +827,91 @@ export function DashboardContent() {
                 .map(([name, amount]) => ({ name, amount }))
                 .sort((a, b) => b.amount - a.amount)
                 .slice(0, 3);
+              
+              const warningLevel = totalDebtSpending > 500 ? 'high' : totalDebtSpending > 200 ? 'medium' : 'low';
+              const warningColors = {
+                high: 'text-red-700',
+                medium: 'text-red-600', 
+                low: 'text-red-500'
+              };
+              
               return (
-                <>
-                  <div className="text-2xl font-bold">{formatCurrency(totalDebtSpending)}</div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Total spent using debt accounts (credit cards, lines of credit, etc.)
+                <div className="space-y-4">
+                  <div className="flex items-baseline justify-between">
+                    <div className={`text-2xl font-bold ${warningColors[warningLevel]}`}>
+                      {formatCurrency(totalDebtSpending)}
+                    </div>
+                    {totalDebtSpending > 0 && (
+                      <div className={`text-xs px-2 py-1 rounded-full ${
+                        warningLevel === 'high' ? 'bg-red-100 text-red-700' :
+                        warningLevel === 'medium' ? 'bg-red-100 text-red-600' :
+                        'bg-red-50 text-red-500'
+                      }`}>
+                        {warningLevel === 'high' ? '⚠️ High Usage' : 
+                         warningLevel === 'medium' ? '⚡ Moderate' : '✓ Low Usage'}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground">
+                    Total charged to credit cards & lines of credit
                   </p>
-                  {breakdown.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {breakdown.map((cat, idx) => (
-                        <div key={cat.name} className="flex items-center">
-                          <div className={`w-2 h-2 rounded-full mr-2 ${
-                            idx === 0 ? 'bg-blue-500' : idx === 1 ? 'bg-red-500' : 'bg-green-500'
-                          }`}></div>
-                          <span className="text-xs">{cat.name}</span>
-                          <span className="ml-auto text-xs font-semibold">{formatCurrency(cat.amount)}</span>
-                        </div>
-                      ))}
+                  
+                  {breakdown.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="text-xs font-medium text-slate-600 uppercase tracking-wide">
+                        Top Categories
+                      </div>
+                      {breakdown.map((cat, idx) => {
+                        const percentage = totalDebtSpending > 0 ? (cat.amount / totalDebtSpending) * 100 : 0;
+                        return (
+                          <div key={cat.name} className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium text-slate-700">{cat.name}</span>
+                              <span className="text-red-600">{formatCurrency(cat.amount)}</span>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-2">
+                              <div 
+                                className={`h-2 rounded-full transition-all duration-300 ${
+                                  idx === 0 ? 'bg-red-500' : 
+                                  idx === 1 ? 'bg-red-400' : 
+                                  'bg-red-300'
+                                }`}
+                                style={{ width: `${Math.max(percentage, 5)}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-muted-foreground text-right">
+                              {percentage.toFixed(1)}% of total
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center py-8 text-center">
+                      <div className="space-y-2">
+                        <div className="text-green-600">✓</div>
+                        <div className="text-xs text-muted-foreground">No credit spending this month</div>
+                      </div>
                     </div>
                   )}
-                  {debtTxs.length === 0 && (
-                    <div className="text-xs text-muted-foreground">No spending on debt accounts yet.</div>
-                  )}
-                </>
+                </div>
               );
             })()}
           </CardContent>
         </Card>
+
         {/* Variable Expense Analysis Card */}
-        <Card>
+        <Card className="border-l-4 border-l-orange-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Variable Expense Analysis</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center">
+              <TrendingUp className="h-4 w-4 mr-2 text-orange-500" />
+              Budget Tracker
+            </CardTitle>
+            <div className="text-xs text-muted-foreground">This Month</div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-4">
               {(() => {
                 // Calculate spending for each variable expense
                 const expenseAnalysis = variableExpenses.map((expense) => {
@@ -865,53 +920,147 @@ export function DashboardContent() {
                     .filter(tx => tx.detailedType === 'variable-expense' && tx.sourceId === expense.id)
                     .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
                   
+                  const percentage = expense.amount > 0 ? Math.min((spent / expense.amount) * 100, 150) : 0;
+                  
                   let status = '';
                   let statusColor = '';
+                  let bgColor = '';
+                  let progressColor = '';
+                  
                   if (spent > expense.amount) {
                     status = 'Overspent';
-                    statusColor = 'text-red-600';
+                    statusColor = 'text-red-700';
+                    bgColor = 'bg-red-50';
+                    progressColor = 'bg-red-500';
                   } else if (spent < expense.amount && spent > 0) {
-                    status = 'Underspent';
-                    statusColor = 'text-green-600';
+                    if (percentage >= 80) {
+                      status = 'Near Limit';
+                      statusColor = 'text-orange-700';
+                      bgColor = 'bg-orange-50';
+                      progressColor = 'bg-orange-500';
+                    } else {
+                      status = 'On Track';
+                      statusColor = 'text-green-700';
+                      bgColor = 'bg-green-50';
+                      progressColor = 'bg-green-500';
+                    }
                   } else if (spent === expense.amount && spent > 0) {
-                    status = 'On Track';
-                    statusColor = 'text-yellow-600';
+                    status = 'Budget Met';
+                    statusColor = 'text-orange-700';
+                    bgColor = 'bg-orange-50';
+                    progressColor = 'bg-orange-500';
                   } else {
-                    status = 'No Spending';
-                    statusColor = 'text-gray-500';
+                    status = 'Unspent';
+                    statusColor = 'text-slate-500';
+                    bgColor = 'bg-slate-50';
+                    progressColor = 'bg-slate-300';
                   }
                   
                   return {
                     ...expense,
                     spent,
+                    percentage,
                     status,
                     statusColor,
+                    bgColor,
+                    progressColor,
                     hasTransactions: spent > 0
                   };
                 });
                 
-                // Sort: expenses with transactions first (by spent amount desc), then by budgeted amount desc
+                // Sort: overspent first, then by percentage spent (desc), then by amount (desc)
                 const sortedExpenses = expenseAnalysis.sort((a, b) => {
+                  if (a.spent > a.amount && b.spent <= b.amount) return -1;
+                  if (a.spent <= a.amount && b.spent > b.amount) return 1;
                   if (a.hasTransactions && !b.hasTransactions) return -1;
                   if (!a.hasTransactions && b.hasTransactions) return 1;
-                  if (a.hasTransactions && b.hasTransactions) return b.spent - a.spent;
+                  if (a.hasTransactions && b.hasTransactions) return b.percentage - a.percentage;
                   return b.amount - a.amount;
                 });
                 
-                return sortedExpenses.map((expense) => (
-                  <div key={expense.id} className="flex items-center text-xs border-b last:border-b-0 py-1">
-                    <span className="font-medium w-1/3 truncate" title={expense.name}>{expense.name}</span>
-                    <span className="w-1/4 text-right">{formatCurrency(expense.amount)}</span>
-                    <span className="w-1/4 text-right">{formatCurrency(expense.spent)}</span>
-                    <span className={`w-1/4 text-right font-semibold ${expense.statusColor}`}>{expense.status}</span>
+                const totalBudgeted = variableExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+                const totalSpent = expenseAnalysis.reduce((sum, exp) => sum + exp.spent, 0);
+                const overallPercentage = totalBudgeted > 0 ? (totalSpent / totalBudgeted) * 100 : 0;
+                
+                return (
+                  <div className="space-y-4">
+                    {/* Overall Summary */}
+                    <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-orange-700">Overall Progress</span>
+                        <span className="text-sm font-semibold text-orange-800">
+                          {formatCurrency(totalSpent)} / {formatCurrency(totalBudgeted)}
+                        </span>
+                      </div>
+                      <div className="w-full bg-orange-200 rounded-full h-2.5">
+                        <div 
+                          className={`h-2.5 rounded-full transition-all duration-500 ${
+                            overallPercentage > 100 ? 'bg-red-500' :
+                            overallPercentage >= 80 ? 'bg-orange-500' :
+                            overallPercentage >= 50 ? 'bg-orange-400' :
+                            'bg-green-500'
+                          }`}
+                          style={{ width: `${Math.min(overallPercentage, 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                        <span>{overallPercentage.toFixed(1)}% used</span>
+                        <span className="text-orange-600">{formatCurrency(totalBudgeted - totalSpent)} remaining</span>
+                      </div>
+                    </div>
+
+                    {/* Individual Categories */}
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                      {sortedExpenses.length > 0 ? sortedExpenses.map((expense) => (
+                        <div key={expense.id} className={`p-3 rounded-lg border transition-all duration-200 hover:shadow-sm ${expense.bgColor}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-medium text-slate-800 text-sm truncate max-w-[120px]" title={expense.name}>
+                                {expense.name}
+                              </span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${expense.statusColor} ${
+                                expense.spent > expense.amount ? 'bg-red-100' :
+                                expense.percentage >= 80 ? 'bg-orange-100' :
+                                expense.hasTransactions ? 'bg-green-100' : 'bg-slate-100'
+                              }`}>
+                                {expense.status}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-semibold text-orange-600">
+                                {formatCurrency(expense.spent)}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                of {formatCurrency(expense.amount)}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="w-full bg-white rounded-full h-2 shadow-inner">
+                            <div 
+                              className={`h-2 rounded-full transition-all duration-300 ${expense.progressColor}`}
+                              style={{ width: `${Math.min(expense.percentage, 100)}%` }}
+                            />
+                          </div>
+                          
+                          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                            <span>{expense.percentage.toFixed(1)}%</span>
+                            <span className="text-orange-600">{formatCurrency(Math.max(0, expense.amount - expense.spent))} left</span>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="flex items-center justify-center py-8 text-center">
+                          <div className="space-y-2">
+                            <div className="text-orange-500">📊</div>
+                            <div className="text-xs text-muted-foreground">No variable expenses set up yet</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ));
+                );
               })()}
-              {variableExpenses.length === 0 && (
-                <div className="text-xs text-muted-foreground">No variable expenses set.</div>
-              )}
             </div>
-            <div className="mt-2 text-[10px] text-muted-foreground">Budgeted / Spent / Status</div>
           </CardContent>
         </Card>
       </div>

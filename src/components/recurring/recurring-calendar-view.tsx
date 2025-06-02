@@ -34,15 +34,15 @@ interface DayData {
 const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
   switch (itemType) {
     case 'income':
-      return <ArrowUpCircle className="h-3 w-3 text-green-600" />;
+      return <ArrowUpCircle className="h-3 w-3 text-green-500" />;
     case 'subscription':
-      return <CreditCard className="h-3 w-3 text-blue-600" />;
+      return <CreditCard className="h-3 w-3 text-blue-500" />;
     case 'fixed-expense':
-      return <Briefcase className="h-3 w-3 text-orange-600" />;
+      return <Briefcase className="h-3 w-3 text-purple-500" />;
     case 'debt-payment':
-      return <ArrowDownCircle className="h-3 w-3 text-red-600" />;
+      return <ArrowDownCircle className="h-3 w-3 text-red-500" />;
     default:
-      return <DollarSign className="h-3 w-3 text-gray-600" />;
+      return <DollarSign className="h-3 w-3 text-gray-500" />;
   }
 };
 
@@ -53,7 +53,7 @@ const getItemTextColor = (itemType: UnifiedRecurringListItem['itemDisplayType'])
     case 'subscription':
       return "text-blue-700";
     case 'fixed-expense':
-      return "text-orange-700";
+      return "text-purple-700";
     case 'debt-payment':
       return "text-red-700";
     default:
@@ -68,7 +68,7 @@ const getItemBackgroundColor = (itemType: UnifiedRecurringListItem['itemDisplayT
     case 'subscription':
       return "bg-blue-100 border-blue-200";
     case 'fixed-expense':
-      return "bg-orange-100 border-orange-200";
+      return "bg-purple-100 border-purple-200";
     case 'debt-payment':
       return "bg-red-100 border-red-200";
     default:

@@ -13,15 +13,15 @@ interface UpcomingExpensesCardProps {
 const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
   switch (itemType) {
     case 'income':
-      return <ArrowUpCircle className="h-4 w-4 text-green-600" />;
+      return <ArrowUpCircle className="h-4 w-4 text-green-500" />;
     case 'subscription':
-      return <CreditCard className="h-4 w-4 text-blue-600" />;
+      return <CreditCard className="h-4 w-4 text-blue-500" />;
     case 'fixed-expense':
-      return <Briefcase className="h-4 w-4 text-orange-600" />;
+      return <Briefcase className="h-4 w-4 text-purple-500" />;
     case 'debt-payment':
-      return <ArrowDownCircle className="h-4 w-4 text-red-600" />;
+      return <ArrowDownCircle className="h-4 w-4 text-red-500" />;
     default:
-      return <DollarSign className="h-4 w-4 text-gray-600" />;
+      return <DollarSign className="h-4 w-4 text-gray-500" />;
   }
 };
 
@@ -32,7 +32,7 @@ const getItemColor = (itemType: UnifiedRecurringListItem['itemDisplayType']) => 
     case 'subscription':
       return 'bg-blue-500';
     case 'fixed-expense':
-      return 'bg-orange-500';
+      return 'bg-purple-500';
     case 'debt-payment':
       return 'bg-red-500';
     default:

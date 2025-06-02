@@ -73,15 +73,22 @@ export function RecentTransactionsCard({
   };
 
   const getTransactionTypeColor = (type: string, detailedType?: string) => {
-    if (type === 'income') return 'bg-green-100 text-green-800';
-    if (type === 'transfer') return 'bg-blue-100 text-blue-800';
-    if (detailedType === 'subscription') return 'bg-purple-100 text-purple-800';
-    if (detailedType === 'debt-payment') return 'bg-red-100 text-red-800';
-    return 'bg-gray-100 text-gray-800';
+    // Use the same color scheme as budget forecast view
+    if (detailedType === 'income') return 'bg-green-100 text-green-700';
+    if (detailedType === 'fixed-expense') return 'bg-purple-100 text-purple-700';
+    if (detailedType === 'subscription') return 'bg-blue-100 text-blue-700';
+    if (detailedType === 'variable-expense') return 'bg-orange-100 text-orange-700';
+    if (detailedType === 'debt-payment') return 'bg-red-100 text-red-700';
+    if (detailedType === 'goal-contribution') return 'bg-teal-100 text-teal-700';
+    
+    // Fallback for basic types
+    if (type === 'income') return 'bg-green-100 text-green-700';
+    if (type === 'transfer') return 'bg-blue-100 text-blue-700';
+    return 'bg-gray-100 text-gray-700';
   };
 
   const getTransactionIcon = (type: string, detailedType?: string) => {
-    if (type === 'income') return <ArrowUpIcon className="h-3 w-3" />;
+    if (type === 'income' || detailedType === 'income') return <ArrowUpIcon className="h-3 w-3" />;
     if (type === 'transfer') return <ArrowRightIcon className="h-3 w-3" />;
     return <ArrowDownIcon className="h-3 w-3" />;
   };
@@ -99,6 +106,21 @@ export function RecentTransactionsCard({
       return labels[detailedType] || detailedType;
     }
     return type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
+  const getAmountColor = (type: string, detailedType?: string) => {
+    // Use consistent colors for amounts based on transaction type
+    if (detailedType === 'income') return 'text-green-600';
+    if (detailedType === 'fixed-expense') return 'text-purple-600';
+    if (detailedType === 'subscription') return 'text-blue-600';
+    if (detailedType === 'variable-expense') return 'text-orange-600';
+    if (detailedType === 'debt-payment') return 'text-red-600';
+    if (detailedType === 'goal-contribution') return 'text-teal-600';
+    
+    // Fallback for basic types
+    if (type === 'income') return 'text-green-600';
+    if (type === 'transfer') return 'text-blue-600';
+    return 'text-slate-600';
   };
 
   if (recentTransactions.length === 0) {
@@ -180,13 +202,7 @@ export function RecentTransactionsCard({
               
               <div className="flex items-center gap-2">
                 <div className="text-right">
-                  <p className={`font-semibold ${
-                    transaction.type === 'income' 
-                      ? 'text-green-600' 
-                      : transaction.type === 'transfer'
-                      ? 'text-blue-600'
-                      : 'text-red-600'
-                  }`}>
+                  <p className={`font-semibold ${getAmountColor(transaction.type, transaction.detailedType)}`}>
                     {transaction.type === 'income' ? '+' : transaction.type === 'expense' ? '-' : ''}
                     {formatCurrency(Math.abs(transaction.amount))}
                   </p>

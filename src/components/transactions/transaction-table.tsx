@@ -40,6 +40,52 @@ export function TransactionTable({
     });
   };
   
+  // Color coding functions to match budget forecast view
+  const getTransactionTypeColor = (type: string, detailedType?: string) => {
+    // Use the same color scheme as budget forecast view
+    if (detailedType === 'income') return 'bg-green-100 text-green-700 border-green-200';
+    if (detailedType === 'fixed-expense') return 'bg-purple-100 text-purple-700 border-purple-200';
+    if (detailedType === 'subscription') return 'bg-blue-100 text-blue-700 border-blue-200';
+    if (detailedType === 'variable-expense') return 'bg-orange-100 text-orange-700 border-orange-200';
+    if (detailedType === 'debt-payment') return 'bg-red-100 text-red-700 border-red-200';
+    if (detailedType === 'goal-contribution') return 'bg-teal-100 text-teal-700 border-teal-200';
+    
+    // Fallback for basic types
+    if (type === 'income') return 'bg-green-100 text-green-700 border-green-200';
+    if (type === 'transfer') return 'bg-blue-100 text-blue-700 border-blue-200';
+    return 'bg-gray-100 text-gray-700 border-gray-200';
+  };
+
+  const getAmountColor = (type: string, detailedType?: string) => {
+    // Use consistent colors for amounts based on transaction type
+    if (detailedType === 'income') return 'text-green-600';
+    if (detailedType === 'fixed-expense') return 'text-purple-600';
+    if (detailedType === 'subscription') return 'text-blue-600';
+    if (detailedType === 'variable-expense') return 'text-orange-600';
+    if (detailedType === 'debt-payment') return 'text-red-600';
+    if (detailedType === 'goal-contribution') return 'text-teal-600';
+    
+    // Fallback for basic types
+    if (type === 'income') return 'text-green-600';
+    if (type === 'transfer') return 'text-blue-600';
+    return 'text-slate-600';
+  };
+
+  const getTransactionTypeLabel = (type: string, detailedType?: string) => {
+    if (detailedType) {
+      const labels: Record<string, string> = {
+        'income': 'Income',
+        'variable-expense': 'Variable',
+        'fixed-expense': 'Fixed',
+        'subscription': 'Subscription',
+        'debt-payment': 'Debt Payment',
+        'goal-contribution': 'Goal'
+      };
+      return labels[detailedType] || detailedType;
+    }
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
   const getCategoryName = (categoryId: string | null | undefined, transaction?: Transaction) => {
     if (!categoryId) {
       // For transactions with sources, try to show more helpful info
@@ -121,11 +167,19 @@ export function TransactionTable({
               <TableCell className="font-medium">{transaction.description}</TableCell>
               <TableCell className="text-xs text-muted-foreground">{getAccountName(transaction)}</TableCell>
               <TableCell>
-                <Badge variant="outline" className="text-xs">
-                  {getCategoryName(transaction.categoryId, transaction)}
-                </Badge>
+                <div className="flex flex-col gap-1">
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs w-fit ${getTransactionTypeColor(transaction.type, transaction.detailedType)}`}
+                  >
+                    {getTransactionTypeLabel(transaction.type, transaction.detailedType)}
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs w-fit">
+                    {getCategoryName(transaction.categoryId, transaction)}
+                  </Badge>
+                </div>
               </TableCell>
-              <TableCell className={cn("text-right font-semibold", transaction.type === 'income' ? 'text-green-600' : 'text-foreground')}>
+              <TableCell className={cn("text-right font-semibold", getAmountColor(transaction.type, transaction.detailedType))}>
                 {transaction.type === 'income' ? '+' : '-'}${formatCurrency(Math.abs(transaction.amount))}
               </TableCell>
               <TableCell className="text-right">

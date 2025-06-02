@@ -48,64 +48,56 @@ const formatFrequencyDisplay = (frequency: UnifiedRecurringListItem['frequency']
   return frequency.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
-// Helper functions for consistent color coding (matching calendar view)
+// Helper functions for consistent color coding (matching budget forecast view)
 const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
   switch (itemType) {
     case 'income':
-      return <ArrowUpCircle className="h-5 w-5 text-green-600" />;
+      return <ArrowUpCircle className="h-5 w-5 text-green-500" />;
     case 'subscription':
-      return <CreditCard className="h-5 w-5 text-blue-600" />;
+      return <CreditCard className="h-5 w-5 text-blue-500" />;
     case 'fixed-expense':
-      return <Briefcase className="h-5 w-5 text-orange-600" />;
+      return <Briefcase className="h-5 w-5 text-purple-500" />;
     case 'debt-payment':
-      return <ArrowDownCircle className="h-5 w-5 text-red-600" />;
+      return <ArrowDownCircle className="h-5 w-5 text-red-500" />;
     default:
-      return <DollarSign className="h-5 w-5 text-gray-600" />;
+      return <DollarSign className="h-5 w-5 text-gray-500" />;
   }
 };
 
 const getBadgeVariant = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
-  switch (itemType) {
-    case 'income':
-      return 'default';
-    case 'subscription':
-      return 'secondary';
-    case 'fixed-expense':
-      return 'outline';
-    case 'debt-payment':
-      return 'destructive';
-    default:
-      return 'outline';
-  }
+  // Use outline for all to maintain consistency
+  return 'outline' as const;
 };
 
 const getBadgeClassName = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
+  // Use the same color scheme as budget forecast view
   switch (itemType) {
     case 'income':
       return 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200';
     case 'subscription':
       return 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200';
     case 'fixed-expense':
-      return 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200';
+      return 'bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200';
     case 'debt-payment':
       return 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200';
     default:
-      return '';
+      return 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200';
   }
 };
 
 const getAmountTextColor = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
+  // Use the same color scheme as budget forecast view
   switch (itemType) {
     case 'income':
       return 'text-green-600';
     case 'subscription':
       return 'text-blue-600';
     case 'fixed-expense':
-      return 'text-orange-600';
+      return 'text-purple-600';
     case 'debt-payment':
       return 'text-red-600';
     default:
-      return 'text-destructive';
+      return 'text-slate-600';
   }
 };
 

@@ -167,7 +167,7 @@ export function SavingsTransactionsCard() {
                 <TableRow key={transaction.id}>
                   <TableCell className="text-xs">{format(transaction.date, "MMMM dd, yyyy")}</TableCell>
                   <TableCell className="font-medium text-sm">{transaction.goalName}</TableCell>
-                  <TableCell className="text-right text-sm">${transaction.amount.toLocaleString()}</TableCell>
+                  <TableCell className="text-right text-sm font-semibold text-teal-600">${transaction.amount.toLocaleString()}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{transaction.method}</TableCell>
                   <TableCell>
                     <Badge variant={getStatusBadgeVariant(transaction.status)} className={`text-xs ${getStatusBadgeClass(transaction.status)}`}>
