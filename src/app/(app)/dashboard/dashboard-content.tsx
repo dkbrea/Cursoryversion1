@@ -21,75 +21,12 @@ import { SavingsGoalsCard } from "@/components/dashboard/savings-goals-card";
 import { UpcomingExpensesCard } from "@/components/dashboard/upcoming-expenses-card";
 import { RecentTransactionsCard } from "@/components/dashboard/recent-transactions-card";
 import { CalendarAccessCard } from "@/components/dashboard/calendar-access-card";
+import { RecurringCalendarOverlay } from "@/components/dashboard/recurring-calendar-overlay";
 import { AddEditTransactionDialog } from "@/components/transactions/add-edit-transaction-dialog";
 import { startOfDay, endOfDay, addDays, isSameDay, format, addWeeks, addMonths, subMonths, startOfMonth, getDate, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle } from "lucide-react";
-
-// Helper function to calculate next occurrence date for recurring items
-const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
-  const today = startOfDay(new Date());
-  let baseDate: Date;
-  
-  if (item.type === 'subscription' && item.lastRenewalDate) {
-    baseDate = startOfDay(new Date(item.lastRenewalDate));
-  } else if (item.startDate) {
-    baseDate = startOfDay(new Date(item.startDate));
-  } else {
-    baseDate = today;
-  }
-  
-  let nextDate = new Date(baseDate);
-  
-  // For subscriptions, advance to next occurrence after last renewal
-  if (item.type === 'subscription' && item.lastRenewalDate) {
-    switch (item.frequency) {
-      case "daily": nextDate = addDays(baseDate, 1); break;
-      case "weekly": nextDate = addWeeks(baseDate, 1); break;
-      case "bi-weekly": nextDate = addWeeks(baseDate, 2); break;
-      case "monthly": nextDate = addMonths(baseDate, 1); break;
-      case "quarterly": nextDate = addMonths(baseDate, 3); break;
-      case "yearly": nextDate = addMonths(baseDate, 12); break;
-    }
-  }
-  
-  // Advance to next occurrence if current date has passed
-  while (nextDate < today) {
-    switch (item.frequency) {
-      case "daily": nextDate = addDays(nextDate, 1); break;
-      case "weekly": nextDate = addWeeks(nextDate, 1); break;
-      case "bi-weekly": nextDate = addWeeks(nextDate, 2); break;
-      case "monthly": nextDate = addMonths(nextDate, 1); break;
-      case "quarterly": nextDate = addMonths(nextDate, 3); break;
-      case "yearly": nextDate = addMonths(nextDate, 12); break;
-      default: nextDate = addDays(nextDate, 1); break;
-    }
-  }
-  
-  return nextDate;
-};
-
-// Helper function to calculate next occurrence date for debt payments
-const calculateNextDebtOccurrence = (debt: DebtAccount): Date => {
-  const today = startOfDay(new Date());
-  
-  if (debt.nextDueDate) {
-    return startOfDay(new Date(debt.nextDueDate));
-  }
-  
-  // Fallback calculation based on payment frequency and day of month
-  let nextDate = new Date(today);
-  if (debt.paymentDayOfMonth) {
-    nextDate.setDate(debt.paymentDayOfMonth);
-    
-    // If payment day has passed this month, move to next month
-    if (nextDate <= today) {
-      nextDate = addMonths(nextDate, 1);
-    }
-  }
-  
-  return nextDate;
-};
+import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence } from "@/lib/utils/date-calculations";
 
 export function DashboardContent() {
   const { user } = useAuth();
@@ -110,6 +47,7 @@ export function DashboardContent() {
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [goalRefreshTrigger, setGoalRefreshTrigger] = useState(0);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+  const [isCalendarOverlayOpen, setIsCalendarOverlayOpen] = useState(false);
 
   useEffect(() => {
     console.log('Dashboard useEffect triggered, user:', user);
@@ -267,7 +205,7 @@ export function DashboardContent() {
           .sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime());
         
         setUpcomingItems(activeItems);
-
+        
         setRecurringItems(recurringData || []);
         setDebtAccounts(debtData || []);
         setGoals(goalsData || []);
@@ -362,6 +300,10 @@ export function DashboardContent() {
   const handleEditTransaction = (transaction: Transaction) => {
     setTransactionToEdit(transaction);
     setIsTransactionModalOpen(true);
+  };
+
+  const handleViewCalendar = () => {
+    setIsCalendarOverlayOpen(true);
   };
 
   const handleDeleteTransaction = async (transactionId: string) => {
@@ -848,7 +790,7 @@ export function DashboardContent() {
         
         {/* Right column: Calendar Access + Upcoming Expenses - takes up 1 column */}
         <div className="flex flex-col gap-3 h-full min-h-[500px]">
-          <CalendarAccessCard onViewCalendar={() => {}} />
+          <CalendarAccessCard onViewCalendar={handleViewCalendar} />
           <UpcomingExpensesCard items={upcomingItems} />
         </div>
       </div>
@@ -997,32 +939,23 @@ export function DashboardContent() {
                   let progressColor = '';
                   
                   if (spent > expense.amount) {
+                    // Overspending - Red
                     status = 'Overspent';
                     statusColor = 'text-red-700';
                     bgColor = 'bg-red-50';
                     progressColor = 'bg-red-500';
-                  } else if (spent < expense.amount && spent > 0) {
-                    if (percentage >= 80) {
-                      status = 'Near Limit';
-                      statusColor = 'text-orange-700';
-                      bgColor = 'bg-orange-50';
-                      progressColor = 'bg-orange-500';
-                    } else {
-                      status = 'On Track';
-                      statusColor = 'text-green-700';
-                      bgColor = 'bg-green-50';
-                      progressColor = 'bg-green-500';
-                    }
-                  } else if (spent === expense.amount && spent > 0) {
-                    status = 'Budget Met';
-                    statusColor = 'text-orange-700';
-                    bgColor = 'bg-orange-50';
-                    progressColor = 'bg-orange-500';
                   } else {
-                    status = 'Unspent';
-                    statusColor = 'text-slate-500';
-                    bgColor = 'bg-slate-50';
-                    progressColor = 'bg-slate-300';
+                    // At or under budget - Green
+                    if (spent === 0) {
+                      status = 'Unspent';
+                    } else if (spent === expense.amount) {
+                      status = 'Budget Met';
+                    } else {
+                      status = 'Under Budget';
+                    }
+                    statusColor = 'text-green-700';
+                    bgColor = 'bg-green-50';
+                    progressColor = 'bg-green-500';
                   }
                   
                   return {
@@ -1064,10 +997,7 @@ export function DashboardContent() {
                       <div className="w-full bg-orange-200 rounded-full h-2.5">
                         <div 
                           className={`h-2.5 rounded-full transition-all duration-500 ${
-                            overallPercentage > 100 ? 'bg-red-500' :
-                            overallPercentage >= 80 ? 'bg-orange-500' :
-                            overallPercentage >= 50 ? 'bg-orange-400' :
-                            'bg-green-500'
+                            overallPercentage > 100 ? 'bg-red-500' : 'bg-green-500'
                           }`}
                           style={{ width: `${Math.min(overallPercentage, 100)}%` }}
                         />
@@ -1088,9 +1018,7 @@ export function DashboardContent() {
                                 {expense.name}
                               </span>
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${expense.statusColor} ${
-                                expense.spent > expense.amount ? 'bg-red-100' :
-                                expense.percentage >= 80 ? 'bg-orange-100' :
-                                expense.hasTransactions ? 'bg-green-100' : 'bg-slate-100'
+                                expense.spent > expense.amount ? 'bg-red-100' : 'bg-green-100'
                               }`}>
                                 {expense.status}
                               </span>
@@ -1164,6 +1092,12 @@ export function DashboardContent() {
         goals={goalsWithContributions}
         variableExpenses={variableExpenses}
         transactionToEdit={transactionToEdit}
+      />
+
+      <RecurringCalendarOverlay
+        isOpen={isCalendarOverlayOpen}
+        onClose={() => setIsCalendarOverlayOpen(false)}
+        items={upcomingItems}
       />
     </div>
   );
