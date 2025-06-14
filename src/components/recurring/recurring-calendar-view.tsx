@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format, isSameDay, startOfMonth, isSameMonth, startOfDay, endOfMonth, isWithinInterval, setDate, addDays, addWeeks, addMonths, addQuarters, addYears, getDate, isBefore, isAfter, getYear } from 'date-fns';
+import { adjustToPreviousBusinessDay } from '@/lib/utils/date-calculations';
 import type { DayContentProps, CaptionProps } from 'react-day-picker';
 import { CalendarDays, DollarSign, CreditCard, Users, Briefcase, TrendingUp, TrendingDown, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -238,12 +239,19 @@ export function RecurringCalendarView({ items, onMonthChange }: RecurringCalenda
               const secondPayDate = new Date(currentMonthStart);
               secondPayDate.setDate(Math.min(secondPayDay, getDate(currentMonthEnd)));
               
-              // Add both dates if they're valid and not ended
-              if (!unifiedItem.endDate || firstPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
-                allOccurrences.push(firstPayDate);
+              // Apply business day adjustment for income items and add both dates if they're valid and not ended
+              const adjustedFirstPayDate = unifiedItem.itemDisplayType === 'income' 
+                ? adjustToPreviousBusinessDay(firstPayDate) 
+                : firstPayDate;
+              const adjustedSecondPayDate = unifiedItem.itemDisplayType === 'income' 
+                ? adjustToPreviousBusinessDay(secondPayDate) 
+                : secondPayDate;
+              
+              if (!unifiedItem.endDate || adjustedFirstPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(adjustedFirstPayDate);
               }
-              if (!unifiedItem.endDate || secondPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
-                allOccurrences.push(secondPayDate);
+              if (!unifiedItem.endDate || adjustedSecondPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(adjustedSecondPayDate);
               }
             }
           }
@@ -380,9 +388,14 @@ export function RecurringCalendarView({ items, onMonthChange }: RecurringCalenda
         
         // Filter occurrences to current month and add to calendar
         allOccurrences.forEach(occurrenceDate => {
-          if (isSameMonth(occurrenceDate, month)) {
-            addOccurrenceToDay(occurrenceDate, {
-              id: `${unifiedItem.id}-${format(occurrenceDate, 'yyyy-MM-dd')}`,
+          // Apply business day adjustment for income items
+          const adjustedDate = unifiedItem.itemDisplayType === 'income' 
+            ? adjustToPreviousBusinessDay(occurrenceDate) 
+            : occurrenceDate;
+            
+          if (isSameMonth(adjustedDate, month)) {
+            addOccurrenceToDay(adjustedDate, {
+              id: `${unifiedItem.id}-${format(adjustedDate, 'yyyy-MM-dd')}`,
               name: unifiedItem.name,
               amount: unifiedItem.amount,
               type: unifiedItem.itemDisplayType,

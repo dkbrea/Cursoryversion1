@@ -18,7 +18,7 @@ import {
   isSameDay, setDate, getDate, startOfDay, 
   startOfMonth, endOfMonth, isWithinInterval, isSameMonth, getYear
 } from "date-fns";
-import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence } from "@/lib/utils/date-calculations";
+import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence, adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
 
 interface MonthlySummary {
   income: number;
@@ -284,11 +284,19 @@ export function RecurringManager() {
               const secondPayDate = new Date(currentMonthStart);
               secondPayDate.setDate(Math.min(secondPayDay, getDate(currentMonthEnd)));
               
-              if (!unifiedItem.endDate || firstPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
-                allOccurrences.push(firstPayDate);
+              // Apply business day adjustment for income items
+              const adjustedFirstPayDate = unifiedItem.itemDisplayType === 'income' 
+                ? adjustToPreviousBusinessDay(firstPayDate) 
+                : firstPayDate;
+              const adjustedSecondPayDate = unifiedItem.itemDisplayType === 'income' 
+                ? adjustToPreviousBusinessDay(secondPayDate) 
+                : secondPayDate;
+              
+              if (!unifiedItem.endDate || adjustedFirstPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(adjustedFirstPayDate);
               }
-              if (!unifiedItem.endDate || secondPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
-                allOccurrences.push(secondPayDate);
+              if (!unifiedItem.endDate || adjustedSecondPayDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(adjustedSecondPayDate);
               }
             }
           }
@@ -381,7 +389,12 @@ export function RecurringManager() {
         
         // Count occurrences in the displayed month
         allOccurrences.forEach(occurrenceDate => {
-          if (isSameMonth(occurrenceDate, displayedMonth)) {
+          // Apply business day adjustment for income items
+          const adjustedDate = unifiedItem.itemDisplayType === 'income' 
+            ? adjustToPreviousBusinessDay(occurrenceDate) 
+            : occurrenceDate;
+            
+          if (isSameMonth(adjustedDate, displayedMonth)) {
             if (unifiedItem.itemDisplayType === 'income') {
               currentIncome += unifiedItem.amount;
             } else if (unifiedItem.itemDisplayType === 'fixed-expense') {

@@ -22,6 +22,7 @@ import {
   addMonths, addQuarters, addYears, getDate, startOfDay, isBefore, isAfter,
   differenceInCalendarMonths, isPast, format, getYear, getMonth, isSameDay
 } from "date-fns";
+import { adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
 import { saveForecastOverride, getForecastOverridesForMonth } from "@/lib/api/forecast-overrides-v2";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getTransactions } from "@/lib/api/transactions";
@@ -447,20 +448,24 @@ export function BudgetManager() {
             let secondPayDateThisMonth = new Date(monthStart);
             secondPayDateThisMonth.setDate(Math.min(secondPayDay, getDate(monthEnd)));
             
+            // Apply business day adjustment for income items
+            const adjustedFirstPayDate = adjustToPreviousBusinessDay(firstPayDateThisMonth);
+            const adjustedSecondPayDate = adjustToPreviousBusinessDay(secondPayDateThisMonth);
+            
             // Check if either payment date falls within this month
             // and if the item would be active on these dates
             const itemStartDate = item.startDate ? startOfDay(new Date(item.startDate)) : yearStart;
             const itemEndDate = item.endDate ? startOfDay(new Date(item.endDate)) : null;
             
             // First payment
-            if ((!itemStartDate || !isAfter(firstPayDateThisMonth, itemStartDate)) && 
-                (!itemEndDate || !isBefore(firstPayDateThisMonth, itemEndDate))) {
+            if ((!itemStartDate || !isAfter(adjustedFirstPayDate, itemStartDate)) && 
+                (!itemEndDate || !isBefore(adjustedFirstPayDate, itemEndDate))) {
               itemAmountInMonth += item.amount;
             }
             
             // Second payment
-            if ((!itemStartDate || !isAfter(secondPayDateThisMonth, itemStartDate)) && 
-                (!itemEndDate || !isBefore(secondPayDateThisMonth, itemEndDate))) {
+            if ((!itemStartDate || !isAfter(adjustedSecondPayDate, itemStartDate)) && 
+                (!itemEndDate || !isBefore(adjustedSecondPayDate, itemEndDate))) {
               itemAmountInMonth += item.amount;
             }
           } else {
@@ -497,10 +502,13 @@ export function BudgetManager() {
             
             // Now move forward through the year, checking for occurrences in this month
             while (isBefore(tempDate, yearEnd)) {
+              // Apply business day adjustment for income items
+              const adjustedTempDate = adjustToPreviousBusinessDay(tempDate);
+              
               // Check if this occurrence falls within the current month
-              if (isWithinInterval(tempDate, { start: monthStart, end: monthEnd })) {
+              if (isWithinInterval(adjustedTempDate, { start: monthStart, end: monthEnd })) {
                 // Check if the item has ended
-                if (!item.endDate || !isBefore(tempDate, startOfDay(new Date(item.endDate)))) {
+                if (!item.endDate || !isBefore(adjustedTempDate, startOfDay(new Date(item.endDate)))) {
                   itemAmountInMonth += item.amount;
                 }
               }
