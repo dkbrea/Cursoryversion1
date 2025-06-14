@@ -362,11 +362,12 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                   <FormLabel>Amount ($) *</FormLabel>
                   <FormControl>
                     <Input 
-                      type="number" 
-                      step="0.01" 
+                      type="text"
+                      inputMode="decimal"
+                      pattern="[0-9]*\.?[0-9]*"
                       placeholder="e.g., 15.99 or 2500" 
                       {...field} 
-                      value={field.value || 0} 
+                      value={field.value || ''}
                     />
                   </FormControl>
                   <FormDesc>Enter a positive value. 'Type' determines if it's income or expense.</FormDesc>
