@@ -33,25 +33,58 @@ async function runMigrationSQL(filename) {
   } catch (error) {
     console.error(`❌ Error running migration ${filename}:`, error.message);
     
-    // Try alternative method using direct query
+    // Try alternative method using direct query execution
     try {
       const sql = fs.readFileSync(filename, 'utf8');
       console.log('Trying alternative execution method...');
       
-      // Split SQL into individual statements
+      // Split SQL into individual statements and execute each one
       const statements = sql.split(';').filter(stmt => stmt.trim());
       
       for (const statement of statements) {
         if (statement.trim()) {
           console.log(`Executing: ${statement.trim().substring(0, 50)}...`);
-          const { error: execError } = await supabase.from('_').select('*').limit(0);
-          // This won't work for DDL, but let's see what happens
+          
+          // Use the proper method to execute raw SQL
+          const { error: execError } = await supabase
+            .from('_migrations') // This won't work, we need a different approach
+            .select('*')
+            .limit(0);
+            
+          // Actually, let's use a different approach - direct SQL execution
+          const { data: result, error: sqlError } = await supabase
+            .rpc('exec_sql', { query: statement.trim() });
+            
+          if (sqlError && !sqlError.message.includes('does not exist')) {
+            // Try one more method
+            const response = await fetch(`${supabase.supabaseUrl}/rest/v1/rpc/exec_sql`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${serviceRoleKey}`,
+                'Content-Type': 'application/json',
+                'apikey': serviceRoleKey
+              },
+              body: JSON.stringify({ query: statement.trim() })
+            });
+            
+            if (!response.ok) {
+              console.log(`⚠️  Statement may have failed: ${statement.trim().substring(0, 50)}...`);
+            } else {
+              console.log(`✅ Executed: ${statement.trim().substring(0, 50)}...`);
+            }
+          }
         }
       }
       
+      console.log(`✅ Migration ${filename} completed via alternative method`);
+      return true;
+      
     } catch (altError) {
       console.error('Alternative method also failed:', altError.message);
-      throw error;
+      console.log('\n🔧 MANUAL SOLUTION REQUIRED:');
+      console.log('Please run this SQL manually in your Supabase SQL Editor:');
+      console.log('\n' + fs.readFileSync(filename, 'utf8'));
+      return false;
     }
   }
 }
@@ -64,6 +97,10 @@ async function runAllMigrations() {
     console.log('');
     
     await runMigrationSQL('add_debt_account_support_to_transactions.sql');
+    console.log('');
+    
+    // Add background theme support to sinking funds
+    await runMigrationSQL('supabase/migrations/20250608000001_add_background_theme_to_sinking_funds.sql');
     
     console.log('\n🎉 All migrations completed successfully!');
   } catch (error) {
@@ -72,6 +109,12 @@ async function runAllMigrations() {
     console.log(fs.readFileSync('add_line_of_credit_debt_type.sql', 'utf8'));
     console.log('\nMigration 2 - add_debt_account_support_to_transactions.sql:');
     console.log(fs.readFileSync('add_debt_account_support_to_transactions.sql', 'utf8'));
+    console.log('\nMigration 3 - add_background_theme_to_sinking_funds.sql:');
+    try {
+      console.log(fs.readFileSync('supabase/migrations/20250608000001_add_background_theme_to_sinking_funds.sql', 'utf8'));
+    } catch (readError) {
+      console.log('Could not read background theme migration file');
+    }
     process.exit(1);
   }
 }

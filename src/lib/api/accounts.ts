@@ -66,23 +66,38 @@ export const getAccount = async (accountId: string): Promise<{ account: Account 
 
 export const createAccount = async (account: Omit<Account, 'id' | 'createdAt'>): Promise<{ account: Account | null; error?: string }> => {
   try {
+    console.log('=== createAccount called ===');
+    console.log('account data:', JSON.stringify(account, null, 2));
+    
     // Transform from application format to database format
+    const insertData = {
+      name: account.name,
+      type: account.type,
+      bank_name: account.bankName,
+      last4: account.last4,
+      balance: account.balance,
+      is_primary: account.isPrimary,
+      user_id: account.userId
+    };
+    
+    console.log('transformed insertData:', JSON.stringify(insertData, null, 2));
+    
     const { data, error } = await supabase
       .from('accounts')
-      .insert({
-        name: account.name,
-        type: account.type,
-        bank_name: account.bankName,
-        last4: account.last4,
-        balance: account.balance,
-        is_primary: account.isPrimary,
-        user_id: account.userId
-      })
+      .insert(insertData)
       .select()
       .single();
 
+    console.log('supabase response:', { data, error });
+
     if (error) {
+      console.error('Supabase error:', error);
       return { account: null, error: error.message };
+    }
+
+    if (!data) {
+      console.error('No data returned from insert');
+      return { account: null, error: 'No data returned from database insert' };
     }
 
     // Transform back to application format
@@ -98,8 +113,11 @@ export const createAccount = async (account: Omit<Account, 'id' | 'createdAt'>):
       createdAt: new Date(data.created_at)
     };
 
+    console.log('transformed result:', JSON.stringify(newAccount, null, 2));
+    console.log('=== createAccount success ===');
     return { account: newAccount };
   } catch (error: any) {
+    console.error('createAccount caught exception:', error);
     return { account: null, error: error.message };
   }
 };

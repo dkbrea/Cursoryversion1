@@ -38,6 +38,9 @@ async function runAllMigrations() {
     console.log('');
     
     await runMigration('add_debt_account_support_to_transactions.sql');
+    console.log('');
+    
+    await runMigration('src/db/migrations/20250608000001_add_background_theme_to_sinking_funds.sql');
     
     console.log('\n🎉 All migrations completed successfully!');
   } catch (error) {

@@ -23,6 +23,7 @@ import { Loader2, CalendarIcon, ShoppingBag, Repeat, Landmark, Flag, FileText, T
 import { cn } from "@/lib/utils";
 import { format, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
 
 
 const formSchema = z.object({
@@ -133,6 +134,7 @@ export function AddEditTransactionDialog({
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const { user } = useAuth();
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(formSchema),

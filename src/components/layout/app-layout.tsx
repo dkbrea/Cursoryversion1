@@ -25,6 +25,7 @@ const navItems: NavItem[] = [
   { href: "/accounts", label: "Accounts", icon: Icons.Accounts },
   { href: "/debts", label: "Debt Plan", icon: Icons.Debts },
   { href: "/recurring", label: "Recurring", icon: Icons.Recurring },
+  { href: "/paycheck-pulse", label: "Paycheck Pulse", icon: Icons.Activity },
   { href: "/budget", label: "Budget", icon: Icons.Budget },
   { href: "/goals", label: "Goals", icon: Icons.Goals },
   { href: "/investments", label: "Investments", icon: Icons.Investments },

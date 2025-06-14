@@ -104,7 +104,34 @@ export const getCurrentUser = async (): Promise<{ user: User | null; error?: str
       return { user: userObj };
     }
 
-    // Fallback to session data if no profile found
+    // If no profile exists, create one
+    if (!userProfile && !profileError) {
+      console.log('Creating user profile for:', session.user.id);
+      const { data: newProfile, error: createError } = await supabase
+        .from('users')
+        .insert({
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.first_name || session.user.email?.split('@')[0] || 'User',
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating user profile:', createError);
+        // Fall back to session data
+      } else if (newProfile) {
+        const userObj: User = {
+          id: newProfile.id,
+          email: newProfile.email,
+          name: newProfile.name || session.user.email?.split('@')[0] || 'User',
+          avatarUrl: newProfile.avatar_url || session.user.user_metadata?.avatar_url || null
+        };
+        return { user: userObj };
+      }
+    }
+
+    // Fallback to session data if no profile found or creation failed
     const userObj: User = {
       id: session.user.id,
       email: session.user.email || '',

@@ -1,4 +1,5 @@
 import { supabase, handleSupabaseError } from '../supabase';
+import type { PaycheckPreferences } from '@/types';
 
 export interface UserPreferences {
   id: string;
@@ -12,6 +13,7 @@ export interface UserPreferences {
   mobileNotifications: boolean;
   timezone?: string;
   setupProgress: any;
+  paycheckPreferences?: PaycheckPreferences;
   createdAt: string;
   updatedAt: string;
 }
@@ -45,6 +47,7 @@ export const getUserPreferences = async (userId: string): Promise<{ preferences:
       mobileNotifications: data.mobile_notifications,
       timezone: data.timezone || undefined,
       setupProgress: data.setup_progress,
+      paycheckPreferences: data.paycheck_preferences,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
@@ -60,6 +63,14 @@ export const createDefaultUserPreferences = async (userId: string): Promise<{ pr
     // Detect user's timezone
     const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+    // Default paycheck preferences
+    const defaultPaycheckPreferences: PaycheckPreferences = {
+      timingMode: 'current-period', // Most intuitive for paycheck budgeters
+      includeBufferDays: 3, // 3-day buffer for bill timing
+      prioritizeSinkingFunds: false, // Start conservative
+      sinkingFundStrategy: 'frequency-based' // Match their chosen frequency
+    };
+
     const { data, error } = await supabase
       .from('user_preferences')
       .insert({
@@ -72,7 +83,8 @@ export const createDefaultUserPreferences = async (userId: string): Promise<{ pr
         browser_notifications: true,
         mobile_notifications: false,
         timezone: detectedTimezone,
-        setup_progress: { steps: {} }
+        setup_progress: { steps: {} },
+        paycheck_preferences: defaultPaycheckPreferences
       })
       .select()
       .single();
@@ -94,6 +106,7 @@ export const createDefaultUserPreferences = async (userId: string): Promise<{ pr
       mobileNotifications: data.mobile_notifications,
       timezone: data.timezone || undefined,
       setupProgress: data.setup_progress,
+      paycheckPreferences: data.paycheck_preferences,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
@@ -106,7 +119,7 @@ export const createDefaultUserPreferences = async (userId: string): Promise<{ pr
 
 export const updateUserPreferences = async (
   userId: string,
-  updates: Partial<Pick<UserPreferences, 'currency' | 'dateFormat' | 'theme' | 'hideBalances' | 'emailNotifications' | 'browserNotifications' | 'mobileNotifications' | 'timezone'>>
+  updates: Partial<Pick<UserPreferences, 'currency' | 'dateFormat' | 'theme' | 'hideBalances' | 'emailNotifications' | 'browserNotifications' | 'mobileNotifications' | 'timezone' | 'paycheckPreferences'>>
 ): Promise<{ preferences: UserPreferences | null; error?: string }> => {
   try {
     // Transform from application format to database format
@@ -119,6 +132,7 @@ export const updateUserPreferences = async (
     if (updates.browserNotifications !== undefined) updateData.browser_notifications = updates.browserNotifications;
     if (updates.mobileNotifications !== undefined) updateData.mobile_notifications = updates.mobileNotifications;
     if (updates.timezone !== undefined) updateData.timezone = updates.timezone;
+    if (updates.paycheckPreferences !== undefined) updateData.paycheck_preferences = updates.paycheckPreferences;
 
     const { data, error } = await supabase
       .from('user_preferences')
@@ -144,6 +158,7 @@ export const updateUserPreferences = async (
       mobileNotifications: data.mobile_notifications,
       timezone: data.timezone || undefined,
       setupProgress: data.setup_progress,
+      paycheckPreferences: data.paycheck_preferences,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };

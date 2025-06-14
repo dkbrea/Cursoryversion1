@@ -141,35 +141,33 @@ export function SetupGuide() {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
-        // Check variable expenses
+        // Check variable expenses (previously budget categories)
         let budgetCount = 0;
         try {
-          console.log('Setup Guide: Checking budget setup for user:', user.id);
-          
-          // Only check variable_expenses table (budget_categories doesn't exist)
-          // Use type assertion since variable_expenses isn't in the generated types yet
+          // Try to fetch from the new variable_expenses table first
           const { count: variableExpensesCount, error: variableExpensesError } = await supabase
-            .from('variable_expenses' as any)
+            .from('variable_expenses')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id);
 
-          console.log('Setup Guide: Variable expenses query result:', {
-            count: variableExpensesCount,
-            error: variableExpensesError,
-            userId: user.id
-          });
-
-          if (!variableExpensesError && variableExpensesCount && variableExpensesCount > 0) {
-            budgetCount = variableExpensesCount;
-            console.log('Setup Guide: Found variable expenses, count:', budgetCount);
+          if (variableExpensesError) {
+            // If there's an error (likely because the table doesn't exist yet), fall back to budget_categories
+            console.warn('Failed to fetch from variable_expenses, falling back to budget_categories');
+            const { count: budgetCategoriesCount, error: budgetCategoriesError } = await supabase
+              .from('budget_categories')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id);
+            
+            if (!budgetCategoriesError) {
+              budgetCount = budgetCategoriesCount || 0;
+            }
           } else {
-            console.log('Setup Guide: No variable expenses found or error occurred');
+            budgetCount = variableExpensesCount || 0;
           }
         } catch (error) {
           console.error('Error checking budget setup:', error);
+          budgetCount = 0;
         }
-
-        console.log('Setup Guide: Final budget count:', budgetCount);
 
         // Update setup steps status
         const updatedSteps = [...setupSteps];
@@ -437,39 +435,58 @@ export function SetupGuide() {
         onOpenChange={setShowAccountDialog}
         onAccountAdded={async (accountData, keepOpen) => {
           try {
+            console.log('=== Setup Guide: Account Creation Started ===');
+            console.log('accountData:', JSON.stringify(accountData, null, 2));
+            console.log('user:', user);
+            
             setIsSaving(true);
             
-            if (user?.id) {
-              // Create the account
-              const result = await createAccount({
-                ...accountData,
-                userId: user.id,
-                isPrimary: true // First account is primary by default
-              });
-              
-              if (result.error) throw new Error(result.error);
-              
-              if (result.account) {
-                // Mark the account step as completed
-                const updatedSteps = [...setupSteps];
-                const accountStep = updatedSteps.find(step => step.id === 'accounts');
-                if (accountStep) accountStep.isCompleted = true;
-                setSetupSteps(updatedSteps);
-                
-                toast({
-                  title: "Account Added",
-                  description: keepOpen ? "Account added. You can add another one." : 
-                    "Your account has been set up successfully."
-                });
-              }
+            if (!user?.id) {
+              console.error('No user ID available');
+              throw new Error('You must be logged in to create an account');
             }
+            
+            console.log('Creating account with userId:', user.id);
+            // Create the account
+            const result = await createAccount({
+              ...accountData,
+              userId: user.id,
+              isPrimary: true // First account is primary by default
+            });
+            
+            console.log('Account creation result:', result);
+            
+            if (result.error) {
+              console.error('Account creation failed:', result.error);
+              throw new Error(result.error);
+            }
+            
+            if (!result.account) {
+              console.error('No account returned from creation');
+              throw new Error('Failed to create account. Please try again.');
+            }
+            
+            console.log('Account created successfully:', result.account);
+            // Mark the account step as completed
+            const updatedSteps = [...setupSteps];
+            const accountStep = updatedSteps.find(step => step.id === 'accounts');
+            if (accountStep) accountStep.isCompleted = true;
+            setSetupSteps(updatedSteps);
+            
+            toast({
+              title: "Account Added",
+              description: keepOpen ? "Account added. You can add another one." : 
+                "Your account has been set up successfully."
+            });
           } catch (err: any) {
             console.error("Error creating account:", err);
             toast({
               title: "Error",
-              description: "Failed to create account. Please try again.",
+              description: err.message || "Failed to create account. Please try again.",
               variant: "destructive"
             });
+            // Re-throw the error to be handled by the dialog
+            throw err;
           } finally {
             setIsSaving(false);
           }

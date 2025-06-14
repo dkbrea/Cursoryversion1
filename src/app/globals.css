@@ -540,5 +540,154 @@ a:hover ~ .custom-cursor {
 
 /* Background gradients */
 .bg-gradient-radial {
-  background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
+  background-image: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.3), transparent);
+}
+
+/* Sinking Fund Envelope Styles */
+.envelope-card {
+  position: relative;
+  perspective: 1000px;
+}
+
+.envelope-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  z-index: 10;
+}
+
+.envelope-flap {
+  position: relative;
+  background: linear-gradient(145deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
+  backdrop-filter: blur(5px);
+}
+
+.envelope-flap::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
+}
+
+.envelope-shadow {
+  box-shadow: 
+    0 4px 20px rgba(0,0,0,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    inset 0 -1px 0 rgba(0,0,0,0.1);
+}
+
+.envelope-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.envelope-hover:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 
+    0 12px 40px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    inset 0 -1px 0 rgba(0,0,0,0.1);
+}
+
+.envelope-paper-texture {
+  background-image: 
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+@keyframes envelope-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(0.5deg); }
+  75% { transform: rotate(-0.5deg); }
+}
+
+.envelope-interactive:hover {
+  animation: envelope-wobble 0.6s ease-in-out;
+}
+
+/* Tropical Summer Background - mimics colorful fruits, drinks, and summer elements */
+.tropical-summer-bg {
+  background: linear-gradient(135deg, 
+    #4FC3F7 0%,    /* Light blue sky */
+    #29B6F6 25%,   /* Medium blue */
+    #03A9F4 50%,   /* Bright blue */
+    #039BE5 75%,   /* Deeper blue */
+    #0288D1 100%   /* Ocean blue */
+  );
+  position: relative;
+}
+
+.tropical-summer-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    /* Orange slices */
+    radial-gradient(circle at 20% 30%, #FF9800 3px, transparent 4px),
+    radial-gradient(circle at 80% 20%, #FF9800 2px, transparent 3px),
+    /* Watermelon slices */
+    radial-gradient(ellipse 8px 4px at 60% 70%, #E91E63 0%, transparent 100%),
+    radial-gradient(ellipse 6px 3px at 15% 80%, #E91E63 0%, transparent 100%),
+    /* Pineapple pattern */
+    radial-gradient(circle at 70% 40%, #FFD54F 2px, transparent 3px),
+    radial-gradient(circle at 25% 60%, #FFD54F 1.5px, transparent 2.5px),
+    /* Lime/citrus slices */
+    radial-gradient(circle at 40% 25%, #4CAF50 2px, transparent 3px),
+    radial-gradient(circle at 85% 75%, #4CAF50 1.5px, transparent 2.5px),
+    /* Drink umbrellas */
+    linear-gradient(45deg, #F44336 1px, transparent 1px),
+    linear-gradient(-45deg, #F44336 1px, transparent 1px);
+  background-size: 
+    40px 40px, 60px 60px,
+    50px 30px, 35px 25px,
+    30px 30px, 45px 45px,
+    35px 35px, 55px 55px,
+    20px 20px, 20px 20px;
+  background-position:
+    10px 15px, 45px 5px,
+    30px 35px, 5px 42px,
+    35px 20px, 12px 30px,
+    20px 12px, 42px 38px,
+    0px 0px, 0px 0px;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tropical-summer-bg::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    /* Summer glow effect */
+    radial-gradient(circle at 30% 20%, rgba(255, 193, 7, 0.1) 20%, transparent 50%),
+    radial-gradient(circle at 70% 60%, rgba(255, 87, 34, 0.08) 25%, transparent 55%),
+    radial-gradient(circle at 20% 80%, rgba(76, 175, 80, 0.06) 15%, transparent 45%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Enhanced text shadows for tropical background */
+.tropical-summer-bg .text-slate-800 {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.tropical-summer-bg .text-slate-700 {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.tropical-summer-bg .text-slate-600 {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(255, 255, 255, 0.3);
 }

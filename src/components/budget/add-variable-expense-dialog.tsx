@@ -25,7 +25,7 @@ import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50, { message: "Name cannot exceed 50 characters."}),
-  category: z.enum(['housing', 'food', 'utilities', 'transportation', 'health', 'personal', 'home-family', 'media-productivity'] as const, {
+  category: z.enum(['housing', 'utilities', 'transportation', 'food', 'health', 'personal', 'home-family', 'media-productivity', 'gifts', 'pets', 'education', 'subscriptions', 'self-care', 'clothing', 'home-maintenance', 'car-replacement', 'vacation'] as const, {
     required_error: "Please select a category.",
   }),
   amount: z.preprocess(

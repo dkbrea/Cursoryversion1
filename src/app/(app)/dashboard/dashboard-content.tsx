@@ -23,6 +23,7 @@ import { RecentTransactionsCard } from "@/components/dashboard/recent-transactio
 import { CalendarAccessCard } from "@/components/dashboard/calendar-access-card";
 import { RecurringCalendarOverlay } from "@/components/dashboard/recurring-calendar-overlay";
 import { AddEditTransactionDialog } from "@/components/transactions/add-edit-transaction-dialog";
+import { DashboardAIInsightsCard } from "@/components/dashboard/ai-insights-card";
 import { startOfDay, endOfDay, addDays, isSameDay, format, addWeeks, addMonths, subMonths, startOfMonth, getDate, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle } from "lucide-react";
@@ -707,6 +708,9 @@ export function DashboardContent() {
       
       {/* Setup Guide */}
       <SetupGuide />
+      
+      {/* AI Insights */}
+      <DashboardAIInsightsCard />
       
       {/* First row: Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

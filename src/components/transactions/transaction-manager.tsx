@@ -4,6 +4,7 @@ import type { Transaction, Category, Account, RecurringItem, DebtAccount, Financ
 import { useState, useEffect } from "react";
 import { TransactionTable } from "./transaction-table";
 import { AddEditTransactionDialog } from "./add-edit-transaction-dialog";
+import { PostTransactionJadeInsights } from "./post-transaction-ai-insights";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, TrendingDown, TrendingUp, DollarSign, Loader2 } from "lucide-react";
@@ -36,6 +37,10 @@ export function TransactionManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddEditDialogOpen, setIsAddEditDialogOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+  
+  // Post-transaction Jade insights state
+  const [isJadeInsightsOpen, setIsJadeInsightsOpen] = useState(false);
+  const [recentlyAddedTransaction, setRecentlyAddedTransaction] = useState<Transaction | null>(null);
 
   // Helper function to format currency with commas
   const formatCurrency = (amount: number): string => {
@@ -81,23 +86,7 @@ export function TransactionManager() {
             .eq('user_id', user.id);
             
           if (error) {
-            // Fallback to budget_categories if variable_expenses doesn't exist
-            const { data: legacyData, error: legacyError } = await supabase
-              .from('budget_categories')
-              .select('*')
-              .eq('user_id', user.id);
-              
-            if (!legacyError && legacyData) {
-              variableExpensesData = legacyData.map(item => ({
-                id: item.id,
-                name: item.name,
-                category: 'personal' as const,
-                amount: item.budgeted_amount,
-                userId: item.user_id,
-                createdAt: new Date(item.created_at),
-                updatedAt: item.updated_at ? new Date(item.updated_at) : undefined
-              }));
-            }
+            console.error("Error fetching variable expenses:", error);
           } else if (data) {
             variableExpensesData = data.map(expense => ({
               id: expense.id,
@@ -105,7 +94,7 @@ export function TransactionManager() {
               category: expense.category,
               amount: expense.amount,
               userId: expense.user_id,
-              createdAt: new Date(expense.created_at),
+              createdAt: new Date(expense.created_at || new Date().toISOString()),
               updatedAt: expense.updated_at ? new Date(expense.updated_at) : undefined
             }));
           }
@@ -194,7 +183,8 @@ export function TransactionManager() {
 
   const handleSaveTransaction = async (
     data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">, 
-    id?: string
+    id?: string,
+    keepOpen?: boolean
   ) => {
     if (!user?.id) {
       toast({
@@ -389,6 +379,9 @@ export function TransactionManager() {
         
         if (result.transaction) {
           setTransactions(prev => [result.transaction!, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+          // Set recently added transaction for Jade insights
+          setRecentlyAddedTransaction(result.transaction);
+          setIsJadeInsightsOpen(true);
           toast({ 
             title: "Transaction Added", 
             description: `"${result.transaction.description}" has been added.` 
@@ -404,8 +397,11 @@ export function TransactionManager() {
       });
     }
     
-    setIsAddEditDialogOpen(false);
-    setTransactionToEdit(null);
+    // Close dialog unless explicitly keeping it open
+    if (keepOpen !== true) {
+      setIsAddEditDialogOpen(false);
+      setTransactionToEdit(null);
+    }
   };
 
 
@@ -501,6 +497,20 @@ export function TransactionManager() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Post-Transaction Jade Insights */}
+      {recentlyAddedTransaction && (
+        <PostTransactionJadeInsights
+          transaction={recentlyAddedTransaction}
+          isOpen={isJadeInsightsOpen}
+          onClose={() => {
+            setIsJadeInsightsOpen(false);
+            setRecentlyAddedTransaction(null);
+          }}
+          accounts={accountsList}
+          categories={categoriesList}
+        />
+      )}
       
       <Card className="shadow-lg">
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">

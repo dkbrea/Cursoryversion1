@@ -1,24 +1,26 @@
 "use client";
 
-import type { VariableExpense, PredefinedRecurringCategoryValue } from "@/types";
+import type { VariableExpense, PredefinedRecurringCategoryValue, Transaction } from "@/types";
 import { predefinedRecurringCategories } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2, Edit } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 interface VariableExpenseListProps {
   expenses: VariableExpense[];
+  transactions?: Transaction[];
   onUpdateExpenseAmount?: (expenseId: string, newAmount: number) => void;
   onDeleteExpense: (expenseId: string) => void;
   onEditExpense?: (expense: VariableExpense) => void;
 }
 
-export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteExpense, onEditExpense }: VariableExpenseListProps) {
+export function VariableExpenseList({ expenses, transactions = [], onUpdateExpenseAmount, onDeleteExpense, onEditExpense }: VariableExpenseListProps) {
   const { toast } = useToast();
   const [editingAmounts, setEditingAmounts] = useState<Record<string, string>>({});
 
@@ -30,6 +32,56 @@ export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteE
     });
     setEditingAmounts(newEditingAmounts);
   }, [expenses]);
+
+  // Calculate spending for each expense category
+  const expenseAnalysis = useMemo(() => {
+    return expenses.map((expense) => {
+      // Find transactions linked to this specific variable expense by sourceId
+      const spent = transactions
+        .filter(tx => tx.detailedType === 'variable-expense' && tx.sourceId === expense.id)
+        .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+      
+      const percentage = expense.amount > 0 ? Math.min((spent / expense.amount) * 100, 150) : 0;
+      const remaining = Math.max(0, expense.amount - spent);
+      
+      let status = '';
+      let statusColor = '';
+      let progressColor = '';
+      
+      if (spent > expense.amount) {
+        // Overspending - Red
+        status = 'Overspent';
+        statusColor = 'text-red-700';
+        progressColor = 'bg-red-500';
+      } else {
+        // At or under budget - Green/Blue
+        if (spent === 0) {
+          status = 'Unspent';
+          statusColor = 'text-gray-700';
+          progressColor = 'bg-gray-400';
+        } else if (spent === expense.amount) {
+          status = 'Budget Met';
+          statusColor = 'text-blue-700';
+          progressColor = 'bg-blue-500';
+        } else {
+          status = 'Under Budget';
+          statusColor = 'text-green-700';
+          progressColor = 'bg-green-500';
+        }
+      }
+      
+      return {
+        ...expense,
+        spent,
+        percentage,
+        remaining,
+        status,
+        statusColor,
+        progressColor,
+        hasTransactions: spent > 0
+      };
+    });
+  }, [expenses, transactions]);
 
   const handleAmountChange = (expenseId: string, value: string) => {
     setEditingAmounts(prev => ({ ...prev, [expenseId]: value }));
@@ -61,6 +113,7 @@ export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteE
   };
 
   const totalBudgeted = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalSpent = expenseAnalysis.reduce((sum, analysis) => sum + analysis.spent, 0);
 
   return (
     <Card className="shadow-lg mt-6">
@@ -79,30 +132,58 @@ export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteE
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Category</TableHead>
-                <TableHead className="text-right w-[200px]">Amount ($)</TableHead>
+                <TableHead className="text-right w-[200px]">Budget ($)</TableHead>
+                <TableHead className="w-[280px]">Progress</TableHead>
                 <TableHead className="text-right w-[120px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {expenses.map((expense) => (
-                <TableRow key={expense.id}>
-                  <TableCell className="font-medium">{expense.name}</TableCell>
+              {expenseAnalysis.map((analysis) => (
+                <TableRow key={analysis.id}>
+                  <TableCell className="font-medium">{analysis.name}</TableCell>
                   <TableCell>
-                    {predefinedRecurringCategories.find(cat => cat.value === expense.category)?.label || expense.category}
+                    {predefinedRecurringCategories.find(cat => cat.value === analysis.category)?.label || analysis.category}
                   </TableCell>
                   <TableCell className="text-right">
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
-                      value={editingAmounts[expense.id] ?? expense.amount.toString()}
-                      onChange={(e) => handleAmountChange(expense.id, e.target.value)}
-                      onBlur={() => handleAmountBlur(expense.id)}
+                      value={editingAmounts[analysis.id] ?? analysis.amount.toString()}
+                      onChange={(e) => handleAmountChange(analysis.id, e.target.value)}
+                      onBlur={() => handleAmountBlur(analysis.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur();}}
                       className="w-32 ml-auto text-right"
                       placeholder="0.00"
                       disabled={!onUpdateExpenseAmount}
                     />
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className={`font-medium ${analysis.statusColor}`}>
+                          ${analysis.spent.toFixed(2)} spent
+                        </span>
+                        <span className="text-muted-foreground">
+                          ${analysis.remaining.toFixed(2)} left
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <Progress 
+                          value={Math.min(analysis.percentage, 100)} 
+                          className="h-2"
+                        />
+                        {analysis.spent > analysis.amount && (
+                          <div className="absolute inset-0 bg-red-500 h-2 rounded-full opacity-20" />
+                        )}
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-muted-foreground">
+                        <span>{analysis.percentage.toFixed(1)}% used</span>
+                        <span className={analysis.statusColor}>
+                          {analysis.status}
+                        </span>
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -110,7 +191,7 @@ export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteE
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          onClick={() => onEditExpense(expense)}
+                          onClick={() => onEditExpense(analysis)}
                           className="text-muted-foreground hover:text-blue-600"
                         >
                           <Edit className="h-4 w-4" />
@@ -124,14 +205,14 @@ export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteE
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Delete "{expense.name}" Expense?</AlertDialogTitle>
+                            <AlertDialogTitle>Delete "{analysis.name}" Expense?</AlertDialogTitle>
                             <AlertDialogDescription>
                               This will permanently remove this variable expense. This action cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => onDeleteExpense(expense.id)} className="bg-destructive hover:bg-destructive/90">
+                            <AlertDialogAction onClick={() => onDeleteExpense(analysis.id)} className="bg-destructive hover:bg-destructive/90">
                               Delete
                             </AlertDialogAction>
                           </AlertDialogFooter>
@@ -143,11 +224,24 @@ export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteE
               ))}
               {expenses.length > 0 && (
                 <TableRow className="font-bold border-t-2 bg-muted/50">
-                  <TableCell>Total Budgeted Variable Expenses</TableCell>
-                  <td className="font-medium">Total</td>
-                  <td></td>
-                  <td className="text-right font-bold">${totalBudgeted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td></td>
+                  <TableCell>Total</TableCell>
+                  <TableCell></TableCell>
+                  <TableCell className="text-right font-bold">
+                    ${totalBudgeted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-sm font-medium">
+                        <span>Total Spent: ${totalSpent.toFixed(2)}</span>
+                        <span>Remaining: ${Math.max(0, totalBudgeted - totalSpent).toFixed(2)}</span>
+                      </div>
+                      <Progress 
+                        value={totalBudgeted > 0 ? Math.min((totalSpent / totalBudgeted) * 100, 100) : 0} 
+                        className="h-2"
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell></TableCell>
                 </TableRow>
               )}
             </TableBody>

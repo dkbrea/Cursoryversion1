@@ -1,13 +1,13 @@
-
 "use client";
 
 import type { FinancialGoalWithContribution } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Activity, Lightbulb, Loader2 } from "lucide-react";
+import { TrendingUp, Activity, Loader2 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
-import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { GoalAIInsights } from "./goal-ai-insights";
 
 interface GoalSummaryCardsProps {
   goals: FinancialGoalWithContribution[];
@@ -150,18 +150,15 @@ export function GoalSummaryCards({ goals }: GoalSummaryCardsProps) {
         </CardContent>
       </Card>
 
-      <Card className="shadow-md">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-             <Lightbulb className="h-4 w-4 mr-1 inline-block text-yellow-500" /> AI Insight
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-foreground">
-            You're doing great! At this pace, you'll hit your vacation goal in just 2 months. Keep it up, and soon you'll be relaxing on the beach! (Placeholder)
-          </p>
-        </CardContent>
-      </Card>
+      {/* AI Insights - now using real Jade AI */}
+      {user?.id && (
+        <GoalAIInsights
+          goals={goals}
+          userId={user.id}
+          totalSavedThisMonth={totalSavedThisMonth}
+          className="shadow-md"
+        />
+      )}
     </div>
   );
 }
