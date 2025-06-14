@@ -141,14 +141,15 @@ export function SetupGuide() {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
-        // Check variable expenses (previously budget categories)
+        // Check variable expenses
         let budgetCount = 0;
         try {
           console.log('Setup Guide: Checking budget setup for user:', user.id);
           
-          // Try to fetch from the new variable_expenses table first
+          // Only check variable_expenses table (budget_categories doesn't exist)
+          // Use type assertion since variable_expenses isn't in the generated types yet
           const { count: variableExpensesCount, error: variableExpensesError } = await supabase
-            .from('variable_expenses')
+            .from('variable_expenses' as any)
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id);
 
@@ -158,31 +159,14 @@ export function SetupGuide() {
             userId: user.id
           });
 
-          if (!variableExpensesError && variableExpensesCount) {
+          if (!variableExpensesError && variableExpensesCount && variableExpensesCount > 0) {
             budgetCount = variableExpensesCount;
             console.log('Setup Guide: Found variable expenses, count:', budgetCount);
           } else {
-            // If there's an error or no count, try budget_categories
-            console.warn('No variable expenses found, trying budget_categories');
-            const { count: budgetCategoriesCount, error: budgetCategoriesError } = await supabase
-              .from('budget_categories')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', user.id);
-            
-            console.log('Setup Guide: Budget categories query result:', {
-              count: budgetCategoriesCount,
-              error: budgetCategoriesError,
-              userId: user.id
-            });
-            
-            if (!budgetCategoriesError && budgetCategoriesCount) {
-              budgetCount = budgetCategoriesCount;
-              console.log('Setup Guide: Found budget categories, count:', budgetCount);
-            }
+            console.log('Setup Guide: No variable expenses found or error occurred');
           }
         } catch (error) {
           console.error('Error checking budget setup:', error);
-          // Don't reset budgetCount to 0 if we already have a valid count
         }
 
         console.log('Setup Guide: Final budget count:', budgetCount);
