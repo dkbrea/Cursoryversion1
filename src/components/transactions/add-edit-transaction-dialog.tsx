@@ -30,7 +30,7 @@ const formSchema = z.object({
   detailedType: z.enum(transactionDetailedTypes, { required_error: "Transaction type is required." }),
   description: z.string().optional(),
   sourceId: z.string().optional(),
-  amount: z.number({ required_error: "Amount is required.", invalid_type_error: "Amount must be a number." }).min(0, { message: "Amount cannot be negative." }),
+  amount: z.number({ required_error: "Amount is required.", invalid_type_error: "Amount must be a number." }).min(0, { message: "Amount cannot be negative." }).optional(),
   categoryId: z.string().nullable().optional(),
   accountId: z.string().optional(), // Now optional since we might use debt account
   toAccountId: z.string().nullable().optional(),
@@ -66,7 +66,7 @@ const formSchema = z.object({
     }
     
     // Require amount to be greater than 0 when submitting
-    if (data.amount <= 0) {
+    if (data.amount === undefined || data.amount <= 0) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["amount"],
@@ -141,7 +141,7 @@ export function AddEditTransactionDialog({
       detailedType: 'income', // Default to income
       description: "",
       sourceId: undefined,
-      amount: 0,
+      amount: undefined,
       categoryId: null,
       accountId: '',
       toAccountId: null,
@@ -187,7 +187,7 @@ export function AddEditTransactionDialog({
     } else if (!isOpen && !transactionToEdit) { 
       form.reset({
         date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
-        amount: 0, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
+        amount: undefined, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
         isDebtTransaction: false,
       });
     }
@@ -243,7 +243,7 @@ export function AddEditTransactionDialog({
     if (selectedDetailedType !== 'variable-expense' && selectedItemAmount !== undefined && selectedItemAmount > 0) {
       form.setValue('amount', parseFloat(selectedItemAmount.toFixed(2)), {shouldValidate: true});
     } else {
-      form.setValue('amount', 0, { shouldValidate: true }); 
+      form.setValue('amount', undefined, { shouldValidate: true }); 
     }
     
     // Set the category automatically for expense types that have predefined categories
@@ -369,7 +369,7 @@ export function AddEditTransactionDialog({
       if (!isLoading && !open) {
         form.reset({ 
             date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
-            amount: 0, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
+            amount: undefined, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
             isDebtTransaction: false,
         });
       }
@@ -432,7 +432,7 @@ export function AddEditTransactionDialog({
                               field.onChange(config.type);
                               form.setValue('sourceId', undefined, {shouldValidate: true}); 
                               form.setValue('description', '', {shouldValidate: true});
-                              form.setValue('amount', 0, {shouldValidate: true});
+                              form.setValue('amount', undefined, {shouldValidate: true});
                               form.setValue('categoryId', null, {shouldValidate: true});
                               form.setValue('accountId', '', {shouldValidate: true});
                               // Reset debt transaction checkbox for non-expense types
@@ -586,8 +586,8 @@ export function AddEditTransactionDialog({
                             <span className="text-muted-foreground sm:text-sm">$</span>
                         </div>
                         <Input type="number" step="0.01" placeholder="0.00" {...field} 
-                               onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
-                               value={field.value || 0}
+                               onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value) || undefined)}
+                               value={field.value ?? ''}
                                className="pl-7" />
                     </div>
                   </FormControl>
@@ -758,7 +758,7 @@ export function AddEditTransactionDialog({
                 if (!transactionToEdit) { 
                      form.reset({
                         date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
-                        amount: 0, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
+                        amount: undefined, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
                         isDebtTransaction: false,
                      });
                 }
