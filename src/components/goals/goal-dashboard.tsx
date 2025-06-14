@@ -1,10 +1,11 @@
 "use client";
 
-import type { FinancialGoal, FinancialGoalWithContribution } from "@/types";
+import type { FinancialGoal, FinancialGoalWithContribution, SinkingFund, SinkingFundWithProgress } from "@/types";
 import { useState, useEffect, useMemo } from "react";
 import { AddGoalDialog } from "./add-goal-dialog";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Bot, Download, Settings2, ArrowRight, TrendingUp, Activity, Lightbulb, Flag, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PlusCircle, Bot, Download, Settings2, ArrowRight, TrendingUp, Activity, Lightbulb, Flag, Loader2, PiggyBank } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { differenceInCalendarMonths, isPast, startOfDay } from "date-fns";
 import { GoalSummaryCards } from "./goal-summary-cards";
@@ -15,15 +16,25 @@ import { GoalsOverviewListCard } from "./goals-overview-list-card";
 import { useAuth } from "@/contexts/auth-context";
 import { getFinancialGoals, createFinancialGoal, updateFinancialGoal, deleteFinancialGoal } from "@/lib/api/goals";
 
-
+// Sinking Funds imports
+import { AddSinkingFundDialog } from "@/components/sinking-funds/add-sinking-fund-dialog";
+import { SinkingFundsOverviewCard } from "@/components/sinking-funds/sinking-funds-overview-card";
+import { SinkingFundsSummaryCard } from "@/components/sinking-funds/sinking-funds-summary-card";
+import { SinkingFundsEnvelopePage } from "@/components/sinking-funds/sinking-funds-envelope-page";
+import { getSinkingFundsWithProgress, createSinkingFund, updateSinkingFund, deleteSinkingFund } from "@/lib/api/sinking-funds";
 
 export function GoalDashboard() {
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
+  const [sinkingFunds, setSinkingFunds] = useState<SinkingFundWithProgress[]>([]);
   const [isAddGoalDialogOpen, setIsAddGoalDialogOpen] = useState(false);
+  const [isAddSinkingFundDialogOpen, setIsAddSinkingFundDialogOpen] = useState(false);
   const [isEditGoalDialogOpen, setIsEditGoalDialogOpen] = useState(false);
+  const [isEditSinkingFundDialogOpen, setIsEditSinkingFundDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<FinancialGoal | null>(null);
+  const [selectedSinkingFund, setSelectedSinkingFund] = useState<SinkingFund | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState("goals");
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -57,33 +68,46 @@ export function GoalDashboard() {
     }).sort((a,b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime());
   }, [goals]);
 
-  // Fetch goals from the database when the component mounts
+  // Fetch goals and sinking funds from the database when the component mounts
   useEffect(() => {
-    async function fetchGoals() {
+    async function fetchData() {
       if (!user?.id) return;
       
       setIsLoading(true);
       try {
-        const { goals: fetchedGoals, error } = await getFinancialGoals(user.id);
+        // Fetch goals
+        const { goals: fetchedGoals, error: goalsError } = await getFinancialGoals(user.id);
         
-        if (error) {
-          console.error("Error fetching goals:", error);
+        if (goalsError) {
+          console.error("Error fetching goals:", goalsError);
           toast({
             title: "Error",
             description: "Failed to load your financial goals. Please try again.",
             variant: "destructive"
           });
-          return;
-        }
-        
-        if (fetchedGoals) {
+        } else if (fetchedGoals) {
           setGoals(fetchedGoals);
         }
+
+        // Fetch sinking funds
+        const { sinkingFunds: fetchedSinkingFunds, error: sinkingFundsError } = await getSinkingFundsWithProgress(user.id);
+        
+        if (sinkingFundsError) {
+          console.error("Error fetching sinking funds:", sinkingFundsError);
+          toast({
+            title: "Error", 
+            description: "Failed to load your sinking funds. Please try again.",
+            variant: "destructive"
+          });
+        } else if (fetchedSinkingFunds) {
+          setSinkingFunds(fetchedSinkingFunds);
+        }
+        
       } catch (err) {
-        console.error("Unexpected error fetching goals:", err);
+        console.error("Unexpected error fetching data:", err);
         toast({
           title: "Error",
-          description: "An unexpected error occurred while loading your goals.",
+          description: "An unexpected error occurred while loading your data.",
           variant: "destructive"
         });
       } finally {
@@ -91,7 +115,7 @@ export function GoalDashboard() {
       }
     }
     
-    fetchGoals();
+    fetchData();
   }, [user?.id, toast]);
 
   const handleAddGoal = async (newGoalData: Omit<FinancialGoal, "id" | "userId" | "createdAt">, keepOpen = false) => {
@@ -134,6 +158,60 @@ export function GoalDashboard() {
     }
   };
 
+  const handleAddSinkingFund = async (newSinkingFundData: Omit<SinkingFund, "id" | "userId" | "createdAt" | "updatedAt">, keepOpen = false) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to add a sinking fund.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      const { sinkingFund: newSinkingFund, error } = await createSinkingFund({
+        ...newSinkingFundData,
+        userId: user.id
+      });
+      
+      if (error || !newSinkingFund) {
+        throw new Error(error || "Failed to create sinking fund");
+      }
+      
+      // Calculate progress for the new fund
+      const progressPercentage = newSinkingFund.targetAmount > 0 
+        ? (newSinkingFund.currentAmount / newSinkingFund.targetAmount) * 100 
+        : 0;
+      
+      const newSinkingFundWithProgress: SinkingFundWithProgress = {
+        ...newSinkingFund,
+        progressPercentage: Math.round(progressPercentage * 100) / 100,
+        isFullyFunded: newSinkingFund.currentAmount >= newSinkingFund.targetAmount,
+        monthsToTarget: newSinkingFund.monthlyContribution > 0 && newSinkingFund.currentAmount < newSinkingFund.targetAmount
+          ? Math.ceil((newSinkingFund.targetAmount - newSinkingFund.currentAmount) / newSinkingFund.monthlyContribution)
+          : undefined
+      };
+      
+      setSinkingFunds((prevFunds) => [...prevFunds, newSinkingFundWithProgress]);
+      
+      toast({
+        title: "Sinking Fund Added!",
+        description: `"${newSinkingFundData.name}" has been successfully added to your sinking funds.`,
+      });
+      
+      if (!keepOpen) {
+        setIsAddSinkingFundDialogOpen(false);
+      }
+    } catch (err: any) {
+      console.error("Error adding sinking fund:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to add your sinking fund. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleDeleteGoal = async (goalId: string) => {
     if (!user?.id) return;
     
@@ -167,6 +245,39 @@ export function GoalDashboard() {
     }
   };
 
+  const handleDeleteSinkingFund = async (sinkingFundId: string) => {
+    if (!user?.id) return;
+    
+    const fundToDelete = sinkingFunds.find(f => f.id === sinkingFundId);
+    if (!fundToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const { success, error } = await deleteSinkingFund(sinkingFundId);
+      
+      if (error || !success) {
+        throw new Error(error || "Failed to delete sinking fund");
+      }
+      
+      setSinkingFunds((prevFunds) => prevFunds.filter(f => f.id !== sinkingFundId));
+      
+      toast({
+        title: "Sinking Fund Deleted",
+        description: `Fund "${fundToDelete.name}" has been removed.`,
+        variant: "destructive",
+      });
+    } catch (err: any) {
+      console.error("Error deleting sinking fund:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to delete your sinking fund. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleEditGoal = (goalId: string) => {
     const goal = goals.find(g => g.id === goalId);
     if (goal) {
@@ -174,6 +285,68 @@ export function GoalDashboard() {
       setIsEditGoalDialogOpen(true);
     }
   }
+
+  const handleEditSinkingFund = (sinkingFundId: string) => {
+    const sinkingFund = sinkingFunds.find(sf => sf.id === sinkingFundId);
+    if (sinkingFund) {
+      setSelectedSinkingFund(sinkingFund);
+      setIsEditSinkingFundDialogOpen(true);
+    }
+  };
+
+  const handleSinkingFundEdited = async (sinkingFundId: string, updatedData: Partial<Omit<SinkingFund, "id" | "userId" | "createdAt" | "updatedAt">>) => {
+    if (!user?.id) return;
+    
+    try {
+      const { sinkingFund: updatedSinkingFund, error } = await updateSinkingFund(sinkingFundId, updatedData);
+      
+      if (error || !updatedSinkingFund) {
+        throw new Error(error || "Failed to update sinking fund");
+      }
+      
+      // Preserve progress calculation for the updated fund
+      setSinkingFunds(prevSinkingFunds => prevSinkingFunds.map(sf => {
+        if (sf.id === sinkingFundId) {
+          const progressPercentage = updatedSinkingFund.targetAmount > 0 
+            ? (updatedSinkingFund.currentAmount / updatedSinkingFund.targetAmount) * 100 
+            : 0;
+          
+          return {
+            ...updatedSinkingFund,
+            progressPercentage: Math.round(progressPercentage * 100) / 100,
+            isFullyFunded: updatedSinkingFund.currentAmount >= updatedSinkingFund.targetAmount,
+            monthsToTarget: updatedSinkingFund.monthlyContribution > 0 && updatedSinkingFund.currentAmount < updatedSinkingFund.targetAmount
+              ? Math.ceil((updatedSinkingFund.targetAmount - updatedSinkingFund.currentAmount) / updatedSinkingFund.monthlyContribution)
+              : undefined
+          };
+        }
+        return sf;
+      }));
+      
+      toast({
+        title: "Sinking Fund Updated",
+        description: `"${updatedSinkingFund.name}" has been successfully updated.`,
+      });
+      
+      setIsEditSinkingFundDialogOpen(false);
+      setSelectedSinkingFund(null);
+    } catch (err: any) {
+      console.error("Error updating sinking fund:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update your sinking fund. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAddContribution = (sinkingFundId: string) => {
+    // TODO: Implement add contribution functionality
+    toast({
+      title: "Coming Soon", 
+      description: "Add contribution functionality will be available soon.",
+    });
+  };
   
   const handleGoalEdited = async (goalId: string, updatedData: Omit<FinancialGoal, "id" | "userId" | "createdAt">) => {
     if (!user?.id) return;
@@ -204,81 +377,151 @@ export function GoalDashboard() {
     }
   }
 
+  const hasAnyGoals = goals.length > 0;
+  const hasAnySinkingFunds = sinkingFunds.length > 0;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-end items-center gap-2 mb-2">
-        <Button variant="outline" size="sm" disabled>
-          <Download className="mr-2 h-4 w-4" /> Export Report
-        </Button>
-        <AddGoalDialog
-          isOpen={isAddGoalDialogOpen}
-          onOpenChange={setIsAddGoalDialogOpen}
-          onGoalAdded={handleAddGoal}
-        >
-          <Button onClick={() => setIsAddGoalDialogOpen(true)} size="sm">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add New Goal
-          </Button>
-        </AddGoalDialog>
-        <Button variant="outline" size="sm" className="text-primary border-primary hover:bg-primary/10 hover:text-primary" disabled>
-          <Settings2 className="mr-2 h-4 w-4" /> Optimize Savings Plan
-        </Button>
-      </div>
-      
-      {/* Edit Goal Dialog */}
-      {selectedGoal && (
-        <AddGoalDialog
-          isOpen={isEditGoalDialogOpen}
-          onOpenChange={setIsEditGoalDialogOpen}
-          onGoalAdded={() => {}}
-          initialValues={selectedGoal}
-          isEditing={true}
-          onGoalEdited={handleGoalEdited}
-        >
-          <Button className="hidden">Edit Goal</Button>
-        </AddGoalDialog>
-      )}
-
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-          <p className="text-muted-foreground">Loading your financial goals...</p>
-        </div>
-      ) : goals.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed border-muted-foreground/30 rounded-lg">
-          <Flag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold text-foreground mb-2">Start Planning Your Future!</h2>
-          <p className="text-muted-foreground mb-6">You haven't set any financial goals yet. <br/>What are you saving for?</p>
-          <AddGoalDialog
-            isOpen={isAddGoalDialogOpen}
-            onOpenChange={setIsAddGoalDialogOpen}
-            onGoalAdded={handleAddGoal}
-          >
-            <Button onClick={() => setIsAddGoalDialogOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Goal
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="goals" className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Goals
+            </TabsTrigger>
+            <TabsTrigger value="sinking-funds" className="flex items-center gap-2">
+              <PiggyBank className="h-4 w-4" />
+              Sinking Funds
+            </TabsTrigger>
+          </TabsList>
+          
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" size="sm" disabled>
+              <Download className="mr-2 h-4 w-4" /> Export Report
             </Button>
-          </AddGoalDialog>
+            
+            {activeTab === "goals" && (
+              <>
+                <AddGoalDialog
+                  isOpen={isAddGoalDialogOpen}
+                  onOpenChange={setIsAddGoalDialogOpen}
+                  onGoalAdded={handleAddGoal}
+                >
+                  <Button onClick={() => setIsAddGoalDialogOpen(true)} size="sm" variant="outline">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Goal
+                  </Button>
+                </AddGoalDialog>
+                <Button variant="outline" size="sm" className="text-primary border-primary hover:bg-primary/10 hover:text-primary" disabled>
+                  <Settings2 className="mr-2 h-4 w-4" /> Optimize Savings Plan
+                </Button>
+              </>
+            )}
+            
+            {activeTab === "sinking-funds" && (
+              <AddSinkingFundDialog
+                isOpen={isAddSinkingFundDialogOpen}
+                onOpenChange={setIsAddSinkingFundDialogOpen}
+                onSinkingFundAdded={handleAddSinkingFund}
+              >
+                <Button onClick={() => setIsAddSinkingFundDialogOpen(true)} size="sm">
+                  <PiggyBank className="mr-2 h-4 w-4" /> Add Sinking Fund
+                </Button>
+              </AddSinkingFundDialog>
+            )}
+          </div>
         </div>
-      ) : (
-        <>
-          <GoalSummaryCards goals={goalsWithContributions} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SavingsBreakdownCard goals={goalsWithContributions} />
-            <GoalPerformanceChartCard />
-          </div>
+        {/* Edit Goal Dialog */}
+        {selectedGoal && (
+          <AddGoalDialog
+            isOpen={isEditGoalDialogOpen}
+            onOpenChange={setIsEditGoalDialogOpen}
+            onGoalAdded={() => {}}
+            initialValues={selectedGoal}
+            isEditing={true}
+            onGoalEdited={handleGoalEdited}
+          >
+            <Button className="hidden">Edit Goal</Button>
+          </AddGoalDialog>
+        )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SavingsTransactionsCard />
-            <GoalsOverviewListCard 
-              goals={goalsWithContributions} 
-              onDeleteGoal={handleDeleteGoal} 
-              onEditGoal={handleEditGoal} 
-              isDeleting={isDeleting}
-            />
+        {/* Edit Sinking Fund Dialog */}
+        {selectedSinkingFund && (
+          <AddSinkingFundDialog
+            isOpen={isEditSinkingFundDialogOpen}
+            onOpenChange={setIsEditSinkingFundDialogOpen}
+            onSinkingFundAdded={() => {}}
+            initialValues={selectedSinkingFund}
+            isEditing={true}
+            onSinkingFundEdited={handleSinkingFundEdited}
+          >
+            <Button className="hidden">Edit Sinking Fund</Button>
+          </AddSinkingFundDialog>
+        )}
+
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+            <p className="text-muted-foreground">Loading your savings data...</p>
           </div>
-        </>
-      )}
+        ) : (
+          <>
+            <TabsContent value="goals" className="mt-0">
+              {!hasAnyGoals ? (
+                <div className="text-center py-12 border-2 border-dashed border-muted-foreground/30 rounded-lg">
+                  <Flag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <h2 className="text-xl font-semibold text-foreground mb-2">Start Your Financial Goals!</h2>
+                  <p className="text-muted-foreground mb-6">Create financial goals for your long-term dreams and aspirations.</p>
+                  <AddGoalDialog
+                    isOpen={isAddGoalDialogOpen}
+                    onOpenChange={setIsAddGoalDialogOpen}
+                    onGoalAdded={handleAddGoal}
+                  >
+                    <Button onClick={() => setIsAddGoalDialogOpen(true)} variant="outline">
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Goal
+                    </Button>
+                  </AddGoalDialog>
+                </div>
+              ) : (
+                <>
+                  <GoalSummaryCards goals={goalsWithContributions} />
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                    <SavingsBreakdownCard goals={goalsWithContributions} />
+                    <SinkingFundsSummaryCard sinkingFunds={sinkingFunds} />
+                    <GoalPerformanceChartCard />
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                    <SavingsTransactionsCard />
+                    <div></div>
+                  </div>
+
+                  <GoalsOverviewListCard 
+                    goals={goalsWithContributions} 
+                    onDeleteGoal={handleDeleteGoal} 
+                    onEditGoal={handleEditGoal} 
+                    isDeleting={isDeleting}
+                  />
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="sinking-funds" className="mt-0">
+              <SinkingFundsEnvelopePage 
+                sinkingFunds={sinkingFunds}
+                onEditSinkingFund={handleEditSinkingFund}
+                onDeleteSinkingFund={handleDeleteSinkingFund}
+                onAddContribution={handleAddContribution}
+                isDeleting={isDeleting}
+                isAddDialogOpen={isAddSinkingFundDialogOpen}
+                onAddDialogChange={setIsAddSinkingFundDialogOpen}
+                onAddSinkingFund={handleAddSinkingFund}
+              />
+            </TabsContent>
+          </>
+        )}
+      </Tabs>
     </div>
   );
 }

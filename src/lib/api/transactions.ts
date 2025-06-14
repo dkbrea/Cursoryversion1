@@ -463,3 +463,96 @@ export const deleteTransaction = async (transactionId: string): Promise<{ succes
     return { success: false, error: error.message };
   }
 };
+
+export const getVariableExpenseSpending = async (
+  userId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<{ spendingData: Array<{ variableExpenseId: string; spent: number }> | null; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('source_id, amount')
+      .eq('user_id', userId)
+      .eq('detailed_type', 'variable-expense')
+      .gte('date', startDate.toISOString())
+      .lte('date', endDate.toISOString())
+      .not('source_id', 'is', null); // Only transactions linked to variable expenses
+
+    if (error) {
+      return { spendingData: null, error: error.message };
+    }
+
+    // Aggregate spending by variable expense ID
+    const spendingMap = new Map<string, number>();
+    
+    data.forEach(transaction => {
+      const expenseId = transaction.source_id;
+      const amount = Math.abs(transaction.amount); // Use absolute value for expenses
+      
+      if (spendingMap.has(expenseId)) {
+        spendingMap.set(expenseId, spendingMap.get(expenseId)! + amount);
+      } else {
+        spendingMap.set(expenseId, amount);
+      }
+    });
+
+    // Convert to array format
+    const spendingData = Array.from(spendingMap.entries()).map(([variableExpenseId, spent]) => ({
+      variableExpenseId,
+      spent
+    }));
+
+    return { spendingData };
+  } catch (error: any) {
+    return { spendingData: null, error: error.message };
+  }
+};
+
+// Get transaction summary for multiple categories in a date range
+export const getCategorySpendingSummary = async (
+  userId: string,
+  categoryIds: string[],
+  startDate: Date,
+  endDate: Date
+): Promise<{ categorySpending: Array<{ categoryId: string; spent: number; budgeted: number }> | null; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('source_id, amount')
+      .eq('user_id', userId)
+      .eq('detailed_type', 'variable-expense')
+      .gte('date', startDate.toISOString())
+      .lte('date', endDate.toISOString())
+      .in('source_id', categoryIds);
+
+    if (error) {
+      return { categorySpending: null, error: error.message };
+    }
+
+    // Aggregate spending by category ID
+    const spendingMap = new Map<string, number>();
+    
+    data.forEach(transaction => {
+      const categoryId = transaction.source_id;
+      const amount = Math.abs(transaction.amount);
+      
+      if (spendingMap.has(categoryId)) {
+        spendingMap.set(categoryId, spendingMap.get(categoryId)! + amount);
+      } else {
+        spendingMap.set(categoryId, amount);
+      }
+    });
+
+    // Convert to required format
+    const categorySpending = categoryIds.map(categoryId => ({
+      categoryId,
+      spent: spendingMap.get(categoryId) || 0,
+      budgeted: 0 // Will be filled in by the calling function
+    }));
+
+    return { categorySpending };
+  } catch (error: any) {
+    return { categorySpending: null, error: error.message };
+  }
+};

@@ -71,33 +71,46 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
   });
 
   async function onSubmit(values: AddAccountFormValues, keepOpen: boolean = false) {
-    setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 700));
+    console.log('=== AddAccountDialog: Form Submission Started ===');
+    console.log('Form values:', JSON.stringify(values, null, 2));
     
-    const accountData = {
+    setIsLoading(true);
+    
+    try {
+      const accountData = {
         name: values.name,
         type: values.type,
         bankName: values.bankName || undefined,
         last4: values.last4 || undefined,
         balance: values.balance,
-    };
-    onAccountAdded(accountData, keepOpen);
-    
-    // Reset form with default values
-    form.reset({
-      name: "",
-      type: undefined,
-      bankName: "",
-      last4: "",
-      balance: 0,
-    });
-    
-    setIsLoading(false);
-    
-    // Only close the dialog if not keeping it open
-    if (!keepOpen) {
-      onOpenChange(false); 
+      };
+      
+      console.log('Transformed account data:', JSON.stringify(accountData, null, 2));
+      
+      // Wrap the onAccountAdded call in a Promise to properly catch errors
+      await Promise.resolve(onAccountAdded(accountData, keepOpen));
+      
+      // Only reset form and close dialog if successful
+      form.reset({
+        name: "",
+        type: undefined,
+        bankName: "",
+        last4: "",
+        balance: 0,
+      });
+      
+      console.log('Form reset completed');
+      
+      // Only close the dialog if not keeping it open
+      if (!keepOpen) {
+        onOpenChange(false); 
+      }
+    } catch (err) {
+      console.error('Error in form submission:', err);
+      // Don't reset form or close dialog on error
+      throw err; // Re-throw to be handled by the parent
+    } finally {
+      setIsLoading(false);
     }
   }
 

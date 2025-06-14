@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
 import { BudgetSummary } from "./budget-summary";
+import { BudgetAIInsights } from "./budget-ai-insights";
 import { VariableExpenseList } from "./variable-expense-list";
 import { AddEditVariableExpenseDialog } from "./add-variable-expense-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,6 +43,7 @@ export function BudgetManager() {
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date()); // Default to current month
   const [selectedForecastYear, setSelectedForecastYear] = useState<number>(new Date().getFullYear()); // Default to current year
   const [selectedCurrentMonthYear, setSelectedCurrentMonthYear] = useState<number>(new Date().getFullYear()); // Default to current year for current month view
+  const [aiInsightsRefreshTrigger, setAiInsightsRefreshTrigger] = useState(0); // Add refresh trigger
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1025,7 +1027,7 @@ export function BudgetManager() {
     if (!user?.id) return;
 
     try {
-      // Try to insert into the new variable_expenses table
+      // First try to add to the new variable_expenses table
       try {
         const { data, error } = await supabase
           .from('variable_expenses')
@@ -1033,7 +1035,7 @@ export function BudgetManager() {
             name: expenseData.name,
             category: expenseData.category,
             amount: expenseData.amount,
-            user_id: user.id
+            user_id: user.id,
           })
           .select()
           .single();
@@ -1043,55 +1045,64 @@ export function BudgetManager() {
         const newExpense: VariableExpense = {
           id: data.id,
           name: data.name,
-          category: data.category,
+          category: data.category as any,
           amount: data.amount,
           userId: data.user_id,
-          createdAt: new Date(data.created_at),
-          updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
+          createdAt: new Date(data.created_at || Date.now()),
+          updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
         };
 
         setVariableExpenses(prev => [...prev, newExpense]);
+        setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
+
         toast({
           title: "Variable Expense Added",
-          description: `Variable expense "${newExpense.name}" has been added.`,
+          description: `Variable expense "${expenseData.name}" has been added.`,
         });
+        setIsAddCategoryDialogOpen(false);
         return;
-      } catch (err) {
-        // If the variable_expenses table doesn't exist, fall back to budget_categories
-        console.warn('Failed to insert into variable_expenses, falling back to budget_categories');
-        const { data, error } = await supabase
-          .from('budget_categories')
-          .insert({
-            name: expenseData.name,
-            budgeted_amount: expenseData.amount,
-            user_id: user.id
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        const newExpense: VariableExpense = {
-          id: data.id,
-          name: data.name,
-          category: expenseData.category,
-          amount: data.budgeted_amount,
-          userId: data.user_id,
-          createdAt: new Date(data.created_at)
-        };
-
-        setVariableExpenses(prev => [...prev, newExpense]);
-        toast({
-          title: "Variable Expense Added",
-          description: `Variable expense "${newExpense.name}" has been added.`,
-        });
+      } catch (newTableError) {
+        console.warn('New variable_expenses table not available, trying budget_categories:', newTableError);
       }
+
+      // Fallback to budget_categories table
+      const { data, error } = await supabase
+        .from('budget_categories')
+        .insert({
+          name: expenseData.name,
+          category: expenseData.category,
+          budgeted_amount: expenseData.amount,
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newExpense: VariableExpense = {
+        id: data.id,
+        name: data.name,
+        category: data.category as any,
+        amount: data.budgeted_amount,
+        userId: data.user_id,
+        createdAt: new Date(data.created_at || Date.now()),
+        updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
+      };
+
+      setVariableExpenses(prev => [...prev, newExpense]);
+      setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
+
+      toast({
+        title: "Variable Expense Added",
+        description: `Variable expense "${expenseData.name}" has been added.`,
+      });
+      setIsAddCategoryDialogOpen(false);
     } catch (error: any) {
-      console.error("Error adding variable expense:", error);
+      console.error('Error adding variable expense:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to add variable expense.",
-        variant: "destructive"
+        description: error?.message || "Failed to add variable expense. Please try again.",
+        variant: "destructive",
       });
     }
   };
@@ -1124,55 +1135,108 @@ export function BudgetManager() {
             updatedAt: new Date()
           } : expense
         ));
+        setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
 
         toast({
           title: "Variable Expense Updated",
           description: `Variable expense "${expenseData.name}" has been updated.`,
         });
         return;
-      } catch (err) {
-        // If the variable_expenses table doesn't exist, fall back to budget_categories
-        console.warn('Failed to update in variable_expenses, falling back to budget_categories');
+      } catch (newTableError) {
+        console.warn('New variable_expenses table not available, trying budget_categories:', newTableError);
+      }
+
+      // Fallback to budget_categories table
+      const { error } = await supabase
+        .from('budget_categories')
+        .update({
+          name: expenseData.name,
+          category: expenseData.category,
+          budgeted_amount: expenseData.amount,
+        })
+        .eq('id', expenseId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setVariableExpenses(prev => prev.map(expense => 
+        expense.id === expenseId ? { 
+          ...expense, 
+          name: expenseData.name,
+          category: expenseData.category,
+          amount: expenseData.amount,
+          updatedAt: new Date()
+        } : expense
+      ));
+      setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
+
+      toast({
+        title: "Variable Expense Updated",
+        description: `Variable expense "${expenseData.name}" has been updated.`,
+      });
+    } catch (error: any) {
+      console.error('Error updating variable expense:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update variable expense. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteVariableExpense = async (expenseId: string) => {
+    if (!user?.id) return;
+
+    try {
+      // Try to delete from the new variable_expenses table first
+      try {
         const { error } = await supabase
-          .from('budget_categories')
-          .update({
-            name: expenseData.name,
-            budgeted_amount: expenseData.amount,
-          })
+          .from('variable_expenses')
+          .delete()
           .eq('id', expenseId)
           .eq('user_id', user.id);
 
         if (error) throw error;
 
-        // Update local state
-        setVariableExpenses(prev => prev.map(expense => 
-          expense.id === expenseId ? { 
-            ...expense, 
-            name: expenseData.name,
-            category: expenseData.category,
-            amount: expenseData.amount,
-            updatedAt: new Date()
-          } : expense
-        ));
+        // Successfully deleted from variable_expenses table
+        setVariableExpenses(prev => prev.filter(expense => expense.id !== expenseId));
+        setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
 
         toast({
-          title: "Variable Expense Updated",
-          description: `Variable expense "${expenseData.name}" has been updated.`,
+          title: "Variable Expense Deleted",
+          description: "Variable expense has been deleted successfully.",
         });
+        return;
+      } catch (newTableError) {
+        console.warn('New variable_expenses table not available, trying budget_categories:', newTableError);
       }
+
+      // Fallback to budget_categories table
+      const { error } = await supabase
+        .from('budget_categories')
+        .delete()
+        .eq('id', expenseId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Successfully deleted from budget_categories table
+      setVariableExpenses(prev => prev.filter(expense => expense.id !== expenseId));
+      setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
+
+      toast({
+        title: "Variable Expense Deleted",
+        description: "Variable expense has been deleted successfully.",
+      });
     } catch (error: any) {
-      console.error("Error updating variable expense:", error);
+      console.error('Error deleting variable expense:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to update variable expense.",
-        variant: "destructive"
+        description: error?.message || "Failed to delete variable expense. Please try again.",
+        variant: "destructive",
       });
     }
-  };
-
-  const handleOpenEditDialog = (expense: VariableExpense) => {
-    setExpenseToEdit(expense);
-    setIsEditCategoryDialogOpen(true);
   };
 
   const handleUpdateVariableExpenseAmount = async (expenseId: string, newAmount: number) => {
@@ -1180,6 +1244,7 @@ export function BudgetManager() {
     setVariableExpenses(prev => prev.map(expense => 
       expense.id === expenseId ? { ...expense, amount: newAmount } : expense
     ));
+    setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
     
     // Also update this expense in all months of the forecast data
     // This ensures changes in the current month view propagate to the forecast
@@ -1238,8 +1303,9 @@ export function BudgetManager() {
     }
   };
 
-  const handleDeleteVariableExpense = (expenseId: string) => {
-    setVariableExpenses(prev => prev.filter(expense => expense.id !== expenseId));
+  const handleOpenEditDialog = (expense: VariableExpense) => {
+    setExpenseToEdit(expense);
+    setIsEditCategoryDialogOpen(true);
   };
 
   const handleForecastYearChange = (year: number) => {
@@ -1580,6 +1646,13 @@ export function BudgetManager() {
               </div>
             </div>
           </div>
+          <BudgetAIInsights
+            userId={user?.id || ''}
+            year={getYear(selectedMonth)}
+            month={getMonth(selectedMonth) + 1} // getMonth returns 0-indexed, API expects 1-indexed
+            className="mb-6"
+            refreshTrigger={aiInsightsRefreshTrigger}
+          />
           <BudgetSummary
             totalIncome={getSelectedMonthData().totalIncome}
             totalActualFixedExpenses={getSelectedMonthData().totalFixedExpenses}
@@ -1625,6 +1698,7 @@ export function BudgetManager() {
               // Fallback to original variable expenses if no forecast data
               return variableExpenses;
             })()}
+            transactions={transactions}
             onUpdateExpenseAmount={handleUpdateVariableExpenseAmount}
             onDeleteExpense={handleDeleteVariableExpense}
             onEditExpense={handleOpenEditDialog}

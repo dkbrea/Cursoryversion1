@@ -64,6 +64,9 @@ async function runAllMigrations() {
     console.log('Migration 2: Adding debt account support to transactions');
     await runMigration('add_debt_account_support_to_transactions.sql');
     
+    console.log('Migration 3: Adding background_theme to sinking_funds');
+    await runMigration('src/db/migrations/20250608000001_add_background_theme_to_sinking_funds.sql');
+    
     console.log('🎉 All migrations completed successfully!');
     
     // Run verification
@@ -120,6 +123,19 @@ async function verifyMigrations() {
       console.log(`  ❌ debt_account_id column test failed: ${txError.message}`);
     } else {
       console.log(`  ✅ debt_account_id column exists`);
+    }
+    
+    // Test background_theme column
+    console.log('  Testing background_theme column...');
+    const { data: sinkingData, error: sinkingError } = await supabase
+      .from('sinking_funds')
+      .select('id, background_theme')
+      .limit(1);
+    
+    if (sinkingError) {
+      console.log(`  ❌ background_theme column test failed: ${sinkingError.message}`);
+    } else {
+      console.log(`  ✅ background_theme column exists`);
     }
     
     console.log('\n✅ Migration verification complete!');
