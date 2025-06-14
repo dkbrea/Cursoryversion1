@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -367,7 +366,11 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                       pattern="[0-9]*\.?[0-9]*"
                       placeholder="e.g., 15.99 or 2500" 
                       {...field} 
+<<<<<<< HEAD
                       value={field.value || ''}
+=======
+                      value={field.value || ''} 
+>>>>>>> 68b5aad (Fix: robust budget setup check and resolve merge conflict for pagesset migration)
                     />
                   </FormControl>
                   <FormDesc>Enter a positive value. 'Type' determines if it's income or expense.</FormDesc>

@@ -142,10 +142,50 @@ export function SetupGuide() {
           .eq('user_id', user.id);
 
         // Check variable expenses (previously budget categories)
-        const { count: budgetCount, error: budgetError } = await supabase
-          .from('budget_categories')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+        let budgetCount = 0;
+        try {
+          console.log('Setup Guide: Checking budget setup for user:', user.id);
+          
+          // Try to fetch from the new variable_expenses table first
+          const { count: variableExpensesCount, error: variableExpensesError } = await supabase
+            .from('variable_expenses')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
+
+          console.log('Setup Guide: Variable expenses query result:', {
+            count: variableExpensesCount,
+            error: variableExpensesError,
+            userId: user.id
+          });
+
+          if (!variableExpensesError && variableExpensesCount) {
+            budgetCount = variableExpensesCount;
+            console.log('Setup Guide: Found variable expenses, count:', budgetCount);
+          } else {
+            // If there's an error or no count, try budget_categories
+            console.warn('No variable expenses found, trying budget_categories');
+            const { count: budgetCategoriesCount, error: budgetCategoriesError } = await supabase
+              .from('budget_categories')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id);
+            
+            console.log('Setup Guide: Budget categories query result:', {
+              count: budgetCategoriesCount,
+              error: budgetCategoriesError,
+              userId: user.id
+            });
+            
+            if (!budgetCategoriesError && budgetCategoriesCount) {
+              budgetCount = budgetCategoriesCount;
+              console.log('Setup Guide: Found budget categories, count:', budgetCount);
+            }
+          }
+        } catch (error) {
+          console.error('Error checking budget setup:', error);
+          // Don't reset budgetCount to 0 if we already have a valid count
+        }
+
+        console.log('Setup Guide: Final budget count:', budgetCount);
 
         // Update setup steps status
         const updatedSteps = [...setupSteps];
