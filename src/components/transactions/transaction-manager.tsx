@@ -408,76 +408,7 @@ export function TransactionManager() {
     setTransactionToEdit(null);
   };
 
-  // Helper function to update missing categories for existing transactions
-  const updateMissingCategories = async () => {
-    const transactionsNeedingCategories = transactions.filter(t => 
-      !t.categoryId && t.sourceId && t.detailedType
-    );
-    
-    if (transactionsNeedingCategories.length === 0) {
-      toast({
-        title: "No Updates Needed",
-        description: "All transactions already have categories assigned.",
-      });
-      return;
-    }
 
-    let updatedCount = 0;
-    
-    for (const transaction of transactionsNeedingCategories) {
-      let categoryId: string | null = null;
-      
-      // Try to determine category based on transaction type and source
-      if (transaction.detailedType === 'variable-expense' && transaction.sourceId) {
-        const variableExpense = variableExpensesList.find(ve => ve.id === transaction.sourceId);
-        if (variableExpense) {
-          // Use the same matching logic as in the dialog
-          let matchingCategory = categoriesList.find(cat => 
-            cat.name.toLowerCase() === variableExpense.category.toLowerCase()
-          );
-          
-          if (!matchingCategory) {
-            matchingCategory = categoriesList.find(cat => 
-              cat.name.toLowerCase().includes(variableExpense.category.toLowerCase()) ||
-              variableExpense.category.toLowerCase().includes(cat.name.toLowerCase())
-            );
-          }
-          
-          categoryId = matchingCategory?.id || null;
-        }
-      } else if (transaction.detailedType === 'fixed-expense' && transaction.sourceId) {
-        const recurringItem = recurringItemsList.find(ri => ri.id === transaction.sourceId);
-        if (recurringItem?.categoryId) {
-          categoryId = recurringItem.categoryId;
-        }
-      } else if (transaction.detailedType === 'subscription' && transaction.sourceId) {
-        const recurringItem = recurringItemsList.find(ri => ri.id === transaction.sourceId);
-        if (recurringItem?.categoryId) {
-          categoryId = recurringItem.categoryId;
-        }
-      }
-      
-      // Update the transaction if we found a category
-      if (categoryId) {
-        try {
-          const result = await updateTransaction(transaction.id, { categoryId });
-          if (!result.error && result.transaction) {
-            setTransactions(prev => prev.map(t => 
-              t.id === transaction.id ? { ...t, categoryId } : t
-            ));
-            updatedCount++;
-          }
-        } catch (error) {
-          console.error(`Failed to update transaction ${transaction.id}:`, error);
-        }
-      }
-    }
-    
-    toast({
-      title: "Categories Updated",
-      description: `Updated ${updatedCount} out of ${transactionsNeedingCategories.length} transactions with missing categories.`,
-    });
-  };
 
   const handleDeleteTransaction = async (transactionId: string) => {
     const transactionToDelete = transactions.find(t => t.id === transactionId);
@@ -578,14 +509,6 @@ export function TransactionManager() {
             <CardDescription>Manually track all your income and expenses. Use AI to help categorize your spending.</CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button 
-              onClick={updateMissingCategories} 
-              variant="outline" 
-              size="sm"
-              className="text-xs"
-            >
-              Fix Missing Categories
-            </Button>
             <AddEditTransactionDialog
               isOpen={isAddEditDialogOpen}
               onOpenChange={setIsAddEditDialogOpen}
