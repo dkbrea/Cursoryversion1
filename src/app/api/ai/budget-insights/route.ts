@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateBudgetInsights, type BudgetContext } from '@/ai/flows/budget-insights';
+import { getForecastOverridesForMonth } from '@/lib/api/forecast-overrides-v2';
 import { startOfMonth, endOfMonth, format, subMonths, differenceInCalendarMonths, startOfDay, isPast } from 'date-fns';
 
 // For API routes, we'll use the service role key to bypass auth
@@ -248,35 +249,13 @@ export async function POST(request: NextRequest) {
     console.log('- user_id:', userId);
     console.log('- month_year:', monthKey);
     
-    // Try the user_preferences.forecast_overrides JSONB column first
-    const { data: userPrefs, error: prefsError } = await supabase
-      .from('user_preferences')
-      .select('forecast_overrides')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    console.log('User preferences query result:');
-    console.log('- Error:', prefsError);
-    console.log('- Data:', userPrefs);
-
-    // Create override lookup for easy access
-    const overrideMap: { [key: string]: number } = {};
+    // Use the same override loading function as the main UI
+    const { overrides: overrideMapRaw, error: overrideError } = await getForecastOverridesForMonth(userId, monthKey);
+    const overrideMap = overrideMapRaw || {}; // Ensure it's not null
     
-    if (userPrefs?.forecast_overrides) {
-      const forecastOverrides = userPrefs.forecast_overrides;
-      console.log('Forecast overrides found:', forecastOverrides);
-      
-      // Loop through all overrides and find ones for the current month
-      Object.keys(forecastOverrides).forEach(key => {
-        const override = forecastOverrides[key];
-        if (override.monthYear === monthKey) {
-          overrideMap[override.itemId] = override.overrideAmount;
-          console.log(`Override found: ${override.itemId} = $${override.overrideAmount} (${override.type})`);
-        }
-      });
-    }
-    
-    console.log('Override map:', overrideMap);
+    console.log('Forecast overrides query result:');
+    console.log('- Error:', overrideError);
+    console.log('- Override map:', overrideMap);
     console.log('=== END OVERRIDE DEBUG ===');
 
     // Process variable expenses with detailed progress information and apply overrides
