@@ -1677,7 +1677,18 @@ export function BudgetManager() {
               }
               return minimumPayments;
             })()}
-            totalGoalContributions={getSelectedMonthData().totalGoalContributions}
+            totalGoalContributions={(() => {
+              const selectedData = getSelectedMonthData();
+              const baseContributions = selectedData.totalGoalContributions || 0;
+              // Add additional contributions if available in forecast data
+              if ('goalContributions' in selectedData && selectedData.goalContributions) {
+                const totalContributions = selectedData.goalContributions.reduce(
+                  (sum, goal) => sum + goal.monthSpecificContribution, 0
+                );
+                return totalContributions;
+              }
+              return baseContributions;
+            })()}
             totalBudgetedVariable={getSelectedMonthData().totalVariableExpenses}
             totalSpentVariable={variableExpenseSpending.totalSpent}
             remainingVariable={variableExpenseSpending.remaining}

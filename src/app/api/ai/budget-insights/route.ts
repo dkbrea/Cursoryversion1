@@ -409,7 +409,19 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    const totalBudgetedVariable = processedVariableExpenses.reduce((sum: number, cat: any) => sum + cat.budgetedAmount, 0);
+    // Apply overrides to variable expenses (same as goal contributions and debt payments)
+    const adjustedVariableExpenses = processedVariableExpenses.map((category: any) => {
+      // Check if there's an override for this variable expense
+      if (overrideMap[category.id] !== undefined) {
+        return {
+          ...category,
+          budgetedAmount: overrideMap[category.id]
+        };
+      }
+      return category;
+    });
+
+    const totalBudgetedVariable = adjustedVariableExpenses.reduce((sum: number, cat: any) => sum + cat.budgetedAmount, 0);
     const totalSpentVariable = processedVariableExpenses.reduce((sum: number, cat: any) => sum + cat.spentAmount, 0);
     const remainingVariable = totalBudgetedVariable - totalSpentVariable;
 
@@ -486,15 +498,15 @@ export async function POST(request: NextRequest) {
         leftToAllocate,
         isBalanced,
       },
-      variableExpenses: processedVariableExpenses,
+      variableExpenses: adjustedVariableExpenses,
       previousMonthComparison,
       // Add category analysis for better Jade insights
       categoryAnalysis: {
-        overBudgetCategories: processedVariableExpenses.filter((cat: any) => cat.status === 'over-budget'),
-        underUtilizedCategories: processedVariableExpenses.filter((cat: any) => cat.status === 'under-utilized'),
-        riskCategories: processedVariableExpenses.filter((cat: any) => cat.riskLevel === 'high' || cat.riskLevel === 'medium'),
-        inactiveCategories: processedVariableExpenses.filter((cat: any) => !cat.hasActivity),
-        highVelocityCategories: processedVariableExpenses.filter((cat: any) => cat.spendingTrend === 'over'),
+        overBudgetCategories: adjustedVariableExpenses.filter((cat: any) => cat.status === 'over-budget'),
+        underUtilizedCategories: adjustedVariableExpenses.filter((cat: any) => cat.status === 'under-utilized'),
+        riskCategories: adjustedVariableExpenses.filter((cat: any) => cat.riskLevel === 'high' || cat.riskLevel === 'medium'),
+        inactiveCategories: adjustedVariableExpenses.filter((cat: any) => !cat.hasActivity),
+        highVelocityCategories: adjustedVariableExpenses.filter((cat: any) => cat.spendingTrend === 'over'),
       },
     };
 
