@@ -1756,19 +1756,21 @@ export function BudgetManager() {
         </Button>
       </AddEditVariableExpenseDialog>
 
-      <AddEditVariableExpenseDialog
-        isOpen={isEditCategoryDialogOpen}
-        onOpenChange={(open) => {
-          setIsEditCategoryDialogOpen(open);
-          if (!open) {
-            setExpenseToEdit(null);
-          }
-        }}
-        onExpenseUpdated={handleEditVariableExpense}
-        expenseToEdit={expenseToEdit}
-      >
-        <div />
-      </AddEditVariableExpenseDialog>
+      {isEditCategoryDialogOpen && (
+        <AddEditVariableExpenseDialog
+          isOpen={isEditCategoryDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditCategoryDialogOpen(open);
+            if (!open) {
+              setExpenseToEdit(null);
+            }
+          }}
+          onExpenseUpdated={handleEditVariableExpense}
+          expenseToEdit={expenseToEdit}
+        >
+          <div style={{ display: 'none' }} />
+        </AddEditVariableExpenseDialog>
+      )}
     </div>
   );
 }
