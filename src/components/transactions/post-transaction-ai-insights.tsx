@@ -63,7 +63,9 @@ export function PostTransactionJadeInsights({
     
     hasAnalyzedRef.current = transactionKey;
 
-    const analyzeTransaction = async () => {
+    // Add a delay to prevent simultaneous AI API calls
+    const timer = setTimeout(() => {
+      const analyzeTransaction = async () => {
       if (!transaction) return;
       
       setIsLoading(true);
@@ -150,7 +152,10 @@ export function PostTransactionJadeInsights({
       }
     };
 
-    analyzeTransaction();
+      analyzeTransaction();
+    }, 400); // 400ms delay for AI insights
+
+    return () => clearTimeout(timer);
   }, [transaction]);
 
   if (!transaction) return null;

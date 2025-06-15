@@ -32,6 +32,7 @@ export function TransactionManager() {
   const [debtAccountsList, setDebtAccountsList] = useState<DebtAccount[]>([]);
   const [goalsList, setGoalsList] = useState<FinancialGoalWithContribution[]>([]);
   const [variableExpensesList, setVariableExpensesList] = useState<VariableExpense[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(false);
   
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -58,6 +59,13 @@ export function TransactionManager() {
     }
 
     const fetchAllData = async () => {
+      // Prevent multiple simultaneous calls
+      if (isLoadingData) {
+        console.log('Data loading already in progress, skipping...');
+        return;
+      }
+
+      setIsLoadingData(true);
       setIsLoading(true);
       try {
         // Fetch all data in parallel
@@ -165,6 +173,7 @@ export function TransactionManager() {
         });
       } finally {
         setIsLoading(false);
+        setIsLoadingData(false);
       }
     };
 
