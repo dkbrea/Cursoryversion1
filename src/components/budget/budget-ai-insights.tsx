@@ -80,7 +80,12 @@ export function BudgetAIInsights({ userId, year, month, className, refreshTrigge
   };
 
   useEffect(() => {
-    fetchInsights();
+    // Add a small delay to prevent simultaneous calls with the main budget manager
+    const timer = setTimeout(() => {
+      fetchInsights();
+    }, 200);
+    
+    return () => clearTimeout(timer);
   }, [userId, year, month, refreshTrigger]);
 
   const getSeverityColor = (severity: string) => {
