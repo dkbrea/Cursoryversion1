@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateBudgetInsights, type BudgetContext } from '@/ai/flows/budget-insights';
 import { getForecastOverridesForMonth } from '@/lib/api/forecast-overrides-v2';
+import { adjustToPreviousBusinessDay } from '@/lib/utils/date-calculations';
 import { startOfMonth, endOfMonth, format, subMonths, differenceInCalendarMonths, startOfDay, isPast } from 'date-fns';
 
 // For API routes, we'll use the service role key to bypass auth
@@ -115,20 +116,30 @@ export async function POST(request: NextRequest) {
       if (item.frequency === 'semi-monthly') {
         // Handle semi-monthly items
         let firstPayCount = 0, secondPayCount = 0;
-        if (item.semi_monthly_first_pay_date && 
-            new Date(item.semi_monthly_first_pay_date) >= currentMonthStart && 
-            new Date(item.semi_monthly_first_pay_date) <= currentMonthEnd) {
-          if (!item.end_date || new Date(item.semi_monthly_first_pay_date) <= new Date(item.end_date)) {
-            itemMonthlyTotal += item.amount;
-            firstPayCount = 1;
+        if (item.semi_monthly_first_pay_date) {
+          let firstPayDate = new Date(item.semi_monthly_first_pay_date);
+          // Apply business day adjustment for income items
+          if (item.type === 'income') {
+            firstPayDate = adjustToPreviousBusinessDay(firstPayDate);
+          }
+          if (firstPayDate >= currentMonthStart && firstPayDate <= currentMonthEnd) {
+            if (!item.end_date || firstPayDate <= new Date(item.end_date)) {
+              itemMonthlyTotal += item.amount;
+              firstPayCount = 1;
+            }
           }
         }
-        if (item.semi_monthly_second_pay_date && 
-            new Date(item.semi_monthly_second_pay_date) >= currentMonthStart && 
-            new Date(item.semi_monthly_second_pay_date) <= currentMonthEnd) {
-          if (!item.end_date || new Date(item.semi_monthly_second_pay_date) <= new Date(item.end_date)) {
-            itemMonthlyTotal += item.amount;
-            secondPayCount = 1;
+        if (item.semi_monthly_second_pay_date) {
+          let secondPayDate = new Date(item.semi_monthly_second_pay_date);
+          // Apply business day adjustment for income items
+          if (item.type === 'income') {
+            secondPayDate = adjustToPreviousBusinessDay(secondPayDate);
+          }
+          if (secondPayDate >= currentMonthStart && secondPayDate <= currentMonthEnd) {
+            if (!item.end_date || secondPayDate <= new Date(item.end_date)) {
+              itemMonthlyTotal += item.amount;
+              secondPayCount = 1;
+            }
           }
         }
       } else {
@@ -163,7 +174,14 @@ export async function POST(request: NextRequest) {
         // Calculate occurrences within the current month
         while (tempDate < currentMonthEnd || (tempDate >= currentMonthStart && tempDate <= currentMonthEnd)) {
           if (item.end_date && tempDate > new Date(item.end_date)) break;
-          if (tempDate >= currentMonthStart && tempDate <= currentMonthEnd) {
+          
+          // Apply business day adjustment for income items
+          let adjustedDate = tempDate;
+          if (item.type === 'income') {
+            adjustedDate = adjustToPreviousBusinessDay(tempDate);
+          }
+          
+          if (adjustedDate >= currentMonthStart && adjustedDate <= currentMonthEnd) {
             itemMonthlyTotal += item.amount;
             occurrences++;
           }
