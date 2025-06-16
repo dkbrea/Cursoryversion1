@@ -95,7 +95,7 @@ export function AddEditVariableExpenseDialog({
       if (!open) form.reset(); 
       onOpenChange(open); 
     }}>
-      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
+      <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Variable Expense" : "Add Variable Expense"}</DialogTitle>

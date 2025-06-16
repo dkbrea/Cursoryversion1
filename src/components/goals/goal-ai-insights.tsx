@@ -46,9 +46,6 @@ export function GoalAIInsights({
     
     hasAnalyzedRef.current = goalsKey;
 
-    // Add a delay to prevent simultaneous calls with other components
-    const timer = setTimeout(() => {
-
     const analyzeGoals = async () => {
       setIsLoading(true);
       setError(null);
@@ -101,16 +98,13 @@ export function GoalAIInsights({
       }
     };
 
-      // Only analyze if we have goals
-      if (goals.length > 0) {
-        analyzeGoals();
-      } else {
-        setIsLoading(false);
-        setInsights([]);
-      }
-    }, 300); // 300ms delay
-    
-    return () => clearTimeout(timer);
+    // Only analyze if we have goals
+    if (goals.length > 0) {
+      analyzeGoals();
+    } else {
+      setIsLoading(false);
+      setInsights([]);
+    }
   }, [goals, userId, totalSavedThisMonth]);
 
   // Fallback local insights if AI API fails

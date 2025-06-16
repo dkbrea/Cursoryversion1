@@ -41,8 +41,6 @@ export function PaycheckPulseManager() {
   });
   const [isPreferencesDialogOpen, setIsPreferencesDialogOpen] = useState(false);
   const [actualSpendingData, setActualSpendingData] = useState<{ categoryId: string; spent: number; budgeted: number }[]>([]);
-  const [isLoadingSpending, setIsLoadingSpending] = useState(false);
-  const [isGeneratingBreakdowns, setIsGeneratingBreakdowns] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -183,14 +181,6 @@ export function PaycheckPulseManager() {
     const fetchActualSpendingData = async () => {
       if (!user?.id || variableExpenses.length === 0) return;
 
-      // Prevent multiple simultaneous calls
-      if (isLoadingSpending) {
-        console.log('Spending data load already in progress, skipping...');
-        return;
-      }
-
-      setIsLoadingSpending(true);
-
       try {
         // Get current month's date range
         const today = new Date();
@@ -222,8 +212,6 @@ export function PaycheckPulseManager() {
         setActualSpendingData(actualSpending);
       } catch (error: any) {
         console.error('Error fetching actual spending data:', error);
-      } finally {
-        setIsLoadingSpending(false);
       }
     };
 
@@ -233,14 +221,6 @@ export function PaycheckPulseManager() {
   // Generate paycheck breakdowns when data is loaded
   useEffect(() => {
     if (recurringItems.length > 0 || debtAccounts.length > 0) {
-      
-      // Prevent multiple simultaneous calculations
-      if (isGeneratingBreakdowns) {
-        console.log('Breakdown generation already in progress, skipping...');
-        return;
-      }
-
-      setIsGeneratingBreakdowns(true);
       const periods = generatePaycheckPeriods(recurringItems);
       
       // Use the enhanced calculation with sinking funds integration and actual spending data
@@ -256,9 +236,8 @@ export function PaycheckPulseManager() {
       );
       
       setPaycheckBreakdowns(breakdowns);
-      setIsGeneratingBreakdowns(false);
     }
-  }, [recurringItems, debtAccounts, variableExpenses, goals, sinkingFunds, paycheckPreferences]);
+  }, [recurringItems, debtAccounts, variableExpenses, goals, sinkingFunds, paycheckPreferences, actualSpendingData]);
 
   const handlePreferencesChanged = async (newPreferences: PaycheckPreferences) => {
     if (!user?.id) return;

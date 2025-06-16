@@ -45,7 +45,6 @@ export function BudgetManager() {
   const [selectedForecastYear, setSelectedForecastYear] = useState<number>(new Date().getFullYear()); // Default to current year
   const [selectedCurrentMonthYear, setSelectedCurrentMonthYear] = useState<number>(new Date().getFullYear()); // Default to current year for current month view
   const [aiInsightsRefreshTrigger, setAiInsightsRefreshTrigger] = useState(0); // Add refresh trigger
-  const [isLoadingOverrides, setIsLoadingOverrides] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -941,14 +940,6 @@ export function BudgetManager() {
         return;
       }
 
-      // Prevent multiple simultaneous calls
-      if (isLoadingOverrides) {
-        console.log('Override loading already in progress, skipping...');
-        return;
-      }
-
-      setIsLoadingOverrides(true);
-
       try {
         // Load overrides for each month
         const updatedForecastData = [...newForecastData];
@@ -1030,13 +1021,11 @@ export function BudgetManager() {
         // Fall back to setting forecast data without overrides
         setForecastData(newForecastData);
         setIsDataReady(true);
-      } finally {
-        setIsLoadingOverrides(false);
       }
     };
     
     loadOverridesAndSetForecast();
-  }, [recurringItems, debtAccounts, variableExpenses, goals, selectedForecastYear, user?.id]);
+  }, [recurringItems, debtAccounts, variableExpenses, goals, goalsWithContributions, selectedForecastYear, user?.id]);
 
   const totalBudgetedVariable = useMemo(() => {
     return variableExpenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -1756,21 +1745,19 @@ export function BudgetManager() {
         </Button>
       </AddEditVariableExpenseDialog>
 
-      {isEditCategoryDialogOpen && (
-        <AddEditVariableExpenseDialog
-          isOpen={isEditCategoryDialogOpen}
-          onOpenChange={(open) => {
-            setIsEditCategoryDialogOpen(open);
-            if (!open) {
-              setExpenseToEdit(null);
-            }
-          }}
-          onExpenseUpdated={handleEditVariableExpense}
-          expenseToEdit={expenseToEdit}
-        >
-          <div style={{ display: 'none' }} />
-        </AddEditVariableExpenseDialog>
-      )}
+      <AddEditVariableExpenseDialog
+        isOpen={isEditCategoryDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditCategoryDialogOpen(open);
+          if (!open) {
+            setExpenseToEdit(null);
+          }
+        }}
+        onExpenseUpdated={handleEditVariableExpense}
+        expenseToEdit={expenseToEdit}
+      >
+        <div />
+      </AddEditVariableExpenseDialog>
     </div>
   );
 }
