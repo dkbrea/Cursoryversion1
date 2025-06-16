@@ -1,5 +1,6 @@
 import { ai } from '../genkit';
 import { z } from 'zod';
+import { formatNumber } from '../../lib/utils';
 
 const BudgetInsightSchema = z.object({
   insights: z.array(z.object({
@@ -106,15 +107,15 @@ You are Jade, an AI financial advisor with expertise in zero-based budgeting. An
 Like a precious jade gemstone, your advice should be valuable, clear, and refined. Focus on practical recommendations that align with zero-based budgeting principles.
 
 CURRENT BUDGET STATUS for ${currentMonth.monthLabel}:
-• Total Income: $${currentMonth.totalIncome.toFixed(2)}
-• Fixed Expenses: $${currentMonth.totalFixedExpenses.toFixed(2)}
-• Subscriptions: $${currentMonth.totalSubscriptions.toFixed(2)}
-• Debt Payments: $${currentMonth.totalDebtPayments.toFixed(2)}
-• Goal Contributions: $${currentMonth.totalGoalContributions.toFixed(2)}
-• Variable Budget: $${currentMonth.totalBudgetedVariable.toFixed(2)}
-• Variable Spent: $${currentMonth.totalSpentVariable.toFixed(2)}
-• Variable Remaining: $${currentMonth.remainingVariable.toFixed(2)}
-• LEFT TO ALLOCATE: $${currentMonth.leftToAllocate.toFixed(2)}
+• Total Income: $${formatNumber(currentMonth.totalIncome, 2)}
+• Fixed Expenses: $${formatNumber(currentMonth.totalFixedExpenses, 2)}
+• Subscriptions: $${formatNumber(currentMonth.totalSubscriptions, 2)}
+• Debt Payments: $${formatNumber(currentMonth.totalDebtPayments, 2)}
+• Goal Contributions: $${formatNumber(currentMonth.totalGoalContributions, 2)}
+• Variable Budget: $${formatNumber(currentMonth.totalBudgetedVariable, 2)}
+• Variable Spent: $${formatNumber(currentMonth.totalSpentVariable, 2)}
+• Variable Remaining: $${formatNumber(currentMonth.remainingVariable, 2)}
+• LEFT TO ALLOCATE: $${formatNumber(currentMonth.leftToAllocate, 2)}
 • Zero-Based Achieved: ${currentMonth.isBalanced ? 'YES' : 'NO'}
 
 DETAILED VARIABLE EXPENSE PROGRESS:
@@ -236,7 +237,7 @@ function createFallbackBudgetInsights(currentMonth: any, variableExpenses: any[]
     insights.push({
       type: 'budget_balance' as const,
       title: 'Money Left to Allocate',
-      message: `You have $${currentMonth.leftToAllocate.toFixed(0)} unassigned. Allocate it to achieve zero-based budgeting.`,
+      message: `You have $${formatNumber(currentMonth.leftToAllocate)} unassigned. Allocate it to achieve zero-based budgeting.`,
       severity: 'warning' as const,
       priority: 9,
       actionable: true,
@@ -248,7 +249,7 @@ function createFallbackBudgetInsights(currentMonth: any, variableExpenses: any[]
     insights.push({
       type: 'budget_balance' as const,
       title: 'Over Budget Alert',
-      message: `You're $${Math.abs(currentMonth.leftToAllocate).toFixed(0)} over budget. Reduce variable expenses to balance.`,
+      message: `You're $${formatNumber(Math.abs(currentMonth.leftToAllocate))} over budget. Reduce variable expenses to balance.`,
       severity: 'alert' as const,
       priority: 10,
       actionable: true,
@@ -265,7 +266,7 @@ function createFallbackBudgetInsights(currentMonth: any, variableExpenses: any[]
     insights.push({
       type: 'category_optimization' as const,
       title: 'Over Budget Alert',
-      message: `${worstCategory.name} is $${overAmount.toFixed(0)} over budget. Consider reducing spending or reallocating funds.`,
+      message: `${worstCategory.name} is $${formatNumber(overAmount)} over budget. Consider reducing spending or reallocating funds.`,
       severity: 'alert' as const,
       priority: 9,
       actionable: true,
@@ -290,7 +291,7 @@ function createFallbackBudgetInsights(currentMonth: any, variableExpenses: any[]
     insights.push({
       type: 'spending_pattern' as const,
       title: 'Spending Velocity Alert',
-      message: `${riskiestCategory.name} is on pace to exceed budget by $${projectedOverage.toFixed(0)}. Slow down spending.`,
+      message: `${riskiestCategory.name} is on pace to exceed budget by $${formatNumber(projectedOverage)}. Slow down spending.`,
       severity: 'warning' as const,
       priority: 8,
       actionable: true,
@@ -311,7 +312,7 @@ function createFallbackBudgetInsights(currentMonth: any, variableExpenses: any[]
     insights.push({
       type: 'reallocation_opportunity' as const,
       title: 'Reallocation Opportunity',
-      message: `${topUnderUtilized.name} has $${topUnderUtilized.remainingAmount.toFixed(0)} unused (${topUnderUtilized.utilizationPercentage.toFixed(0)}% used).`,
+      message: `${topUnderUtilized.name} has $${formatNumber(topUnderUtilized.remainingAmount)} unused (${Math.round(topUnderUtilized.utilizationPercentage)}% used).`,
       severity: 'neutral' as const,
       priority: 6,
       actionable: true,
@@ -328,7 +329,7 @@ function createFallbackBudgetInsights(currentMonth: any, variableExpenses: any[]
     insights.push({
       type: 'reallocation_opportunity' as const,
       title: 'Variable Budget Optimization',
-      message: `You have $${currentMonth.remainingVariable.toFixed(0)} unspent in variable expenses. Consider reallocating to goals.`,
+      message: `You have $${formatNumber(currentMonth.remainingVariable)} unspent in variable expenses. Consider reallocating to goals.`,
       severity: 'neutral' as const,
       priority: 5,
       actionable: true,
@@ -346,7 +347,7 @@ function createFallbackBudgetInsights(currentMonth: any, variableExpenses: any[]
     insights.push({
       type: 'spending_pattern' as const,
       title: 'Inactive Category Review',
-      message: `${largestInactive.name} has no spending activity. Consider reallocating its $${largestInactive.budgetedAmount.toFixed(0)} budget.`,
+      message: `${largestInactive.name} has no spending activity. Consider reallocating its $${formatNumber(largestInactive.budgetedAmount)} budget.`,
       severity: 'neutral' as const,
       priority: 4,
       actionable: true,

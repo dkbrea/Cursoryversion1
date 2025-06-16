@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Lightbulb, Loader2 } from 'lucide-react';
 import type { FinancialGoalWithContribution } from '@/types';
+import { formatNumber } from '@/lib/utils';
 
 interface GoalAIInsight {
   type: 'progress_analysis' | 'timeline_prediction' | 'savings_pattern' | 'goal_prioritization';
@@ -134,7 +135,7 @@ export function GoalAIInsights({
       } else if (closestGoal.monthsRemaining <= 2) {
         insights.push({
           type: 'timeline_prediction',
-          message: `${closestGoal.name} target date is approaching. You need $${closestGoal.monthlyContribution.toFixed(0)}/month to stay on track.`,
+          message: `${closestGoal.name} target date is approaching. You need $${formatNumber(closestGoal.monthlyContribution)}/month to stay on track.`,
           priority: 'medium',
           data: {
             goalName: closestGoal.name,
@@ -148,7 +149,7 @@ export function GoalAIInsights({
     if (totalSaved > 0) {
       insights.push({
         type: 'savings_pattern',
-        message: `Great progress! You've saved $${totalSaved.toFixed(0)} this month. Keep up the momentum!`,
+        message: `Great progress! You've saved $${formatNumber(totalSaved)} this month. Keep up the momentum!`,
         priority: 'low',
         data: {
           amount: totalSaved
@@ -209,7 +210,7 @@ export function GoalAIInsights({
         </p>
         {primaryInsight.data?.amount && (
           <p className="text-xs text-muted-foreground mt-1">
-            Amount: ${primaryInsight.data.amount.toFixed(0)}
+            Amount: ${formatNumber(primaryInsight.data.amount)}
           </p>
         )}
         {primaryInsight.data?.timeframe && (

@@ -21,6 +21,19 @@ export function formatCurrency(amount: number, currency: string = 'USD'): string
 }
 
 /**
+ * Format a number with commas as thousands separators
+ * @param amount The number to format
+ * @param fractionDigits Number of decimal places (default: 0)
+ * @returns Formatted number string with commas
+ */
+export function formatNumber(amount: number, fractionDigits: number = 0): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(amount);
+}
+
+/**
  * Format a date in a user-friendly way
  * @param date The date to format
  * @returns Formatted date string

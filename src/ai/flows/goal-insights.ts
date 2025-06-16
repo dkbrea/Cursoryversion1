@@ -1,5 +1,6 @@
 import { ai } from '../genkit';
 import { z } from 'zod';
+import { formatNumber } from '../../lib/utils';
 
 const GoalInsightSchema = z.object({
   insights: z.array(z.object({
@@ -53,10 +54,10 @@ export const generateGoalInsights = ai.defineFlow(
     // Create a concise summary of the user's goals
     const goalsSummary = goalsData.goals.map(goal => ({
       name: goal.name,
-      progress: `${goal.progressPercentage.toFixed(0)}%`,
-      remaining: `$${(goal.targetAmount - goal.currentAmount).toFixed(0)}`,
+      progress: `${Math.round(goal.progressPercentage)}%`,
+      remaining: `$${formatNumber(goal.targetAmount - goal.currentAmount)}`,
       monthsLeft: goal.monthsRemaining,
-      monthlyNeeded: `$${goal.monthlyContribution.toFixed(0)}`
+      monthlyNeeded: `$${formatNumber(goal.monthlyContribution)}`
     }));
 
     // Recent savings activity
@@ -71,7 +72,7 @@ CURRENT GOALS STATUS:
 ${goalsSummary.map(g => `• ${g.name}: ${g.progress} complete, ${g.remaining} remaining, ${g.monthlyNeeded}/month needed`).join('\n')}
 
 RECENT SAVINGS ACTIVITY:
-• Total saved this month: $${goalsData.totalSavedThisMonth}
+• Total saved this month: $${formatNumber(goalsData.totalSavedThisMonth, 2)}
 • Recent goal contributions: ${goalContributions.length} transactions
 • Active goals: ${goalsData.activeGoalsCount}
 • Completed goals: ${goalsData.completedGoalsCount}

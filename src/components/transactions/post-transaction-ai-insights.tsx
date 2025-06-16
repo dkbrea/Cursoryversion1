@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Loader2, TrendingUp, AlertTriangle, Info, Gem, HelpCircle, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatNumber } from '@/lib/utils';
 import type { Transaction, Account, Category } from '@/types';
 
 interface FinancialInsight {
@@ -225,7 +225,7 @@ export function PostTransactionJadeInsights({
                   {insight.message.length > 100 ? `${insight.message.substring(0, 100)}...` : insight.message}
                   {insight.data?.amount && (
                     <span className="font-medium ml-1">
-                      (${Math.abs(insight.data.amount).toFixed(0)})
+                      (${formatNumber(Math.abs(insight.data.amount))})
                     </span>
                   )}
                   {insight.data?.timeframe && (

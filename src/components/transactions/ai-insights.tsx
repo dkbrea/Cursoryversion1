@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, TrendingUp, AlertTriangle, Info, Gem, HelpCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatNumber } from '@/lib/utils';
 
 interface FinancialInsight {
   type: 'spending_comparison' | 'budget_progress' | 'category_analysis' | 'frequency_analysis';
@@ -119,7 +119,7 @@ export function JadeInsights({ insights, anomalies, suggestions, isLoading, clas
                     )}
                     {insight.data?.amount && (
                       <span className="font-medium ml-1">
-                        (${Math.abs(insight.data.amount).toFixed(2)})
+                        (${formatNumber(Math.abs(insight.data.amount), 2)})
                       </span>
                     )}
                     {insight.data?.timeframe && (

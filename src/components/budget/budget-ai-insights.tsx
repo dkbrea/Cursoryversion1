@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sparkles, TrendingUp, AlertTriangle, Target, Gem, RefreshCw } from 'lucide-react';
+import { formatNumber } from '@/lib/utils';
 
 interface BudgetInsight {
   type: 'budget_balance' | 'category_optimization' | 'spending_pattern' | 'zero_based_achievement' | 'reallocation_opportunity';
@@ -211,7 +212,7 @@ export function BudgetAIInsights({ userId, year, month, className, refreshTrigge
                     <h4 className="font-medium text-xs truncate">{insight.title}</h4>
                     {insight.data?.amount && (
                       <span className="text-xs font-mono ml-2">
-                        ${Math.abs(insight.data.amount).toFixed(0)}
+                        ${formatNumber(Math.abs(insight.data.amount))}
                       </span>
                     )}
                   </div>
@@ -247,7 +248,7 @@ export function BudgetAIInsights({ userId, year, month, className, refreshTrigge
             <div className="flex items-center justify-between text-xs">
               <span className="text-emerald-700">Potential optimization:</span>
               <span className="font-mono font-medium text-emerald-800">
-                ${insights.summary.potentialSavings.toFixed(0)}
+                ${formatNumber(insights.summary.potentialSavings)}
               </span>
             </div>
           </div>

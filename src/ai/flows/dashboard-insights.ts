@@ -1,6 +1,7 @@
 import { ai } from '../genkit';
 import { z } from 'zod';
 import { DashboardJadeContext } from '@/types';
+import { formatNumber } from '../../lib/utils';
 
 const DashboardInsightSchema = z.object({
   insights: z.array(z.object({
@@ -46,14 +47,14 @@ export const generateDashboardInsights = ai.defineFlow(
 You are Jade, a financial advisor assistant. Analyze this user's complete financial picture and provide 3-4 most valuable dashboard insights to help them master their money.
 
 FINANCIAL OVERVIEW:
-- Monthly Income: $${financialData.totalIncome}
-- Monthly Expenses: $${financialData.totalExpenses}
-- Net Worth: $${financialData.netWorth}
+- Monthly Income: $${formatNumber(financialData.totalIncome, 2)}
+- Monthly Expenses: $${formatNumber(financialData.totalExpenses, 2)}
+- Net Worth: $${formatNumber(financialData.netWorth, 2)}
 - Budget Utilization: ${financialData.monthlyBudgetUtilization}%
 
 GOALS PROGRESS:
 ${financialData.goalProgress.map(goal => 
-  `- ${goal.name}: ${goal.progress}% ($${goal.target} target)`
+  `- ${goal.name}: ${goal.progress}% ($${formatNumber(goal.target, 2)} target)`
 ).join('\n')}
 
 USER PREFERENCES:
@@ -97,7 +98,7 @@ function createFallbackInsights() {
       {
         type: 'spending_trend' as const,
         title: 'Welcome to Jade AI',
-        message: `I'm getting to know your financial patterns. You've spent $${monthlySpending.toFixed(2)} this month. As you add more transactions, I'll provide more valuable insights to help you master your money.`,
+        message: `I'm getting to know your financial patterns. You've spent $${formatNumber(monthlySpending, 2)} this month. As you add more transactions, I'll provide more valuable insights to help you master your money.`,
         severity: 'neutral' as const,
         priority: 5,
         actionable: true,
