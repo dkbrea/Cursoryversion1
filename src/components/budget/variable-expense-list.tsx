@@ -172,10 +172,10 @@ export function VariableExpenseList({ expenses, transactions = [], onUpdateExpen
                     <div className="space-y-2">
                       <div className="flex justify-between items-center text-sm">
                         <span className={`font-medium ${analysis.statusColor}`}>
-                          ${analysis.spent.toFixed(2)} spent
+                          ${analysis.spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent
                         </span>
                         <span className="text-muted-foreground">
-                          ${analysis.remaining.toFixed(2)} left
+                          ${analysis.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} left
                         </span>
                       </div>
                       <div className="relative">
@@ -242,8 +242,8 @@ export function VariableExpenseList({ expenses, transactions = [], onUpdateExpen
                   <TableCell>
                     <div className="space-y-1">
                       <div className="flex justify-between items-center text-sm font-medium">
-                        <span>Total Spent: ${totalSpent.toFixed(2)}</span>
-                        <span>Remaining: ${Math.max(0, totalBudgeted - totalSpent).toFixed(2)}</span>
+                        <span>Total Spent: ${totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span>Remaining: ${Math.max(0, totalBudgeted - totalSpent).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </div>
                       <Progress 
                         value={totalBudgeted > 0 ? Math.min((totalSpent / totalBudgeted) * 100, 100) : 0} 
