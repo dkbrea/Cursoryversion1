@@ -13,6 +13,7 @@ interface BudgetForecastViewProps {
   onYearChange: (year: number) => void;
   onUpdateVariableAmount: (monthIndex: number, variableExpenseId: string, newAmount: number) => void;
   onUpdateGoalContribution: (monthIndex: number, goalId: string, newAmount: number) => void;
+  onUpdateSinkingFundContribution: (monthIndex: number, sinkingFundId: string, newAmount: number) => void;
   onUpdateDebtAdditionalPayment: (monthIndex: number, debtId: string, newAdditionalAmount: number) => void;
 }
 
@@ -22,6 +23,7 @@ export function BudgetForecastView({
     onYearChange,
     onUpdateVariableAmount, 
     onUpdateGoalContribution,
+    onUpdateSinkingFundContribution,
     onUpdateDebtAdditionalPayment 
 }: BudgetForecastViewProps) {
   if (!forecastData || forecastData.length === 0) {
@@ -75,6 +77,7 @@ export function BudgetForecastView({
                   monthIndex={index} 
                   onUpdateVariableAmount={onUpdateVariableAmount}
                   onUpdateGoalContribution={onUpdateGoalContribution}
+                  onUpdateSinkingFundContribution={onUpdateSinkingFundContribution}
                   onUpdateDebtAdditionalPayment={onUpdateDebtAdditionalPayment}
                 />
             ))}

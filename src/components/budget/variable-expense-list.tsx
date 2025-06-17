@@ -25,13 +25,23 @@ export function VariableExpenseList({ expenses, transactions = [], onUpdateExpen
   const [editingAmounts, setEditingAmounts] = useState<Record<string, string>>({});
 
   // Sync editingAmounts when expenses prop changes (e.g. after adding/deleting)
+  // Only reset when expenses are added/removed, not when amounts change
   useEffect(() => {
-    const newEditingAmounts: Record<string, string> = {};
-    expenses.forEach(expense => {
-      newEditingAmounts[expense.id] = expense.amount.toString();
+    setEditingAmounts(prev => {
+      const newEditingAmounts: Record<string, string> = {};
+      expenses.forEach(expense => {
+        // If this expense ID already exists in prev, keep the current editing value
+        // This prevents resetting during amount updates
+        if (prev[expense.id] !== undefined) {
+          newEditingAmounts[expense.id] = prev[expense.id];
+        } else {
+          // New expense or first load - initialize with the expense amount
+          newEditingAmounts[expense.id] = expense.amount.toString();
+        }
+      });
+      return newEditingAmounts;
     });
-    setEditingAmounts(newEditingAmounts);
-  }, [expenses]);
+  }, [expenses.length, expenses.map(e => e.id).join(',')]); // Only depend on length and IDs, not amounts
 
   // Calculate spending for each expense category
   const expenseAnalysis = useMemo(() => {

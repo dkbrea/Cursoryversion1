@@ -34,6 +34,7 @@ export interface BudgetContext {
     totalSubscriptions: number;
     totalDebtPayments: number;
     totalGoalContributions: number;
+    totalSinkingFundsContributions: number;
     totalBudgetedVariable: number;
     totalSpentVariable: number;
     remainingVariable: number;
@@ -112,6 +113,7 @@ CURRENT BUDGET STATUS for ${currentMonth.monthLabel}:
 • Subscriptions: $${formatNumber(currentMonth.totalSubscriptions, 2)}
 • Debt Payments: $${formatNumber(currentMonth.totalDebtPayments, 2)}
 • Goal Contributions: $${formatNumber(currentMonth.totalGoalContributions, 2)}
+• Sinking Funds: $${formatNumber(currentMonth.totalSinkingFundsContributions, 2)}
 • Variable Budget: $${formatNumber(currentMonth.totalBudgetedVariable, 2)}
 • Variable Spent: $${formatNumber(currentMonth.totalSpentVariable, 2)}
 • Variable Remaining: $${formatNumber(currentMonth.remainingVariable, 2)}

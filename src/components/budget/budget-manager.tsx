@@ -2,9 +2,9 @@
 
 import type {
     RecurringItem, DebtAccount, BudgetCategory, VariableExpense, FinancialGoal, FinancialGoalWithContribution,
-    MonthlyForecast, MonthlyForecastVariableExpense, MonthlyForecastGoalContribution,
+    MonthlyForecast, MonthlyForecastVariableExpense, MonthlyForecastGoalContribution, MonthlyForecastSinkingFundContribution,
     MonthlyForecastIncomeItem, MonthlyForecastFixedExpenseItem, MonthlyForecastSubscriptionItem, MonthlyForecastDebtPaymentItem,
-    DebtAccountType, Transaction
+    DebtAccountType, Transaction, SinkingFund
 } from "@/types";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -26,7 +26,9 @@ import {
 import { adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
 import { saveForecastOverride, getForecastOverridesForMonth } from "@/lib/api/forecast-overrides-v2";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getTransactions } from "@/lib/api/transactions";
+import { getSinkingFunds } from "@/lib/api/sinking-funds";
 
 export function BudgetManager() {
   const { toast } = useToast();
@@ -37,6 +39,7 @@ export function BudgetManager() {
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [variableExpenses, setVariableExpenses] = useState<VariableExpense[]>([]);
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
+  const [sinkingFunds, setSinkingFunds] = useState<SinkingFund[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
   const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
@@ -45,6 +48,8 @@ export function BudgetManager() {
   const [selectedForecastYear, setSelectedForecastYear] = useState<number>(new Date().getFullYear()); // Default to current year
   const [selectedCurrentMonthYear, setSelectedCurrentMonthYear] = useState<number>(new Date().getFullYear()); // Default to current year for current month view
   const [aiInsightsRefreshTrigger, setAiInsightsRefreshTrigger] = useState(0); // Add refresh trigger
+  const [showUpdateScopeDialog, setShowUpdateScopeDialog] = useState(false);
+  const [pendingAmountUpdate, setPendingAmountUpdate] = useState<{expenseId: string; newAmount: number} | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -69,42 +74,10 @@ export function BudgetManager() {
         if (debtError) throw new Error(debtError.message);
 
         // Fetch variable expenses
-        let variableExpensesData = [];
-        let variableExpensesError = null;
-        
-        try {
-          // Try to fetch from the new variable_expenses table first
-          const { data, error } = await supabase
-            .from('variable_expenses')
-            .select('*')
-            .eq('user_id', user.id);
-            
-          if (error) {
-            // If there's an error (likely because the table doesn't exist yet), fall back to budget_categories
-            console.warn('Failed to fetch from variable_expenses, falling back to budget_categories');
-            const { data: legacyData, error: legacyError } = await supabase
-              .from('budget_categories')
-              .select('*')
-              .eq('user_id', user.id);
-              
-            if (legacyError) throw new Error(legacyError.message);
-            
-            // Convert legacy data format to new format
-            variableExpensesData = legacyData?.map(item => ({
-              id: item.id,
-              name: item.name,
-              category: 'personal', // Default category for legacy data
-              amount: item.budgeted_amount,
-              user_id: item.user_id,
-              created_at: item.created_at,
-              updated_at: item.updated_at || item.created_at
-            })) || [];
-          } else {
-            variableExpensesData = data || [];
-          }
-        } catch (err) {
-          variableExpensesError = err;
-        }
+        const { data: variableExpensesData, error: variableExpensesError } = await supabase
+          .from('variable_expenses')
+          .select('*')
+          .eq('user_id', user.id);
         
         if (variableExpensesError) throw new Error(variableExpensesError.message);
 
@@ -115,6 +88,14 @@ export function BudgetManager() {
           .eq('user_id', user.id);
 
         if (goalsError) throw new Error(goalsError.message);
+
+        // Fetch sinking funds
+        const { sinkingFunds: sinkingFundsData, error: sinkingFundsError } = await getSinkingFunds(user.id);
+        
+        if (sinkingFundsError) {
+          console.warn('Failed to fetch sinking funds:', sinkingFundsError);
+          // Don't throw here, just log and continue with empty array
+        }
 
         // Transform the data to match our types
         const formattedRecurringItems = recurringData?.map(item => {
@@ -180,6 +161,7 @@ export function BudgetManager() {
         setDebtAccounts(formattedDebtAccounts);
         setVariableExpenses(formattedVariableExpenses);
         setGoals(formattedGoals);
+        setSinkingFunds(sinkingFundsData || []);
       } catch (error) {
         console.error('Error fetching budget data:', error);
         toast({
@@ -247,6 +229,7 @@ export function BudgetManager() {
     totalSubscriptions: 0,
     totalDebtPayments: 0,
     totalGoalContributions: 0,
+    totalSinkingFundsContributions: 0,
   });
 
   const goalsWithContributions = useMemo((): FinancialGoalWithContribution[] => {
@@ -255,13 +238,13 @@ export function BudgetManager() {
       // This ensures the monthly contribution remains consistent
       const creationDate = startOfDay(new Date(goal.createdAt));
       const targetDate = startOfDay(new Date(goal.targetDate));
-      const today = startOfDay(new Date());
+      const selectedMonthDate = startOfDay(selectedMonth); // Use selected month instead of today
       
       // Calculate total months in the goal's timeframe (from creation to target)
       const totalMonthsInGoal = Math.max(1, differenceInCalendarMonths(targetDate, creationDate));
       
-      // Calculate current months remaining
-      let monthsRemaining = Math.max(0, differenceInCalendarMonths(targetDate, today));
+      // Calculate months remaining from the selected month
+      let monthsRemaining = Math.max(0, differenceInCalendarMonths(targetDate, selectedMonthDate));
       
       // Calculate the original target amount (when the goal was created)
       const originalTargetAmount = goal.targetAmount;
@@ -295,7 +278,7 @@ export function BudgetManager() {
         monthlyContribution: monthlyContribution > 0 ? monthlyContribution : 0,
       };
     }).sort((a,b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime());
-  }, [goals]);
+  }, [goals, selectedMonth]);
 
   const totalCurrentMonthGoalContributions = useMemo(() => {
     return goalsWithContributions.reduce((sum, goal) => {
@@ -394,14 +377,26 @@ export function BudgetManager() {
       calculatedDebtPayments += debtMonthlyTotal;
     });
 
+    // Calculate sinking funds contributions for current month
+    let calculatedSinkingFundsContributions = 0;
+    sinkingFunds.forEach(fund => {
+      if (fund.isActive && fund.monthlyContribution > 0) {
+        calculatedSinkingFundsContributions += fund.monthlyContribution;
+      }
+    });
+
     setCurrentMonthSummary({
         totalIncome: calculatedIncome,
         totalActualFixedExpenses: calculatedActualFixedExpenses,
         totalSubscriptions: calculatedSubscriptions,
         totalDebtPayments: calculatedDebtPayments,
         totalGoalContributions: totalCurrentMonthGoalContributions,
+        totalSinkingFundsContributions: calculatedSinkingFundsContributions,
     });
-  }, [recurringItems, debtAccounts, totalCurrentMonthGoalContributions]);
+    
+    // Trigger AI insights refresh when current month summary changes
+    setAiInsightsRefreshTrigger(prev => prev + 1);
+  }, [recurringItems, debtAccounts, totalCurrentMonthGoalContributions, sinkingFunds]);
 
   const [forecastData, setForecastData] = useState<MonthlyForecast[]>([]);
 
@@ -910,7 +905,18 @@ export function BudgetManager() {
       const monthTotalGoalContributions = forecastGoalContributions.reduce((sum, gc) => sum + gc.monthSpecificContribution, 0);
       const monthTotalAdditionalDebtPayments = monthDebtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0);
 
-      const remainingToBudget = totalMonthIncome - (totalMonthFixedExpenses + totalMonthSubscriptions + totalMonthDebtMinimumPayments + monthTotalAdditionalDebtPayments + monthTotalVariableExpenses + monthTotalGoalContributions);
+      // Calculate sinking fund contributions for this month
+      const forecastSinkingFundContributions: MonthlyForecastSinkingFundContribution[] = sinkingFunds
+        .filter(fund => fund.isActive && fund.monthlyContribution > 0)
+        .map(fund => ({
+          id: fund.id,
+          name: fund.name,
+          monthSpecificContribution: parseFloat(fund.monthlyContribution.toFixed(2)),
+        }));
+
+      const monthTotalSinkingFundContributions = forecastSinkingFundContributions.reduce((sum, sfc) => sum + sfc.monthSpecificContribution, 0);
+
+      const remainingToBudget = totalMonthIncome - (totalMonthFixedExpenses + totalMonthSubscriptions + totalMonthDebtMinimumPayments + monthTotalAdditionalDebtPayments + monthTotalVariableExpenses + monthTotalGoalContributions + monthTotalSinkingFundContributions);
 
       newForecastData.push({
         month: monthDate,
@@ -927,6 +933,8 @@ export function BudgetManager() {
         totalVariableExpenses: monthTotalVariableExpenses,
         goalContributions: forecastGoalContributions,
         totalGoalContributions: monthTotalGoalContributions,
+        sinkingFundContributions: forecastSinkingFundContributions,
+        totalSinkingFundContributions: monthTotalSinkingFundContributions,
         remainingToBudget: remainingToBudget,
         isBalanced: Math.abs(remainingToBudget) < 0.01, // Check if close to zero
       });
@@ -972,6 +980,14 @@ export function BudgetManager() {
                 : gc;
             });
             
+            // Apply overrides to sinking fund contributions
+            const updatedSinkingFundContributions = monthData.sinkingFundContributions.map(sfc => {
+              const override = overrides[sfc.id];
+              return override !== undefined 
+                ? { ...sfc, monthSpecificContribution: override }
+                : sfc;
+            });
+            
             // Apply overrides to debt additional payments
             const updatedDebtPayments = monthData.debtPaymentItems.map(dp => {
               const override = overrides[dp.id];
@@ -987,6 +1003,9 @@ export function BudgetManager() {
             const newTotalGoalContributions = updatedGoalContributions.reduce(
               (sum, gc) => sum + gc.monthSpecificContribution, 0
             );
+            const newTotalSinkingFundContributions = updatedSinkingFundContributions.reduce(
+              (sum, sfc) => sum + sfc.monthSpecificContribution, 0
+            );
             const newTotalAdditionalDebtPayments = updatedDebtPayments.reduce(
               (sum, dp) => sum + (dp.additionalPayment || 0), 0
             );
@@ -997,7 +1016,8 @@ export function BudgetManager() {
               monthData.totalDebtMinimumPayments +
               newTotalAdditionalDebtPayments +
               newTotalVariableExpenses +
-              newTotalGoalContributions
+              newTotalGoalContributions +
+              newTotalSinkingFundContributions
             );
             
             // Update the month data
@@ -1007,6 +1027,8 @@ export function BudgetManager() {
               totalVariableExpenses: newTotalVariableExpenses,
               goalContributions: updatedGoalContributions,
               totalGoalContributions: newTotalGoalContributions,
+              sinkingFundContributions: updatedSinkingFundContributions,
+              totalSinkingFundContributions: newTotalSinkingFundContributions,
               debtPaymentItems: updatedDebtPayments,
               remainingToBudget: newRemainingToBudget,
               isBalanced: Math.abs(newRemainingToBudget) < 0.01
@@ -1025,7 +1047,7 @@ export function BudgetManager() {
     };
     
     loadOverridesAndSetForecast();
-  }, [recurringItems, debtAccounts, variableExpenses, goals, goalsWithContributions, selectedForecastYear, user?.id]);
+  }, [recurringItems, debtAccounts, variableExpenses, goals, goalsWithContributions, sinkingFunds, selectedForecastYear, user?.id]);
 
   const totalBudgetedVariable = useMemo(() => {
     return variableExpenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -1035,51 +1057,13 @@ export function BudgetManager() {
     if (!user?.id) return;
 
     try {
-      // First try to add to the new variable_expenses table
-      try {
-        const { data, error } = await supabase
-          .from('variable_expenses')
-          .insert({
-            name: expenseData.name,
-            category: expenseData.category,
-            amount: expenseData.amount,
-            user_id: user.id,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        const newExpense: VariableExpense = {
-          id: data.id,
-          name: data.name,
-          category: data.category as any,
-          amount: data.amount,
-          userId: data.user_id,
-          createdAt: new Date(data.created_at || Date.now()),
-          updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
-        };
-
-        setVariableExpenses(prev => [...prev, newExpense]);
-        setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
-
-        toast({
-          title: "Variable Expense Added",
-          description: `Variable expense "${expenseData.name}" has been added.`,
-        });
-        setIsAddCategoryDialogOpen(false);
-        return;
-      } catch (newTableError) {
-        console.warn('New variable_expenses table not available, trying budget_categories:', newTableError);
-      }
-
-      // Fallback to budget_categories table
+      // Add to the variable_expenses table
       const { data, error } = await supabase
-        .from('budget_categories')
+        .from('variable_expenses')
         .insert({
           name: expenseData.name,
           category: expenseData.category,
-          budgeted_amount: expenseData.amount,
+          amount: expenseData.amount,
           user_id: user.id,
         })
         .select()
@@ -1091,7 +1075,7 @@ export function BudgetManager() {
         id: data.id,
         name: data.name,
         category: data.category as any,
-        amount: data.budgeted_amount,
+        amount: data.amount,
         userId: data.user_id,
         createdAt: new Date(data.created_at || Date.now()),
         updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
@@ -1119,48 +1103,13 @@ export function BudgetManager() {
     if (!user?.id) return;
 
     try {
-      // Try to update in the new variable_expenses table
-      try {
-        const { error } = await supabase
-          .from('variable_expenses')
-          .update({
-            name: expenseData.name,
-            category: expenseData.category,
-            amount: expenseData.amount,
-          })
-          .eq('id', expenseId)
-          .eq('user_id', user.id);
-
-        if (error) throw error;
-
-        // Update local state
-        setVariableExpenses(prev => prev.map(expense => 
-          expense.id === expenseId ? { 
-            ...expense, 
-            name: expenseData.name,
-            category: expenseData.category,
-            amount: expenseData.amount,
-            updatedAt: new Date()
-          } : expense
-        ));
-        setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
-
-        toast({
-          title: "Variable Expense Updated",
-          description: `Variable expense "${expenseData.name}" has been updated.`,
-        });
-        return;
-      } catch (newTableError) {
-        console.warn('New variable_expenses table not available, trying budget_categories:', newTableError);
-      }
-
-      // Fallback to budget_categories table
+      // Update in the variable_expenses table
       const { error } = await supabase
-        .from('budget_categories')
+        .from('variable_expenses')
         .update({
           name: expenseData.name,
           category: expenseData.category,
-          budgeted_amount: expenseData.amount,
+          amount: expenseData.amount,
         })
         .eq('id', expenseId)
         .eq('user_id', user.id);
@@ -1197,39 +1146,16 @@ export function BudgetManager() {
     if (!user?.id) return;
 
     try {
-      // Try to delete from the new variable_expenses table first
-      try {
-        const { error } = await supabase
-          .from('variable_expenses')
-          .delete()
-          .eq('id', expenseId)
-          .eq('user_id', user.id);
-
-        if (error) throw error;
-
-        // Successfully deleted from variable_expenses table
-        setVariableExpenses(prev => prev.filter(expense => expense.id !== expenseId));
-        setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
-
-        toast({
-          title: "Variable Expense Deleted",
-          description: "Variable expense has been deleted successfully.",
-        });
-        return;
-      } catch (newTableError) {
-        console.warn('New variable_expenses table not available, trying budget_categories:', newTableError);
-      }
-
-      // Fallback to budget_categories table
+      // Delete from the variable_expenses table
       const { error } = await supabase
-        .from('budget_categories')
+        .from('variable_expenses')
         .delete()
         .eq('id', expenseId)
         .eq('user_id', user.id);
 
       if (error) throw error;
 
-      // Successfully deleted from budget_categories table
+      // Successfully deleted from variable_expenses table
       setVariableExpenses(prev => prev.filter(expense => expense.id !== expenseId));
       setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
 
@@ -1248,66 +1174,128 @@ export function BudgetManager() {
   };
 
   const handleUpdateVariableExpenseAmount = async (expenseId: string, newAmount: number) => {
-    // Update the variable expense amount in the main state
-    setVariableExpenses(prev => prev.map(expense => 
-      expense.id === expenseId ? { ...expense, amount: newAmount } : expense
-    ));
-    setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
-    
-    // Also update this expense in all months of the forecast data
-    // This ensures changes in the current month view propagate to the forecast
-    setForecastData(prevForecast => {
-      if (prevForecast.length === 0) return prevForecast;
-      
-      return prevForecast.map(month => {
-        // Find and update the specific variable expense
-        const updatedVariableExpenses = month.variableExpenses.map(ve =>
-          ve.id === expenseId ? { ...ve, monthSpecificAmount: newAmount } : ve
-        );
-        
-        // Recalculate the total variable expenses
-        const newTotalVariableExpenses = updatedVariableExpenses.reduce(
-          (sum, ve) => sum + ve.monthSpecificAmount, 0
-        );
-        
-        // Recalculate remaining to budget
-        const newRemainingToBudget = month.totalIncome - (
-          month.totalFixedExpenses +
-          month.totalSubscriptions +
-          month.totalDebtMinimumPayments +
-          month.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0) +
-          newTotalVariableExpenses +
-          month.totalGoalContributions
-        );
-        
-        // Return the updated month data
-        return {
-          ...month,
-          variableExpenses: updatedVariableExpenses,
-          totalVariableExpenses: newTotalVariableExpenses,
-          remainingToBudget: newRemainingToBudget,
-          isBalanced: Math.abs(newRemainingToBudget) < 0.01
-        };
-      });
-    });
+    // Store the pending update and show the scope selection dialog
+    setPendingAmountUpdate({ expenseId, newAmount });
+    setShowUpdateScopeDialog(true);
+  };
 
-    // Save override for the selected month to persist the change
-    if (user?.id) {
-      try {
-        const result = await saveForecastOverride(
-          user.id,
-          expenseId,
-          format(selectedMonth, 'yyyy-MM'),
-          newAmount,
-          'variable-expense'
-        );
+  const handleUpdateAllMonths = async () => {
+    if (!user?.id || !pendingAmountUpdate) return;
 
-        if (!result.success) {
-          console.error('Failed to save forecast override:', result.error);
-        }
-      } catch (error) {
-        console.error('Error saving forecast override:', error);
+    const { expenseId, newAmount } = pendingAmountUpdate;
+
+    try {
+      // Update the base variable expense amount in the database
+      const { error } = await supabase
+        .from('variable_expenses')
+        .update({ amount: newAmount })
+        .eq('id', expenseId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        throw error;
       }
+
+      // Update the variable expense amount in the main state
+      setVariableExpenses(prev => prev.map(expense => 
+        expense.id === expenseId ? { ...expense, amount: newAmount } : expense
+      ));
+      setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
+
+      // This will cause the forecast to regenerate with the new base amounts
+      // The useEffect that generates forecast data will run again because variableExpenses changed
+      // Existing month-specific overrides will be preserved and applied on top of the new base amounts
+
+      toast({
+        title: "Variable Expense Updated",
+        description: `Base amount updated for all months. Month-specific adjustments are preserved.`,
+      });
+
+    } catch (error) {
+      console.error('Error updating variable expense:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update variable expense amount: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    } finally {
+      setShowUpdateScopeDialog(false);
+      setPendingAmountUpdate(null);
+    }
+  };
+
+  const handleOverrideCurrentMonthOnly = async () => {
+    if (!user?.id || !pendingAmountUpdate) return;
+
+    const { expenseId, newAmount } = pendingAmountUpdate;
+
+    try {
+      // Save as month-specific override for the selected month
+      const result = await saveForecastOverride(
+        user.id,
+        expenseId,
+        format(selectedMonth, 'yyyy-MM'),
+        newAmount,
+        'variable-expense'
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save override');
+      }
+
+      // Update forecast data immediately for responsive UI
+      setForecastData(prev => {
+        if (prev.length === 0) return prev;
+        
+        const selectedMonthStr = format(selectedMonth, 'yyyy-MM');
+        return prev.map(monthData => {
+          if (format(monthData.month, 'yyyy-MM') !== selectedMonthStr) return monthData;
+          
+          // Update the variable expenses for this month
+          const updatedVariableExpenses = monthData.variableExpenses.map(expense =>
+            expense.id === expenseId ? { ...expense, monthSpecificAmount: newAmount } : expense
+          );
+          
+          // Recalculate totals
+          const newTotalVariableExpenses = updatedVariableExpenses.reduce(
+            (sum, ve) => sum + ve.monthSpecificAmount, 0
+          );
+          
+          const newRemainingToBudget = monthData.totalIncome - (
+            monthData.totalFixedExpenses +
+            monthData.totalSubscriptions +
+            monthData.totalDebtMinimumPayments +
+            monthData.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0) +
+            newTotalVariableExpenses +
+            monthData.totalGoalContributions +
+            monthData.totalSinkingFundContributions
+          );
+          
+          return {
+            ...monthData,
+            variableExpenses: updatedVariableExpenses,
+            totalVariableExpenses: newTotalVariableExpenses,
+            remainingToBudget: newRemainingToBudget,
+            isBalanced: Math.abs(newRemainingToBudget) < 0.01
+          };
+        });
+      });
+
+      toast({
+        title: "Variable Expense Override",
+        description: `Amount overridden for ${format(selectedMonth, 'MMMM yyyy')} only.`,
+      });
+
+    } catch (error) {
+      console.error('Error saving variable expense override:', error);
+      toast({
+        title: "Error",
+        description: `Failed to save override: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    } finally {
+      setShowUpdateScopeDialog(false);
+      setPendingAmountUpdate(null);
     }
   };
 
@@ -1342,6 +1330,7 @@ export function BudgetManager() {
         totalSubscriptions: currentMonthSummary.totalSubscriptions,
         totalDebtMinimumPayments: currentMonthSummary.totalDebtPayments,
         totalGoalContributions: currentMonthSummary.totalGoalContributions,
+        totalSinkingFundsContributions: currentMonthSummary.totalSinkingFundsContributions,
         totalVariableExpenses: totalBudgetedVariable,
       };
     }
@@ -1376,6 +1365,7 @@ export function BudgetManager() {
         // Recalculate totals and remaining for the specific month
         currentMonth.totalVariableExpenses = currentMonth.variableExpenses.reduce((sum, ve) => sum + ve.monthSpecificAmount, 0);
         currentMonth.totalGoalContributions = currentMonth.goalContributions.reduce((sum, gc) => sum + gc.monthSpecificContribution, 0);
+        currentMonth.totalSinkingFundContributions = currentMonth.sinkingFundContributions.reduce((sum, sfc) => sum + sfc.monthSpecificContribution, 0);
         const totalAdditionalDebtPayments = currentMonth.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0);
 
         currentMonth.remainingToBudget = currentMonth.totalIncome - (
@@ -1384,7 +1374,8 @@ export function BudgetManager() {
             currentMonth.totalDebtMinimumPayments +
             totalAdditionalDebtPayments +
             currentMonth.totalVariableExpenses +
-            currentMonth.totalGoalContributions
+            currentMonth.totalGoalContributions +
+            currentMonth.totalSinkingFundContributions
         );
         currentMonth.isBalanced = Math.abs(currentMonth.remainingToBudget) < 0.01;
 
@@ -1423,7 +1414,8 @@ export function BudgetManager() {
             monthData.totalDebtMinimumPayments +
             monthData.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0) +
             newTotalVariableExpenses +
-            monthData.totalGoalContributions
+            monthData.totalGoalContributions +
+            monthData.totalSinkingFundContributions
           );
           
           return {
@@ -1487,7 +1479,8 @@ export function BudgetManager() {
             monthData.totalDebtMinimumPayments +
             monthData.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0) +
             monthData.totalVariableExpenses +
-            newTotalGoalContributions
+            newTotalGoalContributions +
+            monthData.totalSinkingFundContributions
           );
           
           return {
@@ -1517,6 +1510,70 @@ export function BudgetManager() {
       }
     } catch (error) {
       console.error('Error updating forecast goal contribution:', error);
+    }
+  };
+
+  const handleUpdateForecastSinkingFundContribution = async (monthIndex: number, sinkingFundId: string, newAmount: number) => {
+    if (!user?.id) {
+      console.error('User not authenticated');
+      return;
+    }
+
+    try {
+      // Update local state immediately
+      setForecastData(prev => {
+        if (!prev || prev.length === 0 || monthIndex >= prev.length) return prev;
+        
+        return prev.map((monthData, index) => {
+          if (index !== monthIndex) return monthData;
+          
+          // Update the sinking fund contribution for this month
+          const updatedSinkingFundContributions = monthData.sinkingFundContributions.map(fund =>
+            fund.id === sinkingFundId ? { ...fund, monthSpecificContribution: newAmount } : fund
+          );
+          
+          // Recalculate totals
+          const newTotalSinkingFundContributions = updatedSinkingFundContributions.reduce(
+            (sum, sfc) => sum + sfc.monthSpecificContribution, 0
+          );
+          
+          const newRemainingToBudget = monthData.totalIncome - (
+            monthData.totalFixedExpenses +
+            monthData.totalSubscriptions +
+            monthData.totalDebtMinimumPayments +
+            monthData.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0) +
+            monthData.totalVariableExpenses +
+            monthData.totalGoalContributions +
+            newTotalSinkingFundContributions
+          );
+          
+          return {
+            ...monthData,
+            sinkingFundContributions: updatedSinkingFundContributions,
+            totalSinkingFundContributions: newTotalSinkingFundContributions,
+            remainingToBudget: newRemainingToBudget,
+            isBalanced: Math.abs(newRemainingToBudget) < 0.01
+          };
+        });
+      });
+
+      // Save override to database/localStorage
+      const monthToUpdate = forecastData[monthIndex];
+      if (monthToUpdate) {
+        const result = await saveForecastOverride(
+          user.id,
+          sinkingFundId,
+          format(monthToUpdate.month, 'yyyy-MM'),
+          newAmount,
+          'sinking-fund-contribution'
+        );
+
+        if (!result.success) {
+          console.error('Failed to save forecast override:', result.error);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating forecast sinking fund contribution:', error);
     }
   };
 
@@ -1550,7 +1607,8 @@ export function BudgetManager() {
             monthData.totalDebtMinimumPayments +
             newTotalAdditionalDebtPayments +
             monthData.totalVariableExpenses +
-            monthData.totalGoalContributions
+            monthData.totalGoalContributions +
+            monthData.totalSinkingFundContributions
           );
           
           return {
@@ -1654,69 +1712,122 @@ export function BudgetManager() {
               </div>
             </div>
           </div>
-          <BudgetAIInsights
-            userId={user?.id || ''}
-            year={getYear(selectedMonth)}
-            month={getMonth(selectedMonth) + 1} // getMonth returns 0-indexed, API expects 1-indexed
-            className="mb-6"
-            refreshTrigger={aiInsightsRefreshTrigger}
-          />
-          <BudgetSummary
-            totalIncome={getSelectedMonthData().totalIncome}
-            totalActualFixedExpenses={getSelectedMonthData().totalFixedExpenses}
-            totalSubscriptions={getSelectedMonthData().totalSubscriptions}
-            totalDebtPayments={(() => {
-              const selectedData = getSelectedMonthData();
-              const minimumPayments = selectedData.totalDebtMinimumPayments || 0;
-              // Add additional payments if available in forecast data
-              if ('debtPaymentItems' in selectedData && selectedData.debtPaymentItems) {
-                const additionalPayments = selectedData.debtPaymentItems.reduce(
-                  (sum, debt) => sum + (debt.additionalPayment || 0), 0
-                );
-                return minimumPayments + additionalPayments;
-              }
-              return minimumPayments;
-            })()}
-            totalGoalContributions={(() => {
-              const selectedData = getSelectedMonthData();
-              const baseContributions = selectedData.totalGoalContributions || 0;
-              // Add additional contributions if available in forecast data
-              if ('goalContributions' in selectedData && selectedData.goalContributions) {
-                const totalContributions = selectedData.goalContributions.reduce(
-                  (sum, goal) => sum + goal.monthSpecificContribution, 0
-                );
-                return totalContributions;
-              }
-              return baseContributions;
-            })()}
-            totalBudgetedVariable={getSelectedMonthData().totalVariableExpenses}
-            totalSpentVariable={variableExpenseSpending.totalSpent}
-            remainingVariable={variableExpenseSpending.remaining}
-            onAddCategoryClick={() => setIsAddCategoryDialogOpen(true)}
-          />
+          {aiInsightsRefreshTrigger > 0 && getSelectedMonthData().totalIncome > 0 && (
+            <BudgetAIInsights
+              userId={user?.id || ''}
+              year={getYear(selectedMonth)}
+              month={getMonth(selectedMonth) + 1} // getMonth returns 0-indexed, API expects 1-indexed
+              className="mb-6"
+              refreshTrigger={aiInsightsRefreshTrigger}
+              budgetData={{
+                totalIncome: getSelectedMonthData().totalIncome,
+                totalFixedExpenses: getSelectedMonthData().totalFixedExpenses,
+                totalSubscriptions: getSelectedMonthData().totalSubscriptions,
+                totalDebtPayments: (() => {
+                  const selectedData = getSelectedMonthData();
+                  const minimumPayments = selectedData.totalDebtMinimumPayments || 0;
+                  if ('debtPaymentItems' in selectedData && selectedData.debtPaymentItems) {
+                    const additionalPayments = selectedData.debtPaymentItems.reduce(
+                      (sum, debt) => sum + (debt.additionalPayment || 0), 0
+                    );
+                    return minimumPayments + additionalPayments;
+                  }
+                  return minimumPayments;
+                })(),
+                totalGoalContributions: (() => {
+                  const selectedData = getSelectedMonthData();
+                  const baseContributions = selectedData.totalGoalContributions || 0;
+                  if ('goalContributions' in selectedData && selectedData.goalContributions) {
+                    const totalContributions = selectedData.goalContributions.reduce(
+                      (sum, goal) => sum + goal.monthSpecificContribution, 0
+                    );
+                    return totalContributions;
+                  }
+                  return baseContributions;
+                })(),
+                totalSinkingFundsContributions: (() => {
+                  const selectedData = getSelectedMonthData();
+                  if ('totalSinkingFundsContributions' in selectedData) {
+                    return selectedData.totalSinkingFundsContributions;
+                  }
+                  return currentMonthSummary.totalSinkingFundsContributions;
+                })(),
+                totalBudgetedVariable: getSelectedMonthData().totalVariableExpenses,
+                leftToAllocate: (() => {
+                  const selectedData = getSelectedMonthData();
+                  const totalIncome = selectedData.totalIncome;
+                  const totalFixedExpenses = selectedData.totalFixedExpenses;
+                  const totalSubscriptions = selectedData.totalSubscriptions;
+                  const minimumPayments = selectedData.totalDebtMinimumPayments || 0;
+                  const additionalDebtPayments = ('debtPaymentItems' in selectedData && selectedData.debtPaymentItems) ? 
+                    selectedData.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0) : 0;
+                  const totalDebtPayments = minimumPayments + additionalDebtPayments;
+                  const baseGoalContributions = selectedData.totalGoalContributions || 0;
+                  const totalGoalContributions = ('goalContributions' in selectedData && selectedData.goalContributions) ?
+                    selectedData.goalContributions.reduce((sum, goal) => sum + goal.monthSpecificContribution, 0) : baseGoalContributions;
+                  const totalSinkingFunds = ('totalSinkingFundsContributions' in selectedData) ?
+                    selectedData.totalSinkingFundsContributions : currentMonthSummary.totalSinkingFundsContributions;
+                  const totalVariableExpenses = selectedData.totalVariableExpenses;
+                  
+                  // Use the exact same calculation as Budget Summary
+                  const totalFixedOutflows = totalFixedExpenses + totalSubscriptions + totalDebtPayments + totalGoalContributions + totalSinkingFunds;
+                  return totalIncome - totalFixedOutflows - totalVariableExpenses;
+                })()
+              }}
+            />
+          )}
+          {aiInsightsRefreshTrigger > 0 && getSelectedMonthData().totalIncome > 0 ? (
+            <BudgetSummary
+              totalIncome={getSelectedMonthData().totalIncome}
+              totalActualFixedExpenses={getSelectedMonthData().totalFixedExpenses}
+              totalSubscriptions={getSelectedMonthData().totalSubscriptions}
+              totalDebtPayments={(() => {
+                const selectedData = getSelectedMonthData();
+                const minimumPayments = selectedData.totalDebtMinimumPayments || 0;
+                // Add additional payments if available in forecast data
+                if ('debtPaymentItems' in selectedData && selectedData.debtPaymentItems) {
+                  const additionalPayments = selectedData.debtPaymentItems.reduce(
+                    (sum, debt) => sum + (debt.additionalPayment || 0), 0
+                  );
+                  return minimumPayments + additionalPayments;
+                }
+                return minimumPayments;
+              })()}
+              totalGoalContributions={(() => {
+                const selectedData = getSelectedMonthData();
+                const baseContributions = selectedData.totalGoalContributions || 0;
+                // Add additional contributions if available in forecast data
+                if ('goalContributions' in selectedData && selectedData.goalContributions) {
+                  const totalContributions = selectedData.goalContributions.reduce(
+                    (sum, goal) => sum + goal.monthSpecificContribution, 0
+                  );
+                  return totalContributions;
+                }
+                return baseContributions;
+              })()}
+              totalSinkingFundsContributions={(() => {
+                const selectedData = getSelectedMonthData();
+                // Use sinking funds data from currentMonthSummary for current month
+                if ('totalSinkingFundsContributions' in selectedData) {
+                  return selectedData.totalSinkingFundsContributions;
+                }
+                return currentMonthSummary.totalSinkingFundsContributions;
+              })()}
+              totalBudgetedVariable={getSelectedMonthData().totalVariableExpenses}
+              totalSpentVariable={variableExpenseSpending.totalSpent}
+              remainingVariable={variableExpenseSpending.remaining}
+              onAddCategoryClick={() => setIsAddCategoryDialogOpen(true)}
+            />
+          ) : (
+            <div className="flex justify-center items-center h-32">
+              <div className="text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
+                <p className="text-sm text-muted-foreground">Calculating budget...</p>
+              </div>
+            </div>
+          )}
           <VariableExpenseList
-            expenses={(() => {
-              const selectedMonthData = getSelectedMonthData();
-              // If we have forecast data for the selected month, use the variable expenses from there
-              // This ensures the list shows the overridden amounts
-              if (selectedMonthData && 'variableExpenses' in selectedMonthData && selectedMonthData.variableExpenses) {
-                return selectedMonthData.variableExpenses.map(ve => {
-                  // Find the original expense to get the correct category
-                  const originalExpense = variableExpenses.find(orig => orig.id === ve.id);
-                  return {
-                    id: ve.id,
-                    name: ve.name,
-                    category: originalExpense?.category || 'personal' as const, // Use original category or fallback
-                    amount: ve.monthSpecificAmount,
-                    userId: user?.id || '',
-                    createdAt: originalExpense?.createdAt || new Date(),
-                    updatedAt: originalExpense?.updatedAt
-                  };
-                });
-              }
-              // Fallback to original variable expenses if no forecast data
-              return variableExpenses;
-            })()}
+            expenses={variableExpenses} // Always use base variable expenses in current month view
             transactions={transactions}
             onUpdateExpenseAmount={handleUpdateVariableExpenseAmount}
             onDeleteExpense={handleDeleteVariableExpense}
@@ -1730,6 +1841,7 @@ export function BudgetManager() {
                 onYearChange={handleForecastYearChange}
                 onUpdateVariableAmount={(monthIndex, expenseId, newAmount) => handleUpdateForecastVariableAmount(monthIndex, expenseId, newAmount)}
                 onUpdateGoalContribution={(monthIndex, goalId, newAmount) => handleUpdateForecastGoalContribution(monthIndex, goalId, newAmount)}
+                onUpdateSinkingFundContribution={(monthIndex, sinkingFundId, newAmount) => handleUpdateForecastSinkingFundContribution(monthIndex, sinkingFundId, newAmount)}
                 onUpdateDebtAdditionalPayment={(monthIndex, debtId, newAmount) => handleUpdateForecastDebtAdditionalPayment(monthIndex, debtId, newAmount)}
             />
         </TabsContent>
@@ -1758,6 +1870,38 @@ export function BudgetManager() {
       >
         <div />
       </AddEditVariableExpenseDialog>
+
+      {/* Variable Expense Update Scope Dialog */}
+      <AlertDialog open={showUpdateScopeDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowUpdateScopeDialog(false);
+          setPendingAmountUpdate(null);
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Update Variable Expense Amount</AlertDialogTitle>
+            <AlertDialogDescription>
+              How would you like to apply this change?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogAction 
+              onClick={handleUpdateAllMonths}
+              className="bg-primary hover:bg-primary/90"
+            >
+              Update All Months
+            </AlertDialogAction>
+            <Button 
+              onClick={handleOverrideCurrentMonthOnly}
+              variant="outline"
+            >
+              Override Current Month Only
+            </Button>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

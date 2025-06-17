@@ -41,9 +41,19 @@ interface BudgetAIInsightsProps {
   month: number;
   className?: string;
   refreshTrigger?: number;
+  budgetData?: {
+    totalIncome: number;
+    totalFixedExpenses: number;
+    totalSubscriptions: number;
+    totalDebtPayments: number;
+    totalGoalContributions: number;
+    totalSinkingFundsContributions: number;
+    totalBudgetedVariable: number;
+    leftToAllocate: number;
+  };
 }
 
-export function BudgetAIInsights({ userId, year, month, className, refreshTrigger }: BudgetAIInsightsProps) {
+export function BudgetAIInsights({ userId, year, month, className, refreshTrigger, budgetData }: BudgetAIInsightsProps) {
   const [insights, setInsights] = useState<BudgetInsightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +63,11 @@ export function BudgetAIInsights({ userId, year, month, className, refreshTrigge
     
     setLoading(true);
     setError(null);
+    
+    console.log('=== AI INSIGHTS FETCH DEBUG ===');
+    console.log('Fetching insights for:', { userId, year, month });
+    console.log('Budget data being sent:', budgetData);
+    console.log('=== END AI INSIGHTS FETCH DEBUG ===');
     
     try {
       const response = await fetch('/api/ai/budget-insights', {
@@ -64,6 +79,7 @@ export function BudgetAIInsights({ userId, year, month, className, refreshTrigge
           userId,
           year,
           month,
+          budgetData,
         }),
       });
       
@@ -72,6 +88,9 @@ export function BudgetAIInsights({ userId, year, month, className, refreshTrigge
       }
 
       const data = await response.json();
+      console.log('=== AI INSIGHTS API RESPONSE ===');
+      console.log('Response data:', data);
+      console.log('=== END AI INSIGHTS API RESPONSE ===');
       setInsights(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load insights');

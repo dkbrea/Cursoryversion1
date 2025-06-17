@@ -12,6 +12,7 @@ interface BudgetSummaryProps {
   totalSubscriptions: number;
   totalDebtPayments: number;
   totalGoalContributions: number;
+  totalSinkingFundsContributions: number;
   totalBudgetedVariable: number;
   totalSpentVariable?: number;
   remainingVariable?: number;
@@ -24,13 +25,14 @@ export function BudgetSummary({
   totalSubscriptions,
   totalDebtPayments,
   totalGoalContributions,
+  totalSinkingFundsContributions,
   totalBudgetedVariable,
   totalSpentVariable = 0,
   remainingVariable,
   onAddCategoryClick
 }: BudgetSummaryProps) {
 
-  const totalFixedOutflows = totalActualFixedExpenses + totalSubscriptions + totalDebtPayments + totalGoalContributions;
+  const totalFixedOutflows = totalActualFixedExpenses + totalSubscriptions + totalDebtPayments + totalGoalContributions + totalSinkingFundsContributions;
   const leftToAllocate = totalIncome - totalFixedOutflows - totalBudgetedVariable;
   const totalAllocated = totalBudgetedVariable + totalFixedOutflows;
   
@@ -51,6 +53,7 @@ export function BudgetSummary({
     { label: "Variable Expenses", amount: totalBudgetedVariable, color: "text-blue-600" },
     { label: "Debt Payments", amount: totalDebtPayments, color: "text-red-600" },
     { label: "Goal Contributions", amount: totalGoalContributions, color: "text-sky-600" },
+    ...(totalSinkingFundsContributions > 0 ? [{ label: "Sinking Funds", amount: totalSinkingFundsContributions, color: "text-teal-600" }] : []),
   ];
 
   return (

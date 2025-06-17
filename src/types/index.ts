@@ -305,6 +305,12 @@ export interface MonthlyForecastGoalContribution {
   monthSpecificContribution: number; 
 }
 
+export interface MonthlyForecastSinkingFundContribution {
+  id: string; 
+  name: string;
+  monthSpecificContribution: number; 
+}
+
 export interface MonthlyForecast {
   month: Date; 
   monthLabel: string; 
@@ -324,6 +330,9 @@ export interface MonthlyForecast {
   
   goalContributions: MonthlyForecastGoalContribution[];
   totalGoalContributions: number; 
+
+  sinkingFundContributions: MonthlyForecastSinkingFundContribution[];
+  totalSinkingFundContributions: number;
 
   remainingToBudget: number;
   isBalanced: boolean;
@@ -466,7 +475,7 @@ export interface UserPreferences {
 }
 
 // Forecast Override Types
-export type ForecastOverrideType = 'variable-expense' | 'goal-contribution' | 'debt-additional-payment';
+export type ForecastOverrideType = 'variable-expense' | 'goal-contribution' | 'debt-additional-payment' | 'sinking-fund-contribution';
 
 export interface ForecastOverride {
   id: string;

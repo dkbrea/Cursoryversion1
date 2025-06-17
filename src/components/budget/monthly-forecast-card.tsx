@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import type { MonthlyForecast, MonthlyForecastDebtPaymentItem, MonthlyForecastGoalContribution, MonthlyForecastVariableExpense, MonthlyForecastIncomeItem, MonthlyForecastFixedExpenseItem, MonthlyForecastSubscriptionItem } from "@/types";
+import type { MonthlyForecast, MonthlyForecastDebtPaymentItem, MonthlyForecastGoalContribution, MonthlyForecastSinkingFundContribution, MonthlyForecastVariableExpense, MonthlyForecastIncomeItem, MonthlyForecastFixedExpenseItem, MonthlyForecastSubscriptionItem } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ interface MonthlyForecastCardProps {
   monthIndex: number;
   onUpdateVariableAmount: (monthIndex: number, variableExpenseId: string, newAmount: number) => void;
   onUpdateGoalContribution: (monthIndex: number, goalId: string, newAmount: number) => void;
+  onUpdateSinkingFundContribution: (monthIndex: number, sinkingFundId: string, newAmount: number) => void;
   onUpdateDebtAdditionalPayment: (monthIndex: number, debtId: string, newAdditionalAmount: number) => void;
 }
 
@@ -30,7 +31,7 @@ interface ForecastItemDisplayProps {
     emptyMessage?: string;
     itemClassName?: string;
     monthIndex: number;
-    editableSection?: 'variable' | 'goal';
+    editableSection?: 'variable' | 'goal' | 'sinking-fund';
     onUpdateAmount?: (monthIndex: number, itemId: string, newAmount: number) => void;
 }
 
@@ -47,6 +48,8 @@ const ForecastItemsSection: React.FC<ForecastItemDisplayProps> = ({
             if (editableSection === 'variable' && item.monthSpecificAmount !== undefined) {
                 initialValues[item.id] = item.monthSpecificAmount.toString();
             } else if (editableSection === 'goal' && item.monthSpecificContribution !== undefined) {
+                initialValues[item.id] = item.monthSpecificContribution.toString();
+            } else if (editableSection === 'sinking-fund' && item.monthSpecificContribution !== undefined) {
                 initialValues[item.id] = item.monthSpecificContribution.toString();
             }
         });
@@ -69,6 +72,7 @@ const ForecastItemsSection: React.FC<ForecastItemDisplayProps> = ({
         if (originalItem) {
              if (editableSection === 'variable') originalNumericValue = originalItem.monthSpecificAmount;
              else if (editableSection === 'goal') originalNumericValue = originalItem.monthSpecificContribution;
+             else if (editableSection === 'sinking-fund') originalNumericValue = originalItem.monthSpecificContribution;
         }
 
         if (!isNaN(numericValue) && numericValue >= 0) {
@@ -117,7 +121,7 @@ const ForecastItemsSection: React.FC<ForecastItemDisplayProps> = ({
 
 export function MonthlyForecastCard({ 
     monthData, monthIndex, 
-    onUpdateVariableAmount, onUpdateGoalContribution, onUpdateDebtAdditionalPayment 
+    onUpdateVariableAmount, onUpdateGoalContribution, onUpdateSinkingFundContribution, onUpdateDebtAdditionalPayment 
 }: MonthlyForecastCardProps) {
 
   return (
@@ -236,6 +240,23 @@ export function MonthlyForecastCard({
             editableSection="goal"
             onUpdateAmount={onUpdateGoalContribution}
         />
+        
+        {monthData.sinkingFundContributions && monthData.sinkingFundContributions.length > 0 && (
+          <>
+            <Separator className="my-2" />
+            <ForecastItemsSection
+                items={monthData.sinkingFundContributions}
+                title="Sinking Funds"
+                icon={<Building className="h-5 w-5 mr-2 text-cyan-500"/>}
+                sectionTotal={monthData.totalSinkingFundContributions}
+                emptyMessage="No sinking funds being funded."
+                itemClassName="text-cyan-600"
+                monthIndex={monthIndex}
+                editableSection="sinking-fund"
+                onUpdateAmount={onUpdateSinkingFundContribution}
+            />
+          </>
+        )}
 
       </CardContent>
       <CardFooter className="flex flex-col items-start pt-4 border-t mt-auto bg-muted/30">

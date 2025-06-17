@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
 
-    const { userId, year, month } = body;
+    const { userId, year, month, budgetData } = body;
     
     if (!userId || !year || !month || month < 1 || month > 12) {
       console.error('Missing required parameters:', { userId, year, month });
@@ -38,6 +38,79 @@ export async function POST(request: NextRequest) {
 
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // If budget data is provided, use it directly instead of calculating
+    if (budgetData) {
+      console.log('=== USING PASSED BUDGET DATA ===');
+      console.log('Budget data received:', budgetData);
+      console.log('=== END PASSED BUDGET DATA ===');
+      
+      const budgetContext: BudgetContext = {
+        currentMonth: {
+          monthLabel: format(new Date(year, month - 1, 1), 'MMMM yyyy'),
+          totalIncome: budgetData.totalIncome,
+          totalFixedExpenses: budgetData.totalFixedExpenses,
+          totalSubscriptions: budgetData.totalSubscriptions,
+          totalDebtPayments: budgetData.totalDebtPayments,
+          totalGoalContributions: budgetData.totalGoalContributions,
+          totalSinkingFundsContributions: budgetData.totalSinkingFundsContributions,
+          totalBudgetedVariable: budgetData.totalBudgetedVariable,
+          totalSpentVariable: 0, // We'll calculate this from transactions
+          remainingVariable: budgetData.totalBudgetedVariable, // Will be updated after processing
+          leftToAllocate: budgetData.leftToAllocate,
+          isBalanced: Math.abs(budgetData.leftToAllocate) < 0.01,
+        },
+        variableExpenses: [],
+      };
+
+      // Still fetch variable expenses for detailed insights
+      const { data: variableExpenses } = await supabase
+        .from('variable_expenses')
+        .select('*')
+        .eq('user_id', userId);
+
+      const { data: currentTransactions } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date', new Date(year, month - 1, 1).toISOString())
+        .lte('date', new Date(year, month - 1, 31).toISOString());
+
+      const processedVariableExpenses = (variableExpenses || []).map((category: any) => {
+        const categoryTransactions = (currentTransactions || []).filter(
+          (t: any) => t.detailed_type === 'variable-expense' && t.source_id === category.id
+        );
+        
+        const spentAmount = categoryTransactions.reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0);
+        const budgetedAmount = category.amount || 0;
+        const remainingAmount = Math.max(0, budgetedAmount - spentAmount);
+        const utilizationPercentage = budgetedAmount > 0 ? (spentAmount / budgetedAmount) * 100 : 0;
+
+        return {
+          id: category.id,
+          name: category.name,
+          category: category.category,
+          budgetedAmount,
+          spentAmount,
+          remainingAmount,
+          utilizationPercentage,
+          status: spentAmount > budgetedAmount ? 'over-budget' : 'under-budget',
+          riskLevel: spentAmount > budgetedAmount ? 'high' : 'low',
+          transactionCount: categoryTransactions.length,
+          hasActivity: spentAmount > 0,
+        };
+      });
+
+      budgetContext.variableExpenses = processedVariableExpenses;
+
+      // Generate AI insights using the provided budget data
+      const insights = await generateBudgetInsights({ budgetContext });
+      return NextResponse.json(insights);
+    }
+    
+    console.log('=== API STARTING DEBUG ===');
+    console.log('API called with params:', { userId, year, month });
+    console.log('=== END API STARTING DEBUG ===');
 
     // Create date range for current month
     const currentDate = new Date(year, month - 1, 1); // month is 0-indexed in Date constructor
@@ -344,10 +417,10 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    // Apply overrides to goal contributions
+    // Apply overrides to goal contributions - USE EXACT FRONTEND LOGIC
     const adjustedGoalContributions = (goals || [])
       .reduce((sum: number, goal: any) => {
-        // Check if there's an override for this goal
+        // Check if there's an override for this goal first
         if (overrideMap[goal.id] !== undefined) {
           return sum + overrideMap[goal.id];
         }
@@ -355,13 +428,13 @@ export async function POST(request: NextRequest) {
         // Use the exact same calculation logic as the frontend
         const creationDate = startOfDay(new Date(goal.created_at));
         const targetDate = startOfDay(new Date(goal.target_date));
-        const today = startOfDay(new Date());
+        const selectedMonthDate = startOfDay(currentDate); // Use the selected month instead of today
         
         // Calculate total months in the goal's timeframe (from creation to target)
         const totalMonthsInGoal = Math.max(1, differenceInCalendarMonths(targetDate, creationDate));
         
-        // Calculate current months remaining
-        let monthsRemaining = Math.max(0, differenceInCalendarMonths(targetDate, today));
+        // Calculate months remaining from the selected month
+        let monthsRemaining = Math.max(0, differenceInCalendarMonths(targetDate, selectedMonthDate));
         
         // Calculate the original target amount (when the goal was created)
         const originalTargetAmount = goal.target_amount;
@@ -389,7 +462,7 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Only include if goal is active and has contribution
+        // CRITICAL: Only include if goal is active AND has months remaining (same as frontend)
         if (goal.current_amount < goal.target_amount && monthsRemaining > 0) {
           return sum + (monthlyContribution > 0 ? monthlyContribution : 0);
         }
@@ -403,6 +476,46 @@ export async function POST(request: NextRequest) {
         // Override represents additional payment amount, add it to the minimum
         const additionalPayment = overrideMap[debt.id];
         adjustedDebtPayments += additionalPayment;
+      }
+    });
+
+    // Calculate sinking funds contributions (same logic as frontend)
+    console.log('=== SINKING FUNDS QUERY DEBUG ===');
+    const sinkingFundsResult = await supabase
+      .from('sinking_funds')
+      .select('*')
+      .eq('user_id', userId);
+    
+    console.log('Sinking funds query result:', {
+      data: sinkingFundsResult.data,
+      error: sinkingFundsResult.error,
+      count: sinkingFundsResult.data?.length || 0
+    });
+
+    let calculatedSinkingFundsContributions = 0;
+    (sinkingFundsResult.data || []).forEach((fund: any) => {
+      console.log('Processing sinking fund:', {
+        id: fund.id,
+        name: fund.name,
+        is_active: fund.is_active,
+        monthly_contribution: fund.monthly_contribution
+      });
+      if (fund.is_active && fund.monthly_contribution > 0) {
+        calculatedSinkingFundsContributions += fund.monthly_contribution;
+      }
+    });
+    console.log('Total calculated sinking funds contributions:', calculatedSinkingFundsContributions);
+    console.log('=== END SINKING FUNDS QUERY DEBUG ===');
+    
+    const sinkingFunds = sinkingFundsResult.data;
+
+    // Apply overrides to sinking fund contributions (similar to goals)
+    let adjustedSinkingFundsContributions = calculatedSinkingFundsContributions;
+    (sinkingFunds || []).forEach((fund: any) => {
+      if (overrideMap[fund.id] !== undefined) {
+        // Find the original contribution and replace with override
+        const originalContribution = fund.is_active && fund.monthly_contribution > 0 ? fund.monthly_contribution : 0;
+        adjustedSinkingFundsContributions = adjustedSinkingFundsContributions - originalContribution + overrideMap[fund.id];
       }
     });
 
@@ -422,22 +535,30 @@ export async function POST(request: NextRequest) {
     const totalSpentVariable = processedVariableExpenses.reduce((sum: number, cat: any) => sum + cat.spentAmount, 0);
     const remainingVariable = totalBudgetedVariable - totalSpentVariable;
 
-    // Calculate "Left to Allocate" using adjusted values
-    const totalAllocated = totalFixedExpenses + totalSubscriptions + adjustedDebtPayments + adjustedGoalContributions + totalBudgetedVariable;
+    // Calculate "Left to Allocate" using adjusted values INCLUDING sinking funds
+    const totalAllocated = totalFixedExpenses + totalSubscriptions + adjustedDebtPayments + adjustedGoalContributions + adjustedSinkingFundsContributions + totalBudgetedVariable;
     const leftToAllocate = totalIncome - totalAllocated;
     const isBalanced = Math.abs(leftToAllocate) < 0.01;
 
-    console.log('=== FINAL CALCULATION DEBUG ===');
+    console.log('=== FINAL CALCULATION DEBUG (UPDATED) ===');
+    console.log('Request params:', { userId, year, month, monthKey });
     console.log('Total Income:', totalIncome);
     console.log('Fixed Expenses:', totalFixedExpenses);
     console.log('Subscriptions:', totalSubscriptions);
     console.log('Debt Payments (base):', calculatedDebtPayments);
     console.log('Debt Payments (adjusted):', adjustedDebtPayments);
     console.log('Goal Contributions (adjusted):', adjustedGoalContributions);
+    console.log('Sinking Funds (base):', calculatedSinkingFundsContributions);
+    console.log('Sinking Funds (adjusted):', adjustedSinkingFundsContributions);
     console.log('Variable Expenses (budgeted, adjusted):', totalBudgetedVariable);
-    console.log('Total Allocated:', totalAllocated);
-    console.log('Left to Allocate:', leftToAllocate);
-    console.log('Should be balanced?:', isBalanced);
+    console.log('CALCULATION CHECK:');
+    console.log('- Total Allocated WITHOUT sinking funds:', totalFixedExpenses + totalSubscriptions + adjustedDebtPayments + adjustedGoalContributions + totalBudgetedVariable);
+    console.log('- Total Allocated WITH sinking funds:', totalAllocated);
+    console.log('- Left to Allocate:', leftToAllocate);
+    console.log('- Should be balanced?:', isBalanced);
+    console.log('Budget Context being sent to AI:');
+    console.log('- currentMonth.leftToAllocate:', leftToAllocate);
+    console.log('- currentMonth.totalSinkingFundsContributions:', adjustedSinkingFundsContributions);
     console.log('=== END CALCULATION DEBUG ===');
 
     // Enhanced previous month comparison
@@ -489,6 +610,7 @@ export async function POST(request: NextRequest) {
         totalSubscriptions,
         totalDebtPayments: adjustedDebtPayments,
         totalGoalContributions: adjustedGoalContributions,
+        totalSinkingFundsContributions: adjustedSinkingFundsContributions,
         totalBudgetedVariable,
         totalSpentVariable,
         remainingVariable,
