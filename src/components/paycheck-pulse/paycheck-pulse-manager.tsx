@@ -177,6 +177,8 @@ export function PaycheckPulseManager() {
   }, [user?.id, toast]);
 
   // Fetch actual spending data for the current month when variable expenses change
+  // Note: This data is only applied to paycheck periods in the current month
+  // Future months will show full budget amounts (actualSpent = 0)
   useEffect(() => {
     const fetchActualSpendingData = async () => {
       if (!user?.id || variableExpenses.length === 0) return;
@@ -187,7 +189,7 @@ export function PaycheckPulseManager() {
         const startOfCurrentMonth = startOfMonth(today);
         const endOfCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
-        // Fetch actual spending for variable expenses
+        // Fetch actual spending for variable expenses (current month only)
         const { spendingData, error } = await getVariableExpenseSpending(
           user.id,
           startOfCurrentMonth,

@@ -119,17 +119,33 @@ const generatePaycheckEventsForIncome = (
 const convertEventsToPeriodsWithExpenseAllocation = (
   paycheckEvents: PaycheckEvent[]
 ): PaycheckPeriod[] => {
+  if (paycheckEvents.length === 0) return [];
+  
+  // First, combine multiple paychecks on the same date
+  const combinedEvents = combinePaychecksOnSameDate(paycheckEvents);
+  
   const periods: PaycheckPeriod[] = [];
   
-  for (let i = 0; i < paycheckEvents.length; i++) {
-    const currentEvent = paycheckEvents[i];
-    const nextEvent = paycheckEvents[i + 1];
+  for (let i = 0; i < combinedEvents.length; i++) {
+    const currentEvent = combinedEvents[i];
+    const nextEvent = combinedEvents[i + 1];
     
     // Period runs from this paycheck until the next one (or end of planning horizon)
     const periodStart = currentEvent.date;
-    const periodEnd = nextEvent 
-      ? addMinutes(nextEvent.date, -1)
-      : addMonths(currentEvent.date, 1); // Default 1 month if no next paycheck
+    let periodEnd: Date;
+    
+    if (nextEvent) {
+      // End the day before the next paycheck
+      periodEnd = addDays(nextEvent.date, -1);
+      // But ensure period end is not before period start
+      if (periodEnd < periodStart) {
+        // If next paycheck is same day or very close, use same day as end
+        periodEnd = currentEvent.date;
+      }
+    } else {
+      // Default 1 month if no next paycheck
+      periodEnd = addMonths(currentEvent.date, 1);
+    }
     
     periods.push({
       id: `paycheck-event-${i}`,
@@ -143,6 +159,28 @@ const convertEventsToPeriodsWithExpenseAllocation = (
   }
   
   return periods;
+};
+
+// Helper function to combine multiple paychecks on the same date
+const combinePaychecksOnSameDate = (events: PaycheckEvent[]): PaycheckEvent[] => {
+  const combinedMap = new Map<string, PaycheckEvent>();
+  
+  events.forEach(event => {
+    const dateKey = event.date.toISOString().split('T')[0]; // Use date as key
+    
+    if (combinedMap.has(dateKey)) {
+      // Combine with existing paycheck on same date
+      const existing = combinedMap.get(dateKey)!;
+      existing.amount += event.amount;
+      existing.source = `${existing.source} + ${event.source}`;
+    } else {
+      // First paycheck on this date
+      combinedMap.set(dateKey, { ...event });
+    }
+  });
+  
+  // Convert back to array and sort by date
+  return Array.from(combinedMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
 };
 
 // Enhanced breakdown generation with comprehensive edge case handling
@@ -953,10 +991,28 @@ const calculateBudgetAwareVariableExpenses = (
   const monthBreakdown = calculateDaysInEachMonth(paycheckPeriod.periodStart, paycheckPeriod.periodEnd);
   const totalDaysInPeriod = monthBreakdown.reduce((sum, month) => sum + month.days, 0);
   
+  // Get current month to check if this paycheck period is for current month
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  
   return variableExpenses.map(expense => {
     // Find actual spending data for this expense
     const spendingData = actualSpendingData?.find(data => data.categoryId === expense.id);
-    const actualSpent = spendingData?.spent || 0;
+    
+    // Only apply actual spending if this paycheck period is for the current month
+    // For future months, actualSpent should be 0
+    let actualSpent = 0;
+    if (spendingData) {
+      // Check if any part of this paycheck period falls in the current month
+      const paycheckMonth = paycheckPeriod.paycheckDate.getMonth();
+      const paycheckYear = paycheckPeriod.paycheckDate.getFullYear();
+      
+      if (paycheckMonth === currentMonth && paycheckYear === currentYear) {
+        actualSpent = spendingData.spent || 0;
+      }
+    }
+    
     const monthlyBudget = expense.amount;
     
     // UPDATED: Use max(0, budgeted_amount - actual_spent) formula
