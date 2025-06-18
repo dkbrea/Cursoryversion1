@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, CircleDashed, ArrowRight, Loader2 } from "lucide-react";
+import { CheckCircle, CircleDashed, ArrowRight, Loader2, CalendarIcon } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -15,8 +15,14 @@ import { AddGoalDialog } from "@/components/goals/add-goal-dialog";
 import { createAccount } from "@/lib/api/accounts";
 import { createDebtAccount } from "@/lib/api/debts";
 import { createFinancialGoal } from "@/lib/api/goals";
+import { getUserPreferences, updateUserPreferences, type UserPreferences } from "@/lib/api/user-preferences";
+import { autoCompletePeriodsBeforeTrackingStart } from "@/lib/api/recurring-completions";
 import type { Account, RecurringItem, DebtAccount, FinancialGoal } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format, startOfDay } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export type SetupStep = {
   id: string;
@@ -29,6 +35,7 @@ export type SetupStep = {
 export function SetupGuide() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [showTrackingDateDialog, setShowTrackingDateDialog] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [showIncomeDialog, setShowIncomeDialog] = useState(false);
   const [showFixedExpenseDialog, setShowFixedExpenseDialog] = useState(false);
@@ -40,8 +47,17 @@ export function SetupGuide() {
   const [isAddingRecurringItem, setIsAddingRecurringItem] = useState(false);
   const [isAddingDebt, setIsAddingDebt] = useState(false);
   const [isAddingGoal, setIsAddingGoal] = useState(false);
+  const [isSavingTrackingDate, setIsSavingTrackingDate] = useState(false);
+  const [selectedTrackingDate, setSelectedTrackingDate] = useState<Date | undefined>(undefined);
   const [setupProgressState, setSetupProgressState] = useState<{steps: Record<string, boolean>}>({steps: {}});
   const [setupSteps, setSetupSteps] = useState<SetupStep[]>([
+    {
+      id: "financial-tracking-start",
+      title: "Set your financial tracking start date",
+      description: "Choose when your financial tracking begins. This determines which recurring items are marked as completed.",
+      href: "#",
+      isCompleted: false,
+    },
     {
       id: "accounts",
       title: "Set up your accounts",
@@ -102,6 +118,22 @@ export function SetupGuide() {
 
       setIsLoading(true);
       try {
+        // Check financial tracking start date
+        let hasTrackingStartDate = false;
+        try {
+          const { data: userPrefs, error: prefsError } = await supabase
+            .from('user_preferences')
+            .select('financial_tracking_start_date')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (!prefsError && userPrefs?.financial_tracking_start_date) {
+            hasTrackingStartDate = true;
+          }
+        } catch (error) {
+          console.warn('Could not check tracking start date:', error);
+        }
+
         // Check accounts
         const { count: accountsCount, error: accountsError } = await supabase
           .from('accounts')
@@ -171,13 +203,14 @@ export function SetupGuide() {
 
         // Update setup steps status
         const updatedSteps = [...setupSteps];
-        updatedSteps[0].isCompleted = (accountsCount || 0) > 0;
-        updatedSteps[1].isCompleted = (incomeCount || 0) > 0;
-        updatedSteps[2].isCompleted = (fixedExpensesCount || 0) > 0;
-        updatedSteps[3].isCompleted = (subscriptionsCount || 0) > 0;
-        updatedSteps[4].isCompleted = (debtCount || 0) > 0;
-        updatedSteps[5].isCompleted = (goalsCount || 0) > 0;
-        updatedSteps[6].isCompleted = (budgetCount || 0) > 0;
+        updatedSteps[0].isCompleted = hasTrackingStartDate;
+        updatedSteps[1].isCompleted = (accountsCount || 0) > 0;
+        updatedSteps[2].isCompleted = (incomeCount || 0) > 0;
+        updatedSteps[3].isCompleted = (fixedExpensesCount || 0) > 0;
+        updatedSteps[4].isCompleted = (subscriptionsCount || 0) > 0;
+        updatedSteps[5].isCompleted = (debtCount || 0) > 0;
+        updatedSteps[6].isCompleted = (goalsCount || 0) > 0;
+        updatedSteps[7].isCompleted = (budgetCount || 0) > 0;
         
         setSetupSteps(updatedSteps);
 
@@ -264,6 +297,29 @@ export function SetupGuide() {
                   {(() => {
                     // Determine which button to show based on step ID
                     switch(step.id) {
+                      case 'financial-tracking-start':
+                        return (
+                          <Button 
+                            variant={isNextStep ? "default" : "outline"}
+                            size="sm"
+                            className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
+                            disabled={step.isCompleted || isSavingTrackingDate}
+                            onClick={() => setShowTrackingDateDialog(true)}
+                          >
+                            {step.isCompleted ? 'Completed' : (
+                              isSavingTrackingDate ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  Set Up <ArrowRight className="ml-1 h-4 w-4" />
+                                </>
+                              )
+                            )}
+                          </Button>
+                        );
                       case 'accounts':
                         return (
                           <Button 
@@ -827,6 +883,114 @@ export function SetupGuide() {
       >
         <Button type="button">Open Goal Dialog</Button>
       </AddGoalDialog>
+
+      {/* Financial Tracking Start Date Dialog */}
+      {showTrackingDateDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle>Set Financial Tracking Start Date</CardTitle>
+              <CardDescription>
+                Choose when your financial tracking begins. Recurring items are generated from January 1 of this year — items before this date will be marked as completed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col space-y-4">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !selectedTrackingDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedTrackingDate ? format(selectedTrackingDate, "PPP") : <span>Pick a date (optional)</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={selectedTrackingDate}
+                      onSelect={setSelectedTrackingDate}
+                      disabled={(date) =>
+                        date > new Date() || date < new Date("2020-01-01")
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setShowTrackingDateDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={async () => {
+                      try {
+                        setIsSavingTrackingDate(true);
+                        
+                        if (user?.id) {
+                          const { preferences, error } = await updateUserPreferences(user.id, {
+                            financialTrackingStartDate: selectedTrackingDate
+                          });
+                          
+                          if (error) throw new Error(error);
+                          
+                          // Auto-complete periods before the tracking start date
+                          if (selectedTrackingDate) {
+                            try {
+                              const { success, autoCompletedCount, error: autoCompleteError } = 
+                                await autoCompletePeriodsBeforeTrackingStart(user.id, selectedTrackingDate);
+                              
+                              if (autoCompleteError) {
+                                console.warn('Failed to auto-complete periods:', autoCompleteError);
+                              } else if (success && autoCompletedCount > 0) {
+                                console.log(`Auto-completed ${autoCompletedCount} periods before tracking start date`);
+                              }
+                            } catch (autoCompleteErr) {
+                              console.warn('Error during auto-completion:', autoCompleteErr);
+                            }
+                          }
+                          
+                          // Mark the step as completed
+                          const updatedSteps = [...setupSteps];
+                          const trackingStep = updatedSteps.find(step => step.id === 'financial-tracking-start');
+                          if (trackingStep) trackingStep.isCompleted = true;
+                          setSetupSteps(updatedSteps);
+                          
+                          toast({
+                            title: "Financial Tracking Start Date Set",
+                            description: selectedTrackingDate 
+                              ? `Financial tracking will begin from ${format(selectedTrackingDate, "PPP")}. Historical periods have been automatically marked as completed.`
+                              : "Financial tracking will use the default start date (6 months ago)"
+                          });
+                          
+                          setShowTrackingDateDialog(false);
+                        }
+                      } catch (err: any) {
+                        console.error("Error saving tracking start date:", err);
+                        toast({
+                          title: "Error",
+                          description: "Failed to save tracking start date. Please try again.",
+                          variant: "destructive"
+                        });
+                      } finally {
+                        setIsSavingTrackingDate(false);
+                      }
+                    }}
+                    disabled={isSavingTrackingDate}
+                  >
+                    {isSavingTrackingDate && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </Card>
   );
 }

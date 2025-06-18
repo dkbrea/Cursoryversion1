@@ -12,6 +12,7 @@ export interface UserPreferences {
   browserNotifications: boolean;
   mobileNotifications: boolean;
   timezone?: string;
+  financialTrackingStartDate?: Date;
   setupProgress: any;
   paycheckPreferences?: PaycheckPreferences;
   createdAt: string;
@@ -46,6 +47,7 @@ export const getUserPreferences = async (userId: string): Promise<{ preferences:
       browserNotifications: data.browser_notifications,
       mobileNotifications: data.mobile_notifications,
       timezone: data.timezone || undefined,
+      financialTrackingStartDate: data.financial_tracking_start_date ? new Date(data.financial_tracking_start_date) : undefined,
       setupProgress: data.setup_progress,
       paycheckPreferences: data.paycheck_preferences,
       createdAt: data.created_at,
@@ -105,6 +107,7 @@ export const createDefaultUserPreferences = async (userId: string): Promise<{ pr
       browserNotifications: data.browser_notifications,
       mobileNotifications: data.mobile_notifications,
       timezone: data.timezone || undefined,
+      financialTrackingStartDate: data.financial_tracking_start_date ? new Date(data.financial_tracking_start_date) : undefined,
       setupProgress: data.setup_progress,
       paycheckPreferences: data.paycheck_preferences,
       createdAt: data.created_at,
@@ -119,7 +122,7 @@ export const createDefaultUserPreferences = async (userId: string): Promise<{ pr
 
 export const updateUserPreferences = async (
   userId: string,
-  updates: Partial<Pick<UserPreferences, 'currency' | 'dateFormat' | 'theme' | 'hideBalances' | 'emailNotifications' | 'browserNotifications' | 'mobileNotifications' | 'timezone' | 'paycheckPreferences'>>
+  updates: Partial<Pick<UserPreferences, 'currency' | 'dateFormat' | 'theme' | 'hideBalances' | 'emailNotifications' | 'browserNotifications' | 'mobileNotifications' | 'timezone' | 'financialTrackingStartDate' | 'paycheckPreferences'>>
 ): Promise<{ preferences: UserPreferences | null; error?: string }> => {
   try {
     // Transform from application format to database format
@@ -132,6 +135,7 @@ export const updateUserPreferences = async (
     if (updates.browserNotifications !== undefined) updateData.browser_notifications = updates.browserNotifications;
     if (updates.mobileNotifications !== undefined) updateData.mobile_notifications = updates.mobileNotifications;
     if (updates.timezone !== undefined) updateData.timezone = updates.timezone;
+    if (updates.financialTrackingStartDate !== undefined) updateData.financial_tracking_start_date = updates.financialTrackingStartDate;
     if (updates.paycheckPreferences !== undefined) updateData.paycheck_preferences = updates.paycheckPreferences;
 
     const { data, error } = await supabase
@@ -157,6 +161,7 @@ export const updateUserPreferences = async (
       browserNotifications: data.browser_notifications,
       mobileNotifications: data.mobile_notifications,
       timezone: data.timezone || undefined,
+      financialTrackingStartDate: data.financial_tracking_start_date ? new Date(data.financial_tracking_start_date) : undefined,
       setupProgress: data.setup_progress,
       paycheckPreferences: data.paycheck_preferences,
       createdAt: data.created_at,

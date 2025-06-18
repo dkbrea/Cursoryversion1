@@ -465,6 +465,7 @@ export interface UserPreferences {
   browserNotifications: boolean;
   mobileNotifications: boolean;
   timezone: string;
+  financialTrackingStartDate?: Date; // User's preferred start date for aged billing and historical tracking
   paycheckPreferences?: PaycheckPreferences;
   debtPayoffStrategy?: DebtPayoffStrategy;
   insightLevel?: 'minimal' | 'moderate' | 'detailed';

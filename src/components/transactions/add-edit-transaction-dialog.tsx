@@ -330,20 +330,23 @@ export function AddEditTransactionDialog({
           console.log('Dialog: Loaded periods:', periodsArray.length, periodsArray);
           setAvailablePeriods(periodsArray);
 
-          // Auto-select the most overdue period, or the earliest unpaid period
+          // Auto-select the most recently due period (prioritizing actual due dates over just overdue status)
           if (periodsArray.length > 0) {
-            // First, try to find overdue periods
-            const overduePeriods = periodsArray.filter(p => p.isOverdue && !p.isCompleted);
+            // First, try to find the most recently due period that isn't completed
+            const unpaidPeriods = periodsArray.filter(p => !p.isCompleted && !p.autoCompleted);
             
             let selectedPeriod: any = null;
-            if (overduePeriods.length > 0) {
-              // Select the oldest overdue period
-              selectedPeriod = overduePeriods.sort((a, b) => a.periodDate.getTime() - b.periodDate.getTime())[0];
-            } else {
-              // If no overdue periods, select the earliest unpaid period
-              const unpaidPeriods = periodsArray.filter(p => !p.isCompleted);
-              if (unpaidPeriods.length > 0) {
-                selectedPeriod = unpaidPeriods.sort((a, b) => a.periodDate.getTime() - b.periodDate.getTime())[0];
+            if (unpaidPeriods.length > 0) {
+              // For aged billing, prioritize the oldest overdue period first
+              const overduePeriods = unpaidPeriods.filter(p => p.isOverdue);
+              if (overduePeriods.length > 0) {
+                // Sort overdue periods by date (oldest first) for aged billing priority
+                const sortedOverdue = overduePeriods.sort((a, b) => a.periodDate.getTime() - b.periodDate.getTime());
+                selectedPeriod = sortedOverdue[0]; // Oldest overdue period
+              } else {
+                // If no overdue periods, select the most recent unpaid period
+                const sortedPeriods = unpaidPeriods.sort((a, b) => b.periodDate.getTime() - a.periodDate.getTime());
+                selectedPeriod = sortedPeriods[0]; // Most recent unpaid period
               }
             }
 
@@ -354,7 +357,9 @@ export function AddEditTransactionDialog({
                 selectedPeriod,
                 periodKey,
                 isOverdue: selectedPeriod.isOverdue,
-                isCompleted: selectedPeriod.isCompleted
+                isCompleted: selectedPeriod.isCompleted,
+                autoCompleted: selectedPeriod.autoCompleted,
+                periodDate: selectedPeriod.periodDate.toISOString().split('T')[0]
               });
               form.setValue('recurringPeriodId', periodKey, {shouldValidate: true});
             } else {

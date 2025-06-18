@@ -4,7 +4,7 @@ import {
   addDays, addWeeks, addMonths, addQuarters, addYears, 
   isSameDay, setDate, getDate, startOfDay, 
   startOfMonth, endOfMonth, isWithinInterval, isSameMonth, getYear, format,
-  isBefore, isAfter, subMonths, addWeeks as addWeeksDate
+  isBefore, isAfter, subMonths, addWeeks as addWeeksDate, min
 } from "date-fns";
 
 export interface RecurringCompletion {
@@ -30,6 +30,7 @@ export interface RecurringPeriod {
   daysPastDue?: number;
   completedDate?: Date;
   transactionId?: string;
+  autoCompleted?: boolean; // True if marked as completed due to being before the tracking start date
 }
 
 // Calculate all occurrences for a recurring item within a date range
@@ -39,50 +40,100 @@ export const calculateRecurringOccurrences = (
   endDate: Date
 ): Date[] => {
   const occurrences: Date[] = [];
-  const itemStartDate = item.startDate || item.lastRenewalDate || startDate;
-  let currentDate = startOfDay(new Date(itemStartDate));
-
-  // Ensure we start from the earliest relevant date
-  while (currentDate < startDate) {
-    switch (item.frequency) {
-      case 'weekly':
-        currentDate = addWeeks(currentDate, 1);
-        break;
-      case 'bi-weekly':
-        currentDate = addWeeks(currentDate, 2);
-        break;
-      case 'monthly':
-        currentDate = addMonths(currentDate, 1);
-        break;
-      case 'quarterly':
-        currentDate = addQuarters(currentDate, 1);
-        break;
-      case 'yearly':
-        currentDate = addYears(currentDate, 1);
-        break;
-      case 'semi-monthly':
-        // Handle semi-monthly logic with first and second pay dates
-        if (item.semiMonthlyFirstPayDate && item.semiMonthlySecondPayDate) {
-          const firstDay = getDate(item.semiMonthlyFirstPayDate);
-          const secondDay = getDate(item.semiMonthlySecondPayDate);
-          
-          const firstOfMonth = setDate(currentDate, firstDay);
-          const secondOfMonth = setDate(currentDate, secondDay);
-          
-          if (currentDate < firstOfMonth) {
-            currentDate = firstOfMonth;
-          } else if (currentDate < secondOfMonth) {
-            currentDate = secondOfMonth;
-          } else {
-            currentDate = setDate(addMonths(currentDate, 1), firstDay);
-          }
-        } else {
-          currentDate = addMonths(currentDate, 1);
+  
+  console.log('DEBUG calculateRecurringOccurrences:', {
+    itemName: item.name,
+    searchStartDate: startDate.toISOString().split('T')[0],
+    searchEndDate: endDate.toISOString().split('T')[0],
+    itemStartDate: item.startDate?.toISOString?.() || item.startDate,
+    itemLastRenewalDate: item.lastRenewalDate?.toISOString?.() || item.lastRenewalDate,
+    frequency: item.frequency
+  });
+  
+  // For aged billing: generate periods from search start using item's due day pattern
+  const itemStartDate = item.startDate || item.lastRenewalDate;
+  let currentDate: Date;
+  
+  if (itemStartDate) {
+    const itemDate = startOfDay(new Date(itemStartDate));
+    
+    // Extract the due day pattern from the item's start date
+    const dueDayOfMonth = getDate(itemDate);
+    
+    if (itemDate <= startDate) {
+      // Item started before search range: advance from item start to find first occurrence in range
+      let tempDate = new Date(itemDate);
+      
+      while (tempDate < startDate) {
+        switch (item.frequency) {
+          case 'weekly':
+            tempDate = addWeeks(tempDate, 1);
+            break;
+          case 'bi-weekly':
+            tempDate = addWeeks(tempDate, 2);
+            break;
+          case 'monthly':
+            tempDate = addMonths(tempDate, 1);
+            break;
+          case 'quarterly':
+            tempDate = addQuarters(tempDate, 1);
+            break;
+          case 'yearly':
+            tempDate = addYears(tempDate, 1);
+            break;
+          case 'semi-monthly':
+            if (item.semiMonthlyFirstPayDate && item.semiMonthlySecondPayDate) {
+              const firstDay = getDate(item.semiMonthlyFirstPayDate);
+              const secondDay = getDate(item.semiMonthlySecondPayDate);
+              const currentDay = getDate(tempDate);
+              
+              if (currentDay === firstDay) {
+                tempDate = setDate(tempDate, secondDay);
+              } else {
+                tempDate = setDate(addMonths(tempDate, 1), firstDay);
+              }
+            } else {
+              tempDate = addMonths(tempDate, 1);
+            }
+            break;
+          default:
+            tempDate = addMonths(tempDate, 1);
         }
-        break;
-      default:
-        currentDate = addMonths(currentDate, 1);
+      }
+      currentDate = tempDate;
+    } else {
+      // Item starts after search range: for aged billing, generate periods from search start
+      // using the item's due day pattern (e.g., if item due 28th, generate 28th of each month from search start)
+      
+      if (item.frequency === 'monthly') {
+        // For monthly items, set the due day in the search start month
+        currentDate = setDate(startOfDay(new Date(startDate)), dueDayOfMonth);
+        
+        // If that date is before the search start date, move to next month
+        if (currentDate < startDate) {
+          currentDate = setDate(addMonths(startOfDay(new Date(startDate)), 1), dueDayOfMonth);
+        }
+      } else if (item.frequency === 'semi-monthly' && item.semiMonthlyFirstPayDate && item.semiMonthlySecondPayDate) {
+        // Handle semi-monthly with specific dates
+        const firstDay = getDate(item.semiMonthlyFirstPayDate);
+        const secondDay = getDate(item.semiMonthlySecondPayDate);
+        const searchStartDay = getDate(startDate);
+        
+        if (searchStartDay <= firstDay) {
+          currentDate = setDate(startOfDay(new Date(startDate)), firstDay);
+        } else if (searchStartDay <= secondDay) {
+          currentDate = setDate(startOfDay(new Date(startDate)), secondDay);
+        } else {
+          currentDate = setDate(addMonths(startOfDay(new Date(startDate)), 1), firstDay);
+        }
+      } else {
+        // For other frequencies, start from item start date
+        currentDate = new Date(itemDate);
+      }
     }
+  } else {
+    // Fallback: if no item start date, start from search date
+    currentDate = startOfDay(new Date(startDate));
   }
 
   // Generate occurrences within the date range
@@ -92,7 +143,11 @@ export const calculateRecurringOccurrences = (
       break;
     }
 
-    occurrences.push(new Date(currentDate));
+    // Include all occurrences within the search range
+    // This allows for aged billing periods even before the item's technical start
+    if (currentDate >= startDate) {
+      occurrences.push(new Date(currentDate));
+    }
 
     // Calculate next occurrence
     switch (item.frequency) {
@@ -130,6 +185,12 @@ export const calculateRecurringOccurrences = (
         currentDate = addMonths(currentDate, 1);
     }
   }
+
+  console.log('DEBUG calculateRecurringOccurrences result:', {
+    itemName: item.name,
+    occurrencesCount: occurrences.length,
+    occurrences: occurrences.map(d => d.toISOString().split('T')[0])
+  });
 
   return occurrences;
 };
@@ -193,6 +254,23 @@ export const getRecurringPeriods = async (
   recurringItems: UnifiedRecurringListItem[]
 ): Promise<{ periods: RecurringPeriod[] | null; error?: string }> => {
   try {
+    // Get user's financial tracking start date
+    let userTrackingStartDate: Date | null = null;
+    try {
+      const { data: userPrefs, error: prefsError } = await supabase
+        .from('user_preferences')
+        .select('financial_tracking_start_date')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!prefsError && userPrefs?.financial_tracking_start_date) {
+        userTrackingStartDate = startOfDay(new Date(userPrefs.financial_tracking_start_date));
+        console.log('DEBUG: User tracking start date:', userTrackingStartDate.toISOString().split('T')[0]);
+      }
+    } catch (error) {
+      console.warn('Could not fetch user tracking start date:', error);
+    }
+
     // Fetch all completions for the user in the date range
     const { data: completions, error: completionsError } = await supabase
       .from('recurring_completions')
@@ -227,7 +305,12 @@ export const getRecurringPeriods = async (
           isSameDay(new Date(c.period_date), occurrenceDate)
         );
 
-        const isOverdue = isBefore(occurrenceDate, today) && !completion;
+        // Check if this occurrence is before the user's tracking start date
+        const isBeforeTrackingStart = userTrackingStartDate ? isBefore(occurrenceDate, userTrackingStartDate) : false;
+        
+        // If before tracking start date, consider it auto-completed
+        const isCompleted = !!completion || isBeforeTrackingStart;
+        const isOverdue = isBefore(occurrenceDate, today) && !isCompleted;
         const daysPastDue = isOverdue ? Math.floor((today.getTime() - occurrenceDate.getTime()) / (1000 * 60 * 60 * 24)) : undefined;
 
         periods.push({
@@ -236,11 +319,14 @@ export const getRecurringPeriods = async (
           itemType: item.source,
           periodDate: occurrenceDate,
           amount: item.amount,
-          isCompleted: !!completion,
+          isCompleted,
           isOverdue,
           daysPastDue,
-          completedDate: completion ? new Date(completion.completed_date) : undefined,
+          completedDate: completion ? new Date(completion.completed_date) : 
+                        isBeforeTrackingStart ? occurrenceDate : // Use the occurrence date as completed date for auto-completed items
+                        undefined,
           transactionId: completion?.transaction_id || undefined,
+          autoCompleted: isBeforeTrackingStart, // Add flag to indicate this was auto-completed
         });
       }
     }
@@ -405,9 +491,24 @@ export const getOverduePeriods = async (
   recurringItems: UnifiedRecurringListItem[]
 ): Promise<{ overduePeriods: RecurringPeriod[] | null; error?: string }> => {
   const today = startOfDay(new Date());
-  const sixMonthsAgo = subMonths(today, 6);
+  let trackingStartDate = subMonths(today, 6); // Default fallback
 
-  const { periods, error } = await getRecurringPeriods(userId, sixMonthsAgo, today, recurringItems);
+  // Get user's preferred financial tracking start date
+  try {
+    const { data: userPrefs, error: prefsError } = await supabase
+      .from('user_preferences')
+      .select('financial_tracking_start_date')
+      .eq('user_id', userId)
+      .single();
+
+    if (!prefsError && userPrefs?.financial_tracking_start_date) {
+      trackingStartDate = startOfDay(new Date(userPrefs.financial_tracking_start_date));
+    }
+  } catch (error) {
+    console.warn('Could not fetch user preferences for tracking start date, using default:', error);
+  }
+
+  const { periods, error } = await getRecurringPeriods(userId, trackingStartDate, today, recurringItems);
 
   if (error || !periods) {
     return { overduePeriods: null, error };
@@ -418,6 +519,165 @@ export const getOverduePeriods = async (
 };
 
 // Get available periods for a recurring item (for transaction recording)
+// Auto-complete all periods before the tracking start date for a user
+export const autoCompletePeriodsBeforeTrackingStart = async (
+  userId: string,
+  trackingStartDate: Date
+): Promise<{ success: boolean; autoCompletedCount: number; error?: string }> => {
+  try {
+    console.log('DEBUG: Auto-completing periods before tracking start date:', trackingStartDate.toISOString().split('T')[0]);
+
+    // Get all recurring items for the user
+    const { data: recurringItems, error: recurringError } = await supabase
+      .from('recurring_items')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (recurringError) {
+      return { success: false, autoCompletedCount: 0, error: recurringError.message };
+    }
+
+    // Get all debt accounts for the user
+    const { data: debtAccounts, error: debtError } = await supabase
+      .from('debt_accounts')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (debtError) {
+      return { success: false, autoCompletedCount: 0, error: debtError.message };
+    }
+
+    // Convert to unified format
+    const allItems: UnifiedRecurringListItem[] = [
+      ...(recurringItems || []).map(item => ({
+        id: item.id,
+        name: item.name,
+        itemDisplayType: item.type,
+        amount: item.amount,
+        frequency: item.frequency,
+        nextOccurrenceDate: new Date(item.start_date || item.created_at),
+        status: 'Upcoming' as const,
+        isDebt: false,
+        startDate: item.start_date ? new Date(item.start_date) : null,
+        lastRenewalDate: item.last_renewal_date ? new Date(item.last_renewal_date) : null,
+        semiMonthlyFirstPayDate: item.semi_monthly_first_pay_date ? new Date(item.semi_monthly_first_pay_date) : null,
+        semiMonthlySecondPayDate: item.semi_monthly_second_pay_date ? new Date(item.semi_monthly_second_pay_date) : null,
+        endDate: item.end_date ? new Date(item.end_date) : null,
+        notes: item.notes,
+        source: 'recurring' as const,
+        categoryId: item.category_id,
+      })),
+      ...(debtAccounts || []).map(debt => ({
+        id: debt.id,
+        name: debt.name,
+        itemDisplayType: 'debt-payment' as const,
+        amount: debt.minimum_payment,
+        frequency: debt.payment_frequency,
+        nextOccurrenceDate: new Date(debt.next_due_date),
+        status: 'Upcoming' as const,
+        isDebt: true,
+        startDate: null,
+        lastRenewalDate: null,
+        semiMonthlyFirstPayDate: null,
+        semiMonthlySecondPayDate: null,
+        endDate: null,
+                 notes: undefined,
+         source: 'debt' as const,
+         categoryId: undefined,
+      }))
+    ];
+
+    // Generate periods from January 1st of the tracking start year to the tracking start date
+    const startOfYear = startOfDay(new Date(trackingStartDate.getFullYear(), 0, 1));
+    const periodsToAutoComplete: Array<{
+      itemId: string;
+      itemType: 'recurring' | 'debt';
+      periodDate: Date;
+      amount: number;
+    }> = [];
+
+    for (const item of allItems) {
+      let occurrences: Date[] = [];
+      
+      if (item.source === 'recurring') {
+        occurrences = calculateRecurringOccurrences(item, startOfYear, trackingStartDate);
+      } else {
+        // For debt items, generate occurrences based on payment frequency
+        // This is simplified - in practice you'd use the debt account details
+        const debt = debtAccounts?.find(d => d.id === item.id);
+        if (debt) {
+          occurrences = calculateDebtOccurrences(debt, startOfYear, trackingStartDate);
+        }
+      }
+
+      // Filter to only periods before the tracking start date
+      const periodsBeforeStart = occurrences.filter(date => isBefore(date, trackingStartDate));
+      
+      for (const periodDate of periodsBeforeStart) {
+        periodsToAutoComplete.push({
+          itemId: item.id,
+          itemType: item.source,
+          periodDate,
+          amount: item.amount,
+        });
+      }
+    }
+
+    console.log('DEBUG: Found', periodsToAutoComplete.length, 'periods to auto-complete');
+
+    // Check existing completions to avoid duplicates
+    const { data: existingCompletions, error: existingError } = await supabase
+      .from('recurring_completions')
+      .select('recurring_item_id, debt_account_id, period_date')
+      .eq('user_id', userId)
+      .gte('period_date', startOfYear.toISOString())
+      .lt('period_date', trackingStartDate.toISOString());
+
+    if (existingError) {
+      return { success: false, autoCompletedCount: 0, error: existingError.message };
+    }
+
+    // Filter out periods that are already completed
+    const periodsToInsert = periodsToAutoComplete.filter(period => {
+      const existing = existingCompletions?.find(comp => 
+        (comp.recurring_item_id === period.itemId || comp.debt_account_id === period.itemId) &&
+        isSameDay(new Date(comp.period_date), period.periodDate)
+      );
+      return !existing;
+    });
+
+    console.log('DEBUG: Inserting', periodsToInsert.length, 'new auto-completions');
+
+    // Batch insert the auto-completions
+    if (periodsToInsert.length > 0) {
+      const completionsToInsert = periodsToInsert.map(period => ({
+        user_id: userId,
+        recurring_item_id: period.itemType === 'recurring' ? period.itemId : null,
+        debt_account_id: period.itemType === 'debt' ? period.itemId : null,
+        period_date: period.periodDate.toISOString(),
+        completed_date: period.periodDate.toISOString(), // Use period date as completion date
+        transaction_id: null, // No actual transaction for auto-completed items
+      }));
+
+      const { error: insertError } = await supabase
+        .from('recurring_completions')
+        .insert(completionsToInsert);
+
+      if (insertError) {
+        return { success: false, autoCompletedCount: 0, error: insertError.message };
+      }
+    }
+
+    return { 
+      success: true, 
+      autoCompletedCount: periodsToInsert.length,
+      error: undefined 
+    };
+  } catch (error: any) {
+    return { success: false, autoCompletedCount: 0, error: error.message };
+  }
+};
+
 export const getAvailablePeriodsForItem = async (
   userId: string,
   itemId: string,
@@ -425,19 +685,62 @@ export const getAvailablePeriodsForItem = async (
   recurringItems: UnifiedRecurringListItem[]
 ): Promise<{ availablePeriods: RecurringPeriod[] | null; error?: string }> => {
   const today = startOfDay(new Date());
-  const sixMonthsAgo = subMonths(today, 6);
+  let trackingStartDate = subMonths(today, 6); // Default fallback
   const threeMonthsForward = addMonths(today, 3);
+
+  // Get user's preferred financial tracking start date
+  try {
+    const { data: userPrefs, error: prefsError } = await supabase
+      .from('user_preferences')
+      .select('financial_tracking_start_date')
+      .eq('user_id', userId)
+      .single();
+
+    if (!prefsError && userPrefs?.financial_tracking_start_date) {
+      trackingStartDate = startOfDay(new Date(userPrefs.financial_tracking_start_date));
+      console.log('DEBUG: Using user-defined tracking start date:', trackingStartDate.toISOString().split('T')[0]);
+    } else {
+      console.log('DEBUG: Using default tracking start date (6 months ago):', trackingStartDate.toISOString().split('T')[0]);
+    }
+  } catch (error) {
+    console.warn('Could not fetch user preferences for tracking start date, using default:', error);
+  }
+
+  console.log('DEBUG getAvailablePeriodsForItem:', {
+    today: today.toISOString().split('T')[0],
+    trackingStartDate: trackingStartDate.toISOString().split('T')[0],
+    threeMonthsForward: threeMonthsForward.toISOString().split('T')[0],
+    itemId,
+    itemType
+  });
 
   const item = recurringItems.find(i => i.id === itemId);
   if (!item) {
     return { availablePeriods: null, error: 'Recurring item not found' };
   }
 
-  const { periods, error } = await getRecurringPeriods(userId, sixMonthsAgo, threeMonthsForward, [item]);
+  console.log('DEBUG found item:', {
+    id: item.id,
+    name: item.name,
+    startDate: item.startDate?.toISOString?.() || item.startDate,
+    lastRenewalDate: item.lastRenewalDate?.toISOString?.() || item.lastRenewalDate,
+    frequency: item.frequency,
+    source: item.source
+  });
+
+  const { periods, error } = await getRecurringPeriods(userId, trackingStartDate, threeMonthsForward, [item]);
 
   if (error || !periods) {
+    console.log('DEBUG periods error:', error);
     return { availablePeriods: null, error };
   }
+
+  console.log('DEBUG generated periods:', periods.map(p => ({
+    date: p.periodDate.toISOString().split('T')[0],
+    isOverdue: p.isOverdue,
+    isCompleted: p.isCompleted,
+    autoCompleted: p.autoCompleted
+  })));
 
   return { availablePeriods: periods };
 }; 

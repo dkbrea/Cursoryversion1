@@ -17,6 +17,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import {
   Select,
@@ -25,13 +26,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/contexts/auth-context";
 import { getUserPreferences, updateUserPreferences, type UserPreferences } from "@/lib/api/user-preferences";
+import { autoCompletePeriodsBeforeTrackingStart } from "@/lib/api/recurring-completions";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, CalendarIcon } from "lucide-react";
+import { format, startOfDay, subMonths } from "date-fns";
+import { cn } from "@/lib/utils";
 
 // Common currencies
 const CURRENCIES = [
@@ -66,6 +72,7 @@ const TIMEZONES = [
 const settingsSchema = z.object({
   currency: z.string().min(1, "Please select a currency"),
   timezone: z.string().min(1, "Please select a timezone"),
+  financialTrackingStartDate: z.date().optional(),
 });
 
 interface UserSettingsModalProps {
@@ -85,6 +92,7 @@ export function UserSettingsModal({ isOpen, onOpenChange }: UserSettingsModalPro
     defaultValues: {
       currency: "USD",
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      financialTrackingStartDate: undefined,
     },
   });
 
@@ -116,6 +124,7 @@ export function UserSettingsModal({ isOpen, onOpenChange }: UserSettingsModalPro
         form.reset({
           currency: userPrefs.currency,
           timezone: userPrefs.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+          financialTrackingStartDate: userPrefs.financialTrackingStartDate ? new Date(userPrefs.financialTrackingStartDate) : undefined,
         });
       }
     } catch (error: any) {
@@ -137,6 +146,7 @@ export function UserSettingsModal({ isOpen, onOpenChange }: UserSettingsModalPro
       const { preferences: updatedPrefs, error } = await updateUserPreferences(user.id, {
         currency: values.currency,
         timezone: values.timezone,
+        financialTrackingStartDate: values.financialTrackingStartDate,
       });
 
       if (error) {
@@ -148,10 +158,28 @@ export function UserSettingsModal({ isOpen, onOpenChange }: UserSettingsModalPro
         return;
       }
 
+      // Auto-complete periods before the tracking start date if it was set
+      if (values.financialTrackingStartDate) {
+        try {
+          const { success, autoCompletedCount, error: autoCompleteError } = 
+            await autoCompletePeriodsBeforeTrackingStart(user.id, values.financialTrackingStartDate);
+          
+          if (autoCompleteError) {
+            console.warn('Failed to auto-complete periods:', autoCompleteError);
+          } else if (success && autoCompletedCount > 0) {
+            console.log(`Auto-completed ${autoCompletedCount} periods before tracking start date`);
+          }
+        } catch (autoCompleteErr) {
+          console.warn('Error during auto-completion:', autoCompleteErr);
+        }
+      }
+
       setPreferences(updatedPrefs);
       toast({
         title: "Success",
-        description: "Settings saved successfully!",
+        description: values.financialTrackingStartDate 
+          ? "Settings saved successfully! Historical periods have been automatically marked as completed."
+          : "Settings saved successfully!",
       });
       onOpenChange(false);
     } catch (error: any) {
@@ -228,12 +256,57 @@ export function UserSettingsModal({ isOpen, onOpenChange }: UserSettingsModalPro
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                                      <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <DialogFooter>
+            <FormField
+              control={form.control}
+              name="financialTrackingStartDate"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Financial Tracking Start Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP")
+                          ) : (
+                            <span>Pick a date (optional)</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("2020-01-01")
+                        }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormDescription>
+                    Sets the point where your financial tracking begins. Recurring items are generated from January 1 of this year — items before this date will be marked as completed, so you won't need to record payments for them. If left blank, defaults to 6 months ago.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                   Cancel
                 </Button>
