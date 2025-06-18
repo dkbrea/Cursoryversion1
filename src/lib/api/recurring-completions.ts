@@ -205,20 +205,52 @@ export const calculateDebtOccurrences = (
   const nextDueDate = debt.nextDueDate || new Date();
   let currentDate = startOfDay(new Date(nextDueDate));
 
-  // Go back to find the first occurrence in our range
-  while (currentDate > startDate) {
-    switch (debt.paymentFrequency) {
-      case 'weekly':
-        currentDate = addWeeks(currentDate, -1);
-        break;
-      case 'bi-weekly':
-        currentDate = addWeeks(currentDate, -2);
-        break;
-      case 'monthly':
-        currentDate = addMonths(currentDate, -1);
-        break;
-      default:
-        currentDate = addMonths(currentDate, -1);
+  // For aged billing: if debt's next due date is after our search range start,
+  // generate periods from search start using the debt's payment day pattern
+  if (currentDate > startDate && debt.paymentDayOfMonth) {
+    // Extract payment day pattern from next due date
+    const paymentDay = debt.paymentDayOfMonth;
+    
+    // Generate periods from search start date using the payment day pattern
+    if (debt.paymentFrequency === 'monthly') {
+      currentDate = setDate(startOfDay(new Date(startDate)), paymentDay);
+      
+      // If that date is before the search start date, move to next month
+      if (currentDate < startDate) {
+        currentDate = setDate(addMonths(startOfDay(new Date(startDate)), 1), paymentDay);
+      }
+    } else {
+      // For other frequencies, start from next due date and go backward to find first occurrence
+      currentDate = startOfDay(new Date(nextDueDate));
+      while (currentDate > startDate) {
+        switch (debt.paymentFrequency) {
+          case 'weekly':
+            currentDate = addWeeks(currentDate, -1);
+            break;
+          case 'bi-weekly':
+            currentDate = addWeeks(currentDate, -2);
+            break;
+          default:
+            currentDate = addMonths(currentDate, -1);
+        }
+      }
+    }
+  } else {
+    // Original logic: go back to find the first occurrence in our range
+    while (currentDate > startDate) {
+      switch (debt.paymentFrequency) {
+        case 'weekly':
+          currentDate = addWeeks(currentDate, -1);
+          break;
+        case 'bi-weekly':
+          currentDate = addWeeks(currentDate, -2);
+          break;
+        case 'monthly':
+          currentDate = addMonths(currentDate, -1);
+          break;
+        default:
+          currentDate = addMonths(currentDate, -1);
+      }
     }
   }
 
@@ -271,6 +303,24 @@ export const getRecurringPeriods = async (
       console.warn('Could not fetch user tracking start date:', error);
     }
 
+    // Fetch debt accounts if we have debt items
+    const debtItemIds = recurringItems.filter(item => item.source === 'debt').map(item => item.id);
+    let debtAccounts: DebtAccount[] = [];
+    
+    if (debtItemIds.length > 0) {
+      const { data: fetchedDebtAccounts, error: debtError } = await supabase
+        .from('debt_accounts')
+        .select('*')
+        .eq('user_id', userId)
+        .in('id', debtItemIds);
+
+      if (debtError) {
+        console.warn('Could not fetch debt accounts:', debtError);
+      } else {
+        debtAccounts = fetchedDebtAccounts || [];
+      }
+    }
+
     // Fetch all completions for the user in the date range
     const { data: completions, error: completionsError } = await supabase
       .from('recurring_completions')
@@ -291,9 +341,28 @@ export const getRecurringPeriods = async (
       let occurrences: Date[] = [];
 
       if (item.source === 'debt') {
-        // For debt items, we need the debt account details
-        // This is a simplified version - in practice you'd fetch the debt account
-        occurrences = [item.nextOccurrenceDate]; // Simplified for now
+        // For debt items, fetch the debt account details and calculate proper occurrences
+        const debt = debtAccounts.find(d => d.id === item.id);
+        if (debt) {
+          // Convert debt account to proper format for calculateDebtOccurrences
+          const debtAccount: DebtAccount = {
+            id: debt.id,
+            name: debt.name,
+            type: (debt as any).account_type,
+            balance: (debt as any).current_balance,
+            minimumPayment: (debt as any).minimum_payment,
+            apr: (debt as any).interest_rate,
+            paymentFrequency: (debt as any).payment_frequency,
+            paymentDayOfMonth: (debt as any).payment_day_of_month,
+            nextDueDate: (debt as any).next_due_date ? new Date((debt as any).next_due_date) : new Date(),
+            userId: (debt as any).user_id,
+            createdAt: new Date((debt as any).created_at),
+          };
+          occurrences = calculateDebtOccurrences(debtAccount, startDate, endDate);
+        } else {
+          // Fallback to simplified approach if debt account not found
+          occurrences = [item.nextOccurrenceDate];
+        }
       } else {
         occurrences = calculateRecurringOccurrences(item, startDate, endDate);
       }
