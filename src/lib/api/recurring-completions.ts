@@ -6,6 +6,7 @@ import {
   startOfMonth, endOfMonth, isWithinInterval, isSameMonth, getYear, format,
   isBefore, isAfter, subMonths, addWeeks as addWeeksDate, min
 } from "date-fns";
+import { adjustToPreviousBusinessDay } from '@/lib/utils/date-calculations';
 
 export interface RecurringCompletion {
   id: string;
@@ -146,7 +147,21 @@ export const calculateRecurringOccurrences = (
     // Include all occurrences within the search range
     // This allows for aged billing periods even before the item's technical start
     if (currentDate >= startDate) {
-      occurrences.push(new Date(currentDate));
+      // Apply business day adjustment only for income items (not subscriptions)
+      const finalDate = item.itemDisplayType === 'income' 
+        ? adjustToPreviousBusinessDay(currentDate)
+        : new Date(currentDate);
+      
+      // Debug logging for business day adjustments
+      if (item.itemDisplayType === 'income' && finalDate.getTime() !== currentDate.getTime()) {
+        console.log('DEBUG: Applied business day adjustment for income item:', {
+          itemName: item.name,
+          originalDate: currentDate.toISOString().split('T')[0],
+          adjustedDate: finalDate.toISOString().split('T')[0]
+        });
+      }
+      
+      occurrences.push(finalDate);
     }
 
     // Calculate next occurrence
@@ -379,6 +394,17 @@ export const getRecurringPeriods = async (
         
         // If before tracking start date, consider it auto-completed
         const isCompleted = !!completion || isBeforeTrackingStart;
+        
+        // Debug logging for completion status
+        if (isBeforeTrackingStart) {
+          console.log('DEBUG: Auto-completing period before tracking start:', {
+            itemName: item.name,
+            periodDate: occurrenceDate.toISOString().split('T')[0],
+            trackingStartDate: userTrackingStartDate?.toISOString().split('T')[0],
+            isCompleted,
+            isBeforeTrackingStart
+          });
+        }
         const isOverdue = isBefore(occurrenceDate, today) && !isCompleted;
         const daysPastDue = isOverdue ? Math.floor((today.getTime() - occurrenceDate.getTime()) / (1000 * 60 * 60 * 24)) : undefined;
 

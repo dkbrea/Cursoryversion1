@@ -236,12 +236,15 @@ export function RecurringManager() {
           console.warn('Could not fetch user tracking start date, using default:', error);
         }
 
-        // Load completion data starting from the earlier of: 
-        // 1. User's tracking start date
-        // 2. 3 months before displayed month (for performance)
-        const defaultStartDate = subMonths(startOfMonth(displayedMonth), 1);
-        const startDate = trackingStartDate < defaultStartDate ? trackingStartDate : defaultStartDate;
-        const endDate = endOfMonth(addMonths(displayedMonth, 1));
+        // Load completion data for the full calendar year to match what calendar displays
+        // Calendar shows full year, so we need completion data for the full year
+        const currentYear = displayedMonth.getFullYear();
+        const yearStart = new Date(currentYear, 0, 1); // January 1st
+        const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59); // December 31st
+        
+        // But also include user's tracking start date if it's earlier than current year
+        const startDate = trackingStartDate < yearStart ? trackingStartDate : yearStart;
+        const endDate = yearEnd;
 
         const { periods, error } = await getRecurringPeriods(
           user.id,
@@ -259,10 +262,18 @@ export function RecurringManager() {
         const completedSet = new Set<string>();
         if (periods) {
           periods.forEach(period => {
+            const itemKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
+            console.log('DEBUG: Processing period for calendar:', {
+              itemName: period.itemName,
+              periodDate: format(period.periodDate, 'yyyy-MM-dd'),
+              isCompleted: period.isCompleted,
+              autoCompleted: period.autoCompleted,
+              itemKey
+            });
+            
             if (period.isCompleted) {
-              const itemKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
               completedSet.add(itemKey);
-              console.log('Adding completed item to set:', itemKey);
+              console.log('Adding completed item to set:', itemKey, period.autoCompleted ? '(auto-completed)' : '(manually completed)');
             }
           });
         }
@@ -368,9 +379,12 @@ export function RecurringManager() {
             console.warn('Could not fetch user tracking start date during refresh, using default:', error);
           }
 
-          const defaultStartDate = subMonths(startOfMonth(displayedMonth), 1);
-          const startDate = trackingStartDate < defaultStartDate ? trackingStartDate : defaultStartDate;
-          const endDate = endOfMonth(addMonths(displayedMonth, 1));
+          // Use the same full year range for consistency
+          const currentYear = displayedMonth.getFullYear();
+          const yearStart = new Date(currentYear, 0, 1);
+          const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59);
+          const startDate = trackingStartDate < yearStart ? trackingStartDate : yearStart;
+          const endDate = yearEnd;
 
           console.log('RecurringManager: Refreshing completion data after transaction record');
           

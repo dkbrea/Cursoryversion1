@@ -232,12 +232,12 @@ export function DashboardContent() {
             console.warn('Could not fetch user tracking start date for dashboard, using default:', error);
           }
 
-          // Load completion data starting from the earlier of: 
-          // 1. User's tracking start date
-          // 2. 3 months before today (for performance)
-          const defaultStartDate = subMonths(startOfMonth(today), 1);
-          const startDate = trackingStartDate < defaultStartDate ? trackingStartDate : defaultStartDate;
-          const endDate = endOfMonth(addMonths(today, 1));
+          // Load completion data for the full calendar year to match what calendar displays
+          const currentYear = today.getFullYear();
+          const yearStart = new Date(currentYear, 0, 1);
+          const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59);
+          const startDate = trackingStartDate < yearStart ? trackingStartDate : yearStart;
+          const endDate = yearEnd;
 
           const { periods, error } = await getRecurringPeriods(
             user.id,
@@ -912,8 +912,9 @@ export function DashboardContent() {
           
           try {
             const now = new Date();
-            const startDate = subMonths(startOfMonth(now), 1);
-            const endDate = endOfMonth(addMonths(now, 1));
+            const currentYear = now.getFullYear();
+            const startDate = new Date(currentYear, 0, 1);
+            const endDate = new Date(currentYear, 11, 31, 23, 59, 59);
 
             const { periods, error } = await getRecurringPeriods(
               user.id!,

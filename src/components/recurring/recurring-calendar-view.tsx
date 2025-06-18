@@ -263,32 +263,51 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
           }
         } else {
           // Handle regular frequencies - calculate full year pattern
-          const referenceDate = new Date(unifiedItem.nextOccurrenceDate);
-          let startDate: Date;
+          let originalStartDate: Date = new Date(); // Initialize with default
           
-          // Determine proper start date for calculations
+          // Determine proper start date for calculations (use original unadjusted date)
           if (unifiedItem.itemDisplayType === 'subscription' && unifiedItem.lastRenewalDate) {
-            startDate = startOfDay(new Date(unifiedItem.lastRenewalDate));
+            originalStartDate = startOfDay(new Date(unifiedItem.lastRenewalDate));
             // For subscriptions, first payment is after last renewal
             switch (unifiedItem.frequency) {
-              case "daily": startDate = addDays(startDate, 1); break;
-              case "weekly": startDate = addWeeks(startDate, 1); break;
-              case "bi-weekly": startDate = addWeeks(startDate, 2); break;
-              case "monthly": startDate = addMonths(startDate, 1); break;
-              case "quarterly": startDate = addQuarters(startDate, 1); break;
-              case "yearly": startDate = addYears(startDate, 1); break;
-              default: startDate = addDays(startDate, 1); break;
+              case "daily": originalStartDate = addDays(originalStartDate, 1); break;
+              case "weekly": originalStartDate = addWeeks(originalStartDate, 1); break;
+              case "bi-weekly": originalStartDate = addWeeks(originalStartDate, 2); break;
+              case "monthly": originalStartDate = addMonths(originalStartDate, 1); break;
+              case "quarterly": originalStartDate = addQuarters(originalStartDate, 1); break;
+              case "yearly": originalStartDate = addYears(originalStartDate, 1); break;
+              default: originalStartDate = addDays(originalStartDate, 1); break;
             }
           } else if (unifiedItem.startDate) {
-            startDate = startOfDay(new Date(unifiedItem.startDate));
-          } else {
-            // Use reference date as fallback
-            startDate = new Date(referenceDate);
-          }
+            originalStartDate = startOfDay(new Date(unifiedItem.startDate));
+                      } else {
+              // Use nextOccurrenceDate but remove business day adjustment to get original date
+              const nextDate = new Date(unifiedItem.nextOccurrenceDate);
+              // For income items, we need to reverse the business day adjustment
+              if (unifiedItem.itemDisplayType === 'income') {
+                // Find the original 13th (or whatever day) by checking if current date is a business day adjustment
+                let foundOriginal = false;
+                let testDate = new Date(nextDate);
+                // Check a few days forward to find the original date
+                for (let i = 0; i <= 4; i++) {
+                  const candidateDate = addDays(testDate, i);
+                  if (adjustToPreviousBusinessDay(candidateDate).getTime() === nextDate.getTime()) {
+                    originalStartDate = candidateDate;
+                    foundOriginal = true;
+                    break;
+                  }
+                }
+                if (!foundOriginal) {
+                  originalStartDate = nextDate; // fallback
+                }
+              } else {
+                originalStartDate = nextDate;
+              }
+            }
           
           // Calculate all occurrences for the year based on frequency
           if (unifiedItem.frequency === 'daily') {
-            let tempDate = new Date(referenceDate);
+            let tempDate = new Date(originalStartDate);
             
             // Work backwards to start of year
             while (tempDate >= yearStart) {
@@ -299,7 +318,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
             }
             
             // Work forwards to end of year
-            tempDate = addDays(referenceDate, 1);
+            tempDate = addDays(originalStartDate, 1);
             while (tempDate <= yearEnd) {
               if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
                 allOccurrences.push(new Date(tempDate));
@@ -307,7 +326,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
               tempDate = addDays(tempDate, 1);
             }
           } else if (unifiedItem.frequency === 'weekly') {
-            let tempDate = new Date(referenceDate);
+            let tempDate = new Date(originalStartDate);
             
             // Work backwards to start of year
             while (tempDate >= yearStart) {
@@ -318,7 +337,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
             }
             
             // Work forwards to end of year
-            tempDate = addWeeks(referenceDate, 1);
+            tempDate = addWeeks(originalStartDate, 1);
             while (tempDate <= yearEnd) {
               if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
                 allOccurrences.push(new Date(tempDate));
@@ -326,7 +345,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
               tempDate = addWeeks(tempDate, 1);
             }
           } else if (unifiedItem.frequency === 'bi-weekly') {
-            let tempDate = new Date(referenceDate);
+            let tempDate = new Date(originalStartDate);
             
             // Work backwards to start of year
             while (tempDate >= yearStart) {
@@ -337,7 +356,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
             }
             
             // Work forwards to end of year
-            tempDate = addWeeks(referenceDate, 2);
+            tempDate = addWeeks(originalStartDate, 2);
             while (tempDate <= yearEnd) {
               if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
                 allOccurrences.push(new Date(tempDate));
@@ -345,7 +364,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
               tempDate = addWeeks(tempDate, 2);
             }
           } else if (unifiedItem.frequency === 'monthly') {
-            let tempDate = new Date(referenceDate);
+            let tempDate = new Date(originalStartDate);
             
             // Work backwards to start of year
             while (tempDate >= yearStart) {
@@ -356,7 +375,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
             }
             
             // Work forwards to end of year
-            tempDate = addMonths(referenceDate, 1);
+            tempDate = addMonths(originalStartDate, 1);
             while (tempDate <= yearEnd) {
               if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
                 allOccurrences.push(new Date(tempDate));
@@ -364,7 +383,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
               tempDate = addMonths(tempDate, 1);
             }
           } else if (unifiedItem.frequency === 'quarterly') {
-            let tempDate = new Date(referenceDate);
+            let tempDate = new Date(originalStartDate);
             
             // Work backwards to start of year
             while (tempDate >= yearStart) {
@@ -375,7 +394,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
             }
             
             // Work forwards to end of year
-            tempDate = addQuarters(referenceDate, 1);
+            tempDate = addQuarters(originalStartDate, 1);
             while (tempDate <= yearEnd) {
               if (!unifiedItem.endDate || tempDate <= startOfDay(new Date(unifiedItem.endDate))) {
                 allOccurrences.push(new Date(tempDate));
@@ -383,10 +402,10 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
               tempDate = addQuarters(tempDate, 1);
             }
           } else if (unifiedItem.frequency === 'yearly') {
-            // For yearly, just use the reference date if it's in this year
-            if (referenceDate >= yearStart && referenceDate <= yearEnd) {
-              if (!unifiedItem.endDate || referenceDate <= startOfDay(new Date(unifiedItem.endDate))) {
-                allOccurrences.push(referenceDate);
+            // For yearly, just use the original start date if it's in this year
+            if (originalStartDate >= yearStart && originalStartDate <= yearEnd) {
+              if (!unifiedItem.endDate || originalStartDate <= startOfDay(new Date(unifiedItem.endDate))) {
+                allOccurrences.push(originalStartDate);
               }
             }
           }
