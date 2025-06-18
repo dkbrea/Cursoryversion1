@@ -214,7 +214,29 @@ export function DashboardContent() {
         // Load completion data for calendar
         try {
           const today = new Date();
-          const startDate = subMonths(startOfMonth(today), 1);
+          
+          // Get user's tracking start date to ensure we include auto-completed periods
+          let trackingStartDate = subMonths(today, 6); // Default fallback
+          
+          try {
+            const { data: userPrefs, error: prefsError } = await supabase
+              .from('user_preferences')
+              .select('financial_tracking_start_date')
+              .eq('user_id', user.id)
+              .single();
+
+            if (!prefsError && userPrefs?.financial_tracking_start_date) {
+              trackingStartDate = startOfDay(new Date(userPrefs.financial_tracking_start_date));
+            }
+          } catch (error) {
+            console.warn('Could not fetch user tracking start date for dashboard, using default:', error);
+          }
+
+          // Load completion data starting from the earlier of: 
+          // 1. User's tracking start date
+          // 2. 3 months before today (for performance)
+          const defaultStartDate = subMonths(startOfMonth(today), 1);
+          const startDate = trackingStartDate < defaultStartDate ? trackingStartDate : defaultStartDate;
           const endDate = endOfMonth(addMonths(today, 1));
 
           const { periods, error } = await getRecurringPeriods(

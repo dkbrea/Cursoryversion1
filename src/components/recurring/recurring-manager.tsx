@@ -219,8 +219,28 @@ export function RecurringManager() {
       if (!user?.id || unifiedList.length === 0) return;
 
       try {
-        // Load completion data for a 3-month window around displayed month
-        const startDate = subMonths(startOfMonth(displayedMonth), 1);
+        // Get user's tracking start date to ensure we include auto-completed periods
+        let trackingStartDate = subMonths(new Date(), 6); // Default fallback
+        
+        try {
+          const { data: userPrefs, error: prefsError } = await supabase
+            .from('user_preferences')
+            .select('financial_tracking_start_date')
+            .eq('user_id', user.id)
+            .single();
+
+          if (!prefsError && userPrefs?.financial_tracking_start_date) {
+            trackingStartDate = startOfDay(new Date(userPrefs.financial_tracking_start_date));
+          }
+        } catch (error) {
+          console.warn('Could not fetch user tracking start date, using default:', error);
+        }
+
+        // Load completion data starting from the earlier of: 
+        // 1. User's tracking start date
+        // 2. 3 months before displayed month (for performance)
+        const defaultStartDate = subMonths(startOfMonth(displayedMonth), 1);
+        const startDate = trackingStartDate < defaultStartDate ? trackingStartDate : defaultStartDate;
         const endDate = endOfMonth(addMonths(displayedMonth, 1));
 
         const { periods, error } = await getRecurringPeriods(
@@ -331,7 +351,25 @@ export function RecurringManager() {
 
         // Refresh completion data to show newly completed items
         try {
-          const startDate = subMonths(startOfMonth(displayedMonth), 1);
+          // Use the same extended date range logic as initial load
+          let trackingStartDate = subMonths(new Date(), 6); // Default fallback
+          
+          try {
+            const { data: userPrefs, error: prefsError } = await supabase
+              .from('user_preferences')
+              .select('financial_tracking_start_date')
+              .eq('user_id', user.id)
+              .single();
+
+            if (!prefsError && userPrefs?.financial_tracking_start_date) {
+              trackingStartDate = startOfDay(new Date(userPrefs.financial_tracking_start_date));
+            }
+          } catch (error) {
+            console.warn('Could not fetch user tracking start date during refresh, using default:', error);
+          }
+
+          const defaultStartDate = subMonths(startOfMonth(displayedMonth), 1);
+          const startDate = trackingStartDate < defaultStartDate ? trackingStartDate : defaultStartDate;
           const endDate = endOfMonth(addMonths(displayedMonth, 1));
 
           console.log('RecurringManager: Refreshing completion data after transaction record');
