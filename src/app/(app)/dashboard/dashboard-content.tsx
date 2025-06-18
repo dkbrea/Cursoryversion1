@@ -23,6 +23,7 @@ import { RecentTransactionsCard } from "@/components/dashboard/recent-transactio
 import { CalendarAccessCard } from "@/components/dashboard/calendar-access-card";
 import { RecurringCalendarOverlay } from "@/components/dashboard/recurring-calendar-overlay";
 import { AddEditTransactionDialog } from "@/components/transactions/add-edit-transaction-dialog";
+import { RecordRecurringTransactionDialog } from "@/components/recurring/record-recurring-transaction-dialog";
 import { DashboardAIInsightsCard } from "@/components/dashboard/ai-insights-card";
 import { startOfDay, endOfDay, addDays, isSameDay, format, addWeeks, addMonths, subMonths, startOfMonth, getDate, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -51,6 +52,10 @@ export function DashboardContent() {
   const [goalRefreshTrigger, setGoalRefreshTrigger] = useState(0);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
   const [isCalendarOverlayOpen, setIsCalendarOverlayOpen] = useState(false);
+  const [isRecordTransactionOpen, setIsRecordTransactionOpen] = useState(false);
+  const [selectedRecurringItem, setSelectedRecurringItem] = useState<UnifiedRecurringListItem | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
 
   useEffect(() => {
@@ -283,6 +288,40 @@ export function DashboardContent() {
 
   const handleViewCalendar = () => {
     setIsCalendarOverlayOpen(true);
+  };
+
+  const handleCalendarItemClick = (item: UnifiedRecurringListItem, date: Date) => {
+    setSelectedRecurringItem(item);
+    setSelectedDate(date);
+    setIsRecordTransactionOpen(true);
+  };
+
+  const handleRecordTransaction = async (transactionData: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">) => {
+    if (!user?.id || !selectedRecurringItem) return;
+
+    try {
+      const { transaction: newTransaction, error } = await createTransaction({
+        ...transactionData,
+        userId: user.id,
+      });
+
+      if (error || !newTransaction) {
+        throw new Error(error || "Failed to create transaction");
+      }
+
+      // Add to transactions list
+      setTransactions(prev => [newTransaction, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      
+      // Mark item as completed
+      const completionKey = `${selectedRecurringItem.id}-${format(selectedDate, 'yyyy-MM-dd')}`;
+      setCompletedItems(prev => new Set([...prev, completionKey]));
+
+      setIsRecordTransactionOpen(false);
+      setSelectedRecurringItem(null);
+    } catch (error) {
+      console.error("Error recording transaction:", error);
+      throw error; // Let the dialog handle the error display
+    }
   };
 
   const handleDeleteTransaction = async (transactionId: string) => {
@@ -1087,6 +1126,19 @@ export function DashboardContent() {
         isOpen={isCalendarOverlayOpen}
         onClose={() => setIsCalendarOverlayOpen(false)}
         items={upcomingItems}
+        onItemClick={handleCalendarItemClick}
+        completedItems={completedItems}
+      />
+
+      <RecordRecurringTransactionDialog
+        isOpen={isRecordTransactionOpen}
+        onOpenChange={setIsRecordTransactionOpen}
+        recurringItem={selectedRecurringItem}
+        selectedDate={selectedDate}
+        accounts={accounts}
+        debtAccounts={debtAccounts}
+        categories={categories}
+        onSave={handleRecordTransaction}
       />
     </div>
   );

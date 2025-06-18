@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 interface RecurringCalendarViewProps {
   items: UnifiedRecurringListItem[];
   onMonthChange?: (month: Date) => void;
+  onItemClick?: (item: UnifiedRecurringListItem, date: Date) => void;
+  completedItems?: Set<string>; // Set of completed item IDs in format "itemId-YYYY-MM-DD"
 }
 
 interface DayItem {
@@ -23,6 +25,8 @@ interface DayItem {
   amount: number;
   type: UnifiedRecurringListItem['itemDisplayType'];
   source: 'recurring' | 'debt';
+  originalItem: UnifiedRecurringListItem; // Reference to the original item
+  occurrenceDate: Date; // The specific date this item occurs
 }
 
 interface DayData {
@@ -77,7 +81,7 @@ const getItemBackgroundColor = (itemType: UnifiedRecurringListItem['itemDisplayT
   }
 };
 
-export function RecurringCalendarView({ items, onMonthChange }: RecurringCalendarViewProps) {
+export function RecurringCalendarView({ items, onMonthChange, onItemClick, completedItems }: RecurringCalendarViewProps) {
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
@@ -204,7 +208,9 @@ export function RecurringCalendarView({ items, onMonthChange }: RecurringCalenda
               name: unifiedItem.name,
               amount: unifiedItem.amount,
               type: unifiedItem.itemDisplayType,
-              source: unifiedItem.source
+              source: unifiedItem.source,
+              originalItem: unifiedItem,
+              occurrenceDate: debtDate
             });
           }
         });
@@ -399,7 +405,9 @@ export function RecurringCalendarView({ items, onMonthChange }: RecurringCalenda
               name: unifiedItem.name,
               amount: unifiedItem.amount,
               type: unifiedItem.itemDisplayType,
-              source: unifiedItem.source
+              source: unifiedItem.source,
+              originalItem: unifiedItem,
+              occurrenceDate: adjustedDate
             });
           }
         });
@@ -434,21 +442,32 @@ export function RecurringCalendarView({ items, onMonthChange }: RecurringCalenda
         )}>{dayOfMonth}</span>
         
         <div className="flex-1 min-h-0 space-y-1 overflow-hidden">
-          {dayData.items.slice(0, 2).map((item, index) => (
-            <div
-              key={item.id}
-              className={cn(
-                "flex items-center space-x-1 text-[11px] leading-tight truncate font-medium px-1 py-0.5 rounded border",
-                getItemTextColor(item.type),
-                getItemBackgroundColor(item.type)
-              )}
-            >
-              <div className="flex-shrink-0">
-                {getItemIcon(item.type)}
+          {dayData.items.slice(0, 2).map((item, index) => {
+            const isCompleted = completedItems?.has(item.id) || false;
+            return (
+              <div
+                key={item.id}
+                onClick={() => onItemClick?.(item.originalItem, item.occurrenceDate)}
+                className={cn(
+                  "flex items-center space-x-1 text-[11px] leading-tight truncate font-medium px-1 py-0.5 rounded border cursor-pointer transition-all duration-200",
+                  "hover:bg-opacity-80 hover:scale-105 hover:shadow-sm",
+                  isCompleted && "opacity-60 line-through bg-green-50 border-green-200",
+                  !isCompleted && getItemTextColor(item.type),
+                  !isCompleted && getItemBackgroundColor(item.type)
+                )}
+                title={`Click to record ${item.name} as complete`}
+              >
+                <div className="flex-shrink-0">
+                  {isCompleted ? (
+                    <span className="text-green-600 text-[10px]">✓</span>
+                  ) : (
+                    getItemIcon(item.type)
+                  )}
+                </div>
+                <span className="truncate flex-1 text-[11px]">{item.name}</span>
               </div>
-              <span className="truncate flex-1 text-[11px]">{item.name}</span>
-            </div>
-          ))}
+            );
+          })}
           
           {dayData.items.length > 2 && (
             <div className="text-[11px] text-muted-foreground leading-tight font-medium px-1">

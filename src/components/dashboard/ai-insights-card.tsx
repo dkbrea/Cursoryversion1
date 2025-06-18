@@ -257,7 +257,7 @@ export function DashboardAIInsightsCard() {
                       <SeverityIcon className={cn("h-2 w-2", config.iconColor)} />
                     </div>
                     <p className="text-xs text-gray-600 leading-tight">
-                      {insight.message.length > 120 ? `${insight.message.substring(0, 120)}...` : insight.message}
+                      {insight.message.length > 200 ? `${insight.message.substring(0, 200)}...` : insight.message}
                     </p>
                     
                     {/* Show compact suggestion */}

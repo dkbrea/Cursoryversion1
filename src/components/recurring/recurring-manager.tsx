@@ -1,6 +1,6 @@
 "use client";
 
-import type { RecurringItem, DebtAccount, UnifiedRecurringListItem } from "@/types";
+import type { RecurringItem, DebtAccount, UnifiedRecurringListItem, Account, Category, Transaction } from "@/types";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,14 +11,19 @@ import { supabase } from "@/lib/supabase";
 import { AddRecurringItemDialog } from "./add-recurring-item-dialog";
 import { RecurringList } from "./recurring-list";
 import { RecurringCalendarView } from "./recurring-calendar-view";
+import { RecordRecurringTransactionDialog } from "./record-recurring-transaction-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecurringSummaryCards } from "./recurring-summary-cards";
 import { 
   addDays, addWeeks, addMonths, addQuarters, addYears, 
   isSameDay, setDate, getDate, startOfDay, 
-  startOfMonth, endOfMonth, isWithinInterval, isSameMonth, getYear
+  startOfMonth, endOfMonth, isWithinInterval, isSameMonth, getYear, format
 } from "date-fns";
 import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence, adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
+import { getAccounts } from "@/lib/api/accounts";
+import { getDebtAccounts } from "@/lib/api/debts";
+import { getCategories } from "@/lib/api/categories";
+import { createTransaction } from "@/lib/api/transactions";
 
 interface MonthlySummary {
   income: number;

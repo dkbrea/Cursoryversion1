@@ -58,13 +58,27 @@ export const signIn = async (email: string, password: string): Promise<{ data?: 
 
 export const signOut = async (): Promise<{ success?: boolean; error?: string }> => {
   try {
-    const { error } = await supabase.auth.signOut();
-    
-    if (error) {
-      return handleSupabaseError(error);
+    // Always try to sign out, but handle the AuthSessionMissingError gracefully
+    try {
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        return handleSupabaseError(error);
+      }
+      
+      return { success: true };
+    } catch (signOutError: any) {
+      // Handle specific AuthSessionMissingError - this means user is already signed out
+      if (signOutError.message?.includes('Auth session missing') || 
+          signOutError.name === 'AuthSessionMissingError' ||
+          signOutError.toString().includes('AuthSessionMissingError')) {
+        console.log('No active session to sign out from, treating as successful signout');
+        return { success: true };
+      }
+      
+      // Re-throw other errors
+      throw signOutError;
     }
-
-    return { success: true };
   } catch (error) {
     return handleSupabaseError(error);
   }

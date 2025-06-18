@@ -11,12 +11,16 @@ interface RecurringCalendarOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   items: UnifiedRecurringListItem[];
+  onItemClick?: (item: UnifiedRecurringListItem, date: Date) => void;
+  completedItems?: Set<string>;
 }
 
 export function RecurringCalendarOverlay({ 
   isOpen, 
   onClose, 
-  items 
+  items,
+  onItemClick,
+  completedItems
 }: RecurringCalendarOverlayProps) {
   const [displayedMonth, setDisplayedMonth] = useState<Date>(new Date());
 
@@ -75,6 +79,8 @@ export function RecurringCalendarOverlay({
             <RecurringCalendarView 
               items={items} 
               onMonthChange={setDisplayedMonth}
+              onItemClick={onItemClick}
+              completedItems={completedItems}
             />
           </div>
         </div>
