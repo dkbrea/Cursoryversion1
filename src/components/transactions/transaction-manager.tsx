@@ -410,6 +410,28 @@ export function TransactionManager() {
     const transactionToDelete = transactions.find(t => t.id === transactionId);
     
     try {
+      // IMPORTANT: Delete completion records BEFORE deleting the transaction
+      // This is because the foreign key constraint will set transaction_id to NULL
+      // if we delete the transaction first, making it impossible to find the completion
+      if (transactionToDelete) {
+        try {
+          console.log('TransactionManager: Attempting to remove completion BEFORE deleting transaction:', transactionToDelete.id);
+          const { removeCompletionByTransactionId } = await import('@/lib/api/recurring-completions');
+          
+          const completionResult = await removeCompletionByTransactionId(transactionToDelete.id, transactionToDelete.userId);
+          
+          if (completionResult.success) {
+            console.log('TransactionManager: Successfully removed completion before transaction deletion');
+          } else {
+            console.log('TransactionManager: No completion found for this transaction (this is normal for non-recurring transactions)');
+          }
+        } catch (error) {
+          console.warn('TransactionManager: Error removing completion record:', error);
+          // Don't fail the delete operation if completion cleanup fails
+        }
+      }
+      
+      // Now delete the transaction
       const result = await deleteTransaction(transactionId);
       if (result.error) {
         toast({

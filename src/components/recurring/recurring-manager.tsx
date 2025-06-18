@@ -17,13 +17,14 @@ import { RecurringSummaryCards } from "./recurring-summary-cards";
 import { 
   addDays, addWeeks, addMonths, addQuarters, addYears, 
   isSameDay, setDate, getDate, startOfDay, 
-  startOfMonth, endOfMonth, isWithinInterval, isSameMonth, getYear, format
+  startOfMonth, endOfMonth, isWithinInterval, isSameMonth, getYear, format, subMonths
 } from "date-fns";
 import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence, adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
 import { getAccounts } from "@/lib/api/accounts";
 import { getDebtAccounts } from "@/lib/api/debts";
 import { getCategories } from "@/lib/api/categories";
 import { createTransaction } from "@/lib/api/transactions";
+import { getRecurringPeriods } from "@/lib/api/recurring-completions";
 
 interface MonthlySummary {
   income: number;
@@ -36,12 +37,21 @@ export function RecurringManager() {
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [unifiedList, setUnifiedList] = useState<UnifiedRecurringListItem[]>([]);
+  const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<RecurringItem | null>(null);
   const [dialogKey, setDialogKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [displayedMonth, setDisplayedMonth] = useState<Date>(startOfMonth(new Date())); // Track displayed month
+  
+  // Transaction recording states
+  const [isRecordTransactionOpen, setIsRecordTransactionOpen] = useState(false);
+  const [selectedRecurringItem, setSelectedRecurringItem] = useState<UnifiedRecurringListItem | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  
   const { toast } = useToast();
   const { user } = useAuth();
   const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary>({
@@ -105,12 +115,28 @@ export function RecurringManager() {
           minimumPayment: debt.minimum_payment,
           paymentDayOfMonth: debt.payment_day_of_month,
           paymentFrequency: debt.payment_frequency,
+          nextDueDate: debt.next_due_date ? new Date(debt.next_due_date) : new Date(),
           userId: debt.user_id,
           createdAt: new Date(debt.created_at)
         })) || [];
 
         setRecurringItems(formattedRecurringItems);
         setDebtAccounts(formattedDebtAccounts);
+
+        // Also fetch accounts and categories for transaction recording
+        try {
+          const { accounts: accountsData, error: accountsError } = await getAccounts(user.id);
+          if (!accountsError && accountsData) {
+            setAccounts(accountsData);
+          }
+
+          const { categories: categoriesData, error: categoriesError } = await getCategories(user.id);
+          if (!categoriesError && categoriesData) {
+            setCategories(categoriesData);
+          }
+        } catch (error) {
+          console.warn('Error fetching accounts/categories:', error);
+        }
       } catch (error) {
         console.error('Error fetching recurring data:', error);
         toast({
@@ -186,6 +212,170 @@ export function RecurringManager() {
     setUnifiedList(combined);
 
   }, [recurringItems, debtAccounts]);
+
+  // Effect to load completion data when month changes
+  useEffect(() => {
+    const loadCompletionData = async () => {
+      if (!user?.id || unifiedList.length === 0) return;
+
+      try {
+        // Load completion data for a 3-month window around displayed month
+        const startDate = subMonths(startOfMonth(displayedMonth), 1);
+        const endDate = endOfMonth(addMonths(displayedMonth, 1));
+
+        const { periods, error } = await getRecurringPeriods(
+          user.id,
+          startDate,
+          endDate,
+          unifiedList
+        );
+
+        if (error) {
+          console.warn('Failed to load completion data:', error);
+          return;
+        }
+
+        // Convert completed periods to Set format expected by calendar
+        const completedSet = new Set<string>();
+        if (periods) {
+          periods.forEach(period => {
+            if (period.isCompleted) {
+              const itemKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
+              completedSet.add(itemKey);
+              console.log('Adding completed item to set:', itemKey);
+            }
+          });
+        }
+
+        console.log('Setting completed items:', Array.from(completedSet));
+        setCompletedItems(completedSet);
+      } catch (error) {
+        console.warn('Error loading completion data:', error);
+      }
+    };
+
+    loadCompletionData();
+  }, [user?.id, displayedMonth, unifiedList]);
+
+  // Handle calendar item click
+  const handleCalendarItemClick = (item: UnifiedRecurringListItem, date: Date) => {
+    setSelectedRecurringItem(item);
+    setSelectedDate(date);
+    setIsRecordTransactionOpen(true);
+  };
+
+  // Handle transaction recording
+  const handleRecordTransaction = async (transactionData: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">) => {
+    if (!user?.id) return;
+
+    // Handle predefined category conversion (same logic as dashboard)
+    let finalCategoryId = transactionData.categoryId;
+    
+    if (finalCategoryId && typeof finalCategoryId === 'string' && finalCategoryId.startsWith('PREDEFINED:')) {
+      // Handle predefined categories for expenses
+      const predefinedValue = finalCategoryId.replace('PREDEFINED:', '');
+      
+      // Map predefined value to display label
+      const categoryLabels: Record<string, string> = {
+        'housing': 'Housing',
+        'food': 'Food',
+        'utilities': 'Utilities',
+        'transportation': 'Transportation',
+        'health': 'Health',
+        'personal': 'Personal',
+        'home-family': 'Home/Family',
+        'media-productivity': 'Media/Productivity'
+      };
+      
+      const categoryLabel = categoryLabels[predefinedValue] || predefinedValue;
+      
+      // Try to find existing category with this name
+      let existingCategory = categories.find(cat => cat.name === categoryLabel);
+      
+      if (existingCategory) {
+        finalCategoryId = existingCategory.id;
+      } else {
+        // Create new category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: categoryLabel,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategories(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create category:', error);
+          finalCategoryId = null;
+        }
+      }
+    }
+
+    try {
+      const result = await createTransaction({
+        ...transactionData,
+        categoryId: finalCategoryId,
+        userId: user.id,
+      });
+
+      if (result.transaction) {
+        toast({
+          title: "Transaction Recorded",
+          description: `"${result.transaction.description}" has been recorded successfully.`,
+        });
+
+        // Refresh completion data to show newly completed items
+        try {
+          const startDate = subMonths(startOfMonth(displayedMonth), 1);
+          const endDate = endOfMonth(addMonths(displayedMonth, 1));
+
+          console.log('RecurringManager: Refreshing completion data after transaction record');
+          
+          const { periods, error } = await getRecurringPeriods(
+            user.id,
+            startDate,
+            endDate,
+            unifiedList
+          );
+
+          if (!error && periods) {
+            console.log('RecurringManager: Found periods after refresh:', periods.length);
+            const completedSet = new Set<string>();
+            periods.forEach(period => {
+              if (period.isCompleted) {
+                const itemKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
+                completedSet.add(itemKey);
+                console.log('RecurringManager: Adding completed item to set after refresh:', itemKey);
+              }
+            });
+            console.log('RecurringManager: Setting completed items after refresh:', Array.from(completedSet));
+            setCompletedItems(completedSet);
+          } else {
+            console.error('RecurringManager: Error refreshing completion data:', error);
+          }
+        } catch (completionError) {
+          console.error('RecurringManager: Exception refreshing completion data:', completionError);
+        }
+
+        return result.transaction;
+      } else {
+        throw new Error(result.error || 'Failed to create transaction');
+      }
+    } catch (error) {
+      console.error('Error recording transaction:', error);
+      toast({
+        title: "Error",
+        description: "Failed to record transaction. Please try again.",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
 
   // Effect for Monthly Summaries - calculate for the displayed month
   useEffect(() => {
@@ -645,6 +835,8 @@ export function RecurringManager() {
           <RecurringCalendarView 
             items={unifiedList} 
             onMonthChange={setDisplayedMonth}
+            onItemClick={handleCalendarItemClick}
+            completedItems={completedItems}
           />
         </TabsContent>
       </Tabs>
@@ -693,6 +885,17 @@ export function RecurringManager() {
           <Button type="button">Edit Recurring Item</Button>
         </AddRecurringItemDialog>
       )}
+
+      <RecordRecurringTransactionDialog
+        isOpen={isRecordTransactionOpen}
+        onOpenChange={setIsRecordTransactionOpen}
+        recurringItem={selectedRecurringItem}
+        selectedDate={selectedDate}
+        accounts={accounts}
+        debtAccounts={debtAccounts}
+        categories={categories}
+        onSave={handleRecordTransaction}
+      />
     </div>
   );
 }

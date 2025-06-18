@@ -31,6 +31,8 @@ import { AlertTriangle } from "lucide-react";
 import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence } from "@/lib/utils/date-calculations";
 import { getUserPreferences, type UserPreferences } from "@/lib/api/user-preferences";
 import { getPersonalizedGreeting } from "@/lib/utils/time-greeting";
+import { getRecurringPeriods } from "@/lib/api/recurring-completions";
+import { supabase } from "@/lib/supabase";
 
 export function DashboardContent() {
   const { user } = useAuth();
@@ -41,6 +43,7 @@ export function DashboardContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [upcomingItems, setUpcomingItems] = useState<UnifiedRecurringListItem[]>([]);
+  const [allItems, setAllItems] = useState<UnifiedRecurringListItem[]>([]);
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
@@ -153,6 +156,13 @@ export function DashboardContent() {
               status: isSameDay(nextOccurrenceDate, today) ? 'Today' as const : 'Upcoming' as const,
               isDebt: false,
               source: 'recurring' as const,
+              categoryId: item.categoryId, // Include categoryId from the original RecurringItem
+              startDate: item.startDate,
+              lastRenewalDate: item.lastRenewalDate,
+              endDate: item.endDate,
+              semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
+              semiMonthlySecondPayDate: item.semiMonthlySecondPayDate,
+              notes: item.notes,
             };
           });
 
@@ -183,17 +193,52 @@ export function DashboardContent() {
           allUpcomingItems.push(...debtItems);
         }
 
-        // Sort by date and filter out ended items
+        // Sort by date and filter out ended items for upcoming display
         const activeItems = allUpcomingItems
           .filter(item => item.status !== 'Ended')
           .sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime());
         
         setUpcomingItems(activeItems);
         
+        // For calendar, we need ALL items (including past ones), not just upcoming
+        const allItemsForCalendar = allUpcomingItems
+          .sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime());
+        
+        setAllItems(allItemsForCalendar);
+        
         setRecurringItems(recurringData);
         setDebtAccounts(debtData);
         setGoals(goalsData);
         setVariableExpenses(variableExpensesData);
+
+        // Load completion data for calendar
+        try {
+          const today = new Date();
+          const startDate = subMonths(startOfMonth(today), 1);
+          const endDate = endOfMonth(addMonths(today, 1));
+
+          const { periods, error } = await getRecurringPeriods(
+            user.id,
+            startDate,
+            endDate,
+            allItemsForCalendar
+          );
+
+          if (!error && periods) {
+            const completedSet = new Set<string>();
+            periods.forEach(period => {
+              if (period.isCompleted) {
+                const itemKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
+                completedSet.add(itemKey);
+                console.log('Dashboard initial load: Adding completed item to set:', itemKey);
+              }
+            });
+            console.log('Dashboard initial load: Setting completed items:', Array.from(completedSet));
+            setCompletedItems(completedSet);
+          }
+        } catch (completionError) {
+          console.warn('Failed to load completion data:', completionError);
+        }
 
         // Convert goals to FinancialGoalWithContribution format for the transaction dialog
         const goalsConverted: FinancialGoalWithContribution[] = goalsData.map((goal: FinancialGoal) => ({
@@ -299,9 +344,58 @@ export function DashboardContent() {
   const handleRecordTransaction = async (transactionData: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">) => {
     if (!user?.id || !selectedRecurringItem) return;
 
+    // Handle predefined category conversion (same logic as handleSaveTransaction)
+    let finalCategoryId = transactionData.categoryId;
+    
+    if (finalCategoryId && typeof finalCategoryId === 'string' && finalCategoryId.startsWith('PREDEFINED:')) {
+      // Handle predefined categories for expenses
+      const predefinedValue = finalCategoryId.replace('PREDEFINED:', '');
+      
+      // Map predefined value to display label
+      const categoryLabels: Record<string, string> = {
+        'housing': 'Housing',
+        'food': 'Food',
+        'utilities': 'Utilities',
+        'transportation': 'Transportation',
+        'health': 'Health',
+        'personal': 'Personal',
+        'home-family': 'Home/Family',
+        'media-productivity': 'Media/Productivity'
+      };
+      
+      const categoryLabel = categoryLabels[predefinedValue] || predefinedValue;
+      
+      // Try to find existing category with this name
+      let existingCategory = categories.find(cat => cat.name === categoryLabel);
+      
+      if (existingCategory) {
+        finalCategoryId = existingCategory.id;
+      } else {
+        // Create new category
+        try {
+          const { createCategory } = await import('@/lib/api/categories');
+          const result = await createCategory({
+            name: categoryLabel,
+            userId: user.id
+          });
+          
+          if (result.category) {
+            setCategories(prev => [...prev, result.category!]);
+            finalCategoryId = result.category.id;
+          } else {
+            finalCategoryId = null;
+          }
+        } catch (error) {
+          console.error('Failed to create category:', error);
+          finalCategoryId = null;
+        }
+      }
+    }
+
     try {
       const { transaction: newTransaction, error } = await createTransaction({
         ...transactionData,
+        categoryId: finalCategoryId,
         userId: user.id,
       });
 
@@ -318,6 +412,9 @@ export function DashboardContent() {
 
       setIsRecordTransactionOpen(false);
       setSelectedRecurringItem(null);
+
+      // Return the transaction for completion tracking
+      return newTransaction;
     } catch (error) {
       console.error("Error recording transaction:", error);
       throw error; // Let the dialog handle the error display
@@ -332,6 +429,26 @@ export function DashboardContent() {
     if (!transactionToDelete) return;
 
     try {
+      // IMPORTANT: Delete completion records BEFORE deleting the transaction
+      // This is because the foreign key constraint will set transaction_id to NULL
+      // if we delete the transaction first, making it impossible to find the completion
+      try {
+        console.log('Dashboard: Attempting to remove completion BEFORE deleting transaction:', transactionToDelete.id);
+        const { removeCompletionByTransactionId } = await import('@/lib/api/recurring-completions');
+        
+        const completionResult = await removeCompletionByTransactionId(transactionToDelete.id, user.id);
+        
+        if (completionResult.success) {
+          console.log('Dashboard: Successfully removed completion before transaction deletion');
+        } else {
+          console.log('Dashboard: No completion found for this transaction (this is normal for non-recurring transactions)');
+        }
+      } catch (error) {
+        console.warn('Dashboard: Error removing completion record:', error);
+        // Don't fail the delete operation if completion cleanup fails
+      }
+
+      // Now delete the transaction
       const { deleteTransaction } = await import('@/lib/api/transactions');
       const result = await deleteTransaction(transactionId);
       
@@ -347,6 +464,35 @@ export function DashboardContent() {
       if (result.success) {
         // Remove the transaction from the list
         setTransactions(prev => prev.filter(t => t.id !== transactionId));
+        
+        // Refresh the completion data to update the calendar
+        try {
+          const now = new Date();
+          const startDate = subMonths(startOfMonth(now), 1);
+          const endDate = endOfMonth(addMonths(now, 1));
+
+          const { getRecurringPeriods } = await import('@/lib/api/recurring-completions');
+          const { periods, error } = await getRecurringPeriods(
+            user.id!,
+            startDate,
+            endDate,
+            allItems
+          );
+
+          if (!error && periods) {
+            console.log('Dashboard: Refreshing completion data after transaction deletion');
+            const completedSet = new Set<string>();
+            periods.forEach(period => {
+              if (period.isCompleted) {
+                const itemKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
+                completedSet.add(itemKey);
+              }
+            });
+            setCompletedItems(completedSet);
+          }
+        } catch (refreshError) {
+          console.warn('Failed to refresh completion data after deletion:', refreshError);
+        }
         
         // Recalculate monthly spending
         const updatedTransactions = transactions.filter(t => t.id !== transactionId);
@@ -419,6 +565,8 @@ export function DashboardContent() {
     data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">
   ) => {
     if (!user?.id) return;
+    
+    console.log('Dashboard: handleSaveTransaction called with data:', data);
 
     let finalCategoryId = data.categoryId;
 
@@ -702,11 +850,89 @@ export function DashboardContent() {
             // Continue without showing error to user since transaction and account updates were successful
           }
         }
+
+        // Refresh completion data if this was a recurring transaction
+        if (result.transaction.sourceId && 
+            (result.transaction.detailedType === 'income' || 
+             result.transaction.detailedType === 'fixed-expense' || 
+             result.transaction.detailedType === 'subscription' || 
+             result.transaction.detailedType === 'debt-payment')) {
+          
+          // First, check if we need to mark a period as complete
+          // This happens when the transaction has a recurring period selected
+          const transactionData = data as any; // Access the original form data
+          if (transactionData.recurringPeriodId && result.transaction.id) {
+            try {
+              console.log('Dashboard: Handling period completion for recurring transaction');
+              const { markPeriodComplete } = await import('@/lib/api/recurring-completions');
+              const { startOfDay } = await import('date-fns');
+              
+              // Parse the recurringPeriodId to get the period date
+              const parts = transactionData.recurringPeriodId.split('-');
+              const periodDateStr = parts.slice(-3).join('-'); // Last 3 parts: year-month-day
+              const [year, month, day] = periodDateStr.split('-').map(Number);
+              const periodDate = startOfDay(new Date(year, month - 1, day));
+              
+              await markPeriodComplete({
+                recurringItemId: result.transaction.detailedType === 'debt-payment' ? undefined : result.transaction.sourceId,
+                debtAccountId: result.transaction.detailedType === 'debt-payment' ? result.transaction.sourceId : undefined,
+                periodDate: periodDate,
+                completedDate: startOfDay(new Date(result.transaction.date)),
+                transactionId: result.transaction.id,
+                userId: user.id,
+              });
+              
+              console.log('Dashboard: Successfully marked period as complete');
+            } catch (completionError) {
+              console.warn('Dashboard: Failed to mark period as complete:', completionError);
+            }
+          }
+          
+          try {
+            const now = new Date();
+            const startDate = subMonths(startOfMonth(now), 1);
+            const endDate = endOfMonth(addMonths(now, 1));
+
+            const { periods, error } = await getRecurringPeriods(
+              user.id!,
+              startDate,
+              endDate,
+              allItems
+            );
+
+            if (!error && periods) {
+              console.log('Dashboard: Refreshing completion data after transaction save, found', periods.length, 'periods');
+              const completedSet = new Set<string>();
+              periods.forEach(period => {
+                console.log('Dashboard: Processing period:', {
+                  itemId: period.itemId,
+                  itemName: period.itemName,
+                  periodDate: period.periodDate,
+                  periodDateFormatted: format(period.periodDate, 'yyyy-MM-dd'),
+                  isCompleted: period.isCompleted,
+                  completedDate: period.completedDate
+                });
+                if (period.isCompleted) {
+                  const itemKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
+                  completedSet.add(itemKey);
+                  console.log('Dashboard: Adding completed item to set:', itemKey, 'for period:', format(period.periodDate, 'yyyy-MM-dd'));
+                }
+              });
+              console.log('Dashboard: Setting completed items after transaction:', Array.from(completedSet));
+              setCompletedItems(completedSet);
+            }
+          } catch (completionError) {
+            console.warn('Failed to refresh completion data:', completionError);
+          }
+        }
         
         toast({ 
           title: transactionToEdit ? "Transaction Updated" : "Transaction Added", 
           description: `"${result.transaction.description}" has been ${transactionToEdit ? 'updated' : 'added'}.` 
         });
+        
+        // Return the saved transaction so the dialog can use it for completion tracking
+        return result.transaction;
       }
     } catch (error) {
       console.error("Error saving transaction:", error);
@@ -1125,7 +1351,7 @@ export function DashboardContent() {
       <RecurringCalendarOverlay
         isOpen={isCalendarOverlayOpen}
         onClose={() => setIsCalendarOverlayOpen(false)}
-        items={upcomingItems}
+        items={allItems}
         onItemClick={handleCalendarItemClick}
         completedItems={completedItems}
       />

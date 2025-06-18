@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { format, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { getAvailablePeriodsForItem, markPeriodComplete, type RecurringPeriod } from "@/lib/api/recurring-completions";
 
 
 const formSchema = z.object({
@@ -31,6 +32,7 @@ const formSchema = z.object({
   detailedType: z.enum(transactionDetailedTypes, { required_error: "Transaction type is required." }),
   description: z.string().optional(),
   sourceId: z.string().optional(),
+  recurringPeriodId: z.string().optional(), // New field for specific period selection
   amount: z.number({ required_error: "Amount is required.", invalid_type_error: "Amount must be a number." }).min(0, { message: "Amount cannot be negative." }).optional(),
   categoryId: z.string().nullable().optional(),
   accountId: z.string().optional(), // Now optional since we might use debt account
@@ -108,7 +110,7 @@ interface AddEditTransactionDialogProps {
   children?: ReactNode;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">, id?: string) => void;
+  onSave: (data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">, id?: string) => Promise<Transaction | void>;
   categories: Category[]; 
   accounts: Account[]; 
   recurringItems: RecurringItem[];
@@ -134,6 +136,8 @@ export function AddEditTransactionDialog({
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [availablePeriods, setAvailablePeriods] = useState<RecurringPeriod[]>([]);
+  const [loadingPeriods, setLoadingPeriods] = useState(false);
   const { user } = useAuth();
 
   const form = useForm<TransactionFormValues>({
@@ -195,8 +199,10 @@ export function AddEditTransactionDialog({
     }
   }, [transactionToEdit, isOpen, form]);
 
-  const handleItemSelection = (itemId: string) => {
+  const handleItemSelection = async (itemId: string) => {
     form.setValue('sourceId', itemId, {shouldValidate: true});
+    form.setValue('recurringPeriodId', undefined, {shouldValidate: true}); // Reset period selection
+    
     let selectedItemName = "";
     let selectedItemAmount: number | undefined;
     let selectedCategoryId: string | null = null;
@@ -252,6 +258,119 @@ export function AddEditTransactionDialog({
     if (selectedCategoryId) {
       form.setValue('categoryId', selectedCategoryId, {shouldValidate: true});
     }
+
+    // Load available periods for ALL recurring items (income, fixed-expense, subscription, debt-payment)
+    if ((selectedDetailedType === 'income' || selectedDetailedType === 'fixed-expense' || selectedDetailedType === 'subscription' || selectedDetailedType === 'debt-payment') && user?.id) {
+      setLoadingPeriods(true);
+      try {
+        const itemType = selectedDetailedType === 'debt-payment' ? 'debt' : 'recurring';
+        let allItems: any[] = [];
+
+        if (selectedDetailedType === 'debt-payment') {
+          // Convert debt accounts to UnifiedRecurringListItem format
+          allItems = debtAccounts.filter(debt => debt.id === itemId).map(debt => ({
+            id: debt.id,
+            name: debt.name,
+            itemDisplayType: 'debt-payment' as const,
+            amount: debt.minimumPayment,
+            frequency: debt.paymentFrequency || 'monthly',
+            nextOccurrenceDate: debt.nextDueDate ? new Date(debt.nextDueDate) : new Date(),
+            status: 'Upcoming' as const,
+            isDebt: true,
+            source: 'debt' as const,
+            type: 'debt-payment' as const,
+            // Required fields for period calculation
+            startDate: debt.nextDueDate ? new Date(debt.nextDueDate) : new Date(),
+            lastRenewalDate: debt.nextDueDate ? new Date(debt.nextDueDate) : new Date(),
+            endDate: undefined,
+          }));
+        } else {
+          // Use existing recurring items
+          allItems = recurringItems.filter(item => 
+            item.id === itemId && item.type === selectedDetailedType
+          ).map(item => ({
+            id: item.id,
+            name: item.name,
+            itemDisplayType: item.type,
+            amount: item.amount,
+            frequency: item.frequency,
+            nextOccurrenceDate: new Date(), // This would need proper calculation
+            status: 'Upcoming' as const,
+            isDebt: false,
+            source: 'recurring' as const,
+            type: item.type,
+            // Required fields for period calculation
+            startDate: item.startDate,
+            lastRenewalDate: item.lastRenewalDate,
+            endDate: item.endDate,
+            semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
+            semiMonthlySecondPayDate: item.semiMonthlySecondPayDate,
+          }));
+        }
+
+        console.log('Dialog: Loading periods for item:', {
+          itemId,
+          itemType,
+          allItemsCount: allItems.length,
+          userId: user.id
+        });
+
+        const { availablePeriods: periods, error } = await getAvailablePeriodsForItem(
+          user.id,
+          itemId,
+          itemType,
+          allItems
+        );
+
+        if (error) {
+          console.error('Dialog: Error loading periods:', error);
+          setAvailablePeriods([]);
+        } else {
+          const periodsArray = periods || [];
+          console.log('Dialog: Loaded periods:', periodsArray.length, periodsArray);
+          setAvailablePeriods(periodsArray);
+
+          // Auto-select the most overdue period, or the earliest unpaid period
+          if (periodsArray.length > 0) {
+            // First, try to find overdue periods
+            const overduePeriods = periodsArray.filter(p => p.isOverdue && !p.isCompleted);
+            
+            let selectedPeriod: any = null;
+            if (overduePeriods.length > 0) {
+              // Select the oldest overdue period
+              selectedPeriod = overduePeriods.sort((a, b) => a.periodDate.getTime() - b.periodDate.getTime())[0];
+            } else {
+              // If no overdue periods, select the earliest unpaid period
+              const unpaidPeriods = periodsArray.filter(p => !p.isCompleted);
+              if (unpaidPeriods.length > 0) {
+                selectedPeriod = unpaidPeriods.sort((a, b) => a.periodDate.getTime() - b.periodDate.getTime())[0];
+              }
+            }
+
+            // Set the auto-selected period
+            if (selectedPeriod) {
+              const periodKey = `${selectedPeriod.itemId}-${format(selectedPeriod.periodDate, 'yyyy-MM-dd')}`;
+              console.log('Dialog: Auto-selecting period:', {
+                selectedPeriod,
+                periodKey,
+                isOverdue: selectedPeriod.isOverdue,
+                isCompleted: selectedPeriod.isCompleted
+              });
+              form.setValue('recurringPeriodId', periodKey, {shouldValidate: true});
+            } else {
+              console.log('Dialog: No period auto-selected - no suitable periods found');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading periods:', error);
+        setAvailablePeriods([]);
+      } finally {
+        setLoadingPeriods(false);
+      }
+    } else {
+      setAvailablePeriods([]);
+    }
   };
   
   useEffect(() => { 
@@ -295,7 +414,7 @@ export function AddEditTransactionDialog({
     const transactionData = {
       date: startOfDay(values.date),
       description: values.description || "",
-      amount: values.amount, 
+      amount: values.amount || 0, 
       type: baseTransactionType, 
       detailedType: values.detailedType,
       sourceId: values.sourceId || undefined,
@@ -307,9 +426,16 @@ export function AddEditTransactionDialog({
       notes: values.notes || undefined,
       tags: values.tags ? values.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
       isDebtTransaction: values.isDebtTransaction,
+      recurringPeriodId: values.recurringPeriodId || undefined, // Include period ID for completion tracking
     };
     
-    onSave(transactionData, transactionToEdit?.id);
+    // Save the transaction first
+    const savedTransaction = await onSave(transactionData, transactionToEdit?.id);
+    
+    // Period completion is now handled by the dashboard's handleSaveTransaction function
+    // This ensures the completion is created before the calendar refresh happens
+    console.log('Dialog: Transaction saved, period completion will be handled by parent component');
+    
     setIsLoading(false);
     onOpenChange(false); 
   }
@@ -484,6 +610,76 @@ export function AddEditTransactionDialog({
                     </FormItem>
                 )}
             />
+
+            {/* Period Selection - For all recurring items (income, fixed expenses, subscriptions, and debt payments) */}
+            {form.watch('sourceId') && (selectedDetailedType === 'income' || selectedDetailedType === 'fixed-expense' || selectedDetailedType === 'subscription' || selectedDetailedType === 'debt-payment') && (
+              <FormField
+                control={form.control}
+                name="recurringPeriodId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Which period does this transaction cover? *</FormLabel>
+                    <FormDescription className="text-xs">
+                      Select the specific period this transaction covers (helps track recurring schedules)
+                    </FormDescription>
+                    {loadingPeriods ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        <span className="text-sm text-muted-foreground">Loading periods...</span>
+                      </div>
+                    ) : (
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select period" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availablePeriods.map(period => {
+                            const periodKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
+                            const periodLabel = format(period.periodDate, 'MMM d, yyyy');
+                            
+                            return (
+                              <SelectItem key={periodKey} value={periodKey}>
+                                <div className="flex items-center justify-between w-full">
+                                  <div className="flex items-center gap-2">
+                                    {period.isCompleted && (
+                                      <span className="text-green-600">✓</span>
+                                    )}
+                                    {period.isOverdue && !period.isCompleted && (
+                                      <span className="text-red-600">🔴</span>
+                                    )}
+                                    <span>{periodLabel}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs">
+                                    {period.isOverdue && !period.isCompleted && (
+                                      <span className="text-red-600">
+                                        ({period.daysPastDue} days overdue)
+                                      </span>
+                                    )}
+                                    {period.isCompleted && (
+                                      <span className="text-green-600">
+                                        (Paid {format(period.completedDate!, 'MMM d')})
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                          {availablePeriods.length === 0 && (
+                            <SelectItem value="_no_periods" disabled>
+                              No periods available
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             
             {/* Category Display - Show the category of the selected item (read-only) */}
             {form.watch('sourceId') && (selectedDetailedType === 'income' || selectedDetailedType === 'variable-expense' || selectedDetailedType === 'fixed-expense' || selectedDetailedType === 'subscription' || selectedDetailedType === 'goal-contribution' || selectedDetailedType === 'debt-payment') && (

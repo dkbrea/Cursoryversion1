@@ -33,6 +33,7 @@ import { Loader2, CalendarIcon, CheckCircle2, DollarSign, CreditCard } from "luc
 import { cn } from "@/lib/utils";
 import { format, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { markPeriodComplete } from "@/lib/api/recurring-completions";
 
 const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
@@ -63,7 +64,7 @@ interface RecordRecurringTransactionDialogProps {
   accounts: Account[];
   debtAccounts: DebtAccount[];
   categories: Category[];
-  onSave: (transactionData: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">) => Promise<void>;
+  onSave: (transactionData: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">) => Promise<Transaction | void>;
 }
 
 export function RecordRecurringTransactionDialog({
@@ -111,6 +112,7 @@ export function RecordRecurringTransactionDialog({
 
     setIsLoading(true);
     try {
+
       // Determine transaction type and details based on recurring item
       let transactionType: Transaction['type'] = 'expense';
       let detailedType: Transaction['detailedType'] = 'fixed-expense';
@@ -133,6 +135,15 @@ export function RecordRecurringTransactionDialog({
       // Determine if this is a debt account transaction
       const isDebtAccountTransaction = values.isDebtTransaction && recurringItem.source !== 'debt';
 
+      // Handle predefined category values - add PREDEFINED: prefix so parent component can convert to UUID
+      let finalCategoryId = recurringItem.categoryId || null;
+      if (finalCategoryId && typeof finalCategoryId === 'string' && detailedType !== 'income' && detailedType !== 'debt-payment') {
+        const predefinedCategories = ['housing', 'food', 'utilities', 'transportation', 'health', 'personal', 'home-family', 'media-productivity'];
+        if (predefinedCategories.includes(finalCategoryId)) {
+          finalCategoryId = `PREDEFINED:${finalCategoryId}`;
+        }
+      }
+
       const transactionData = {
         date: startOfDay(values.date),
         description: recurringItem.name,
@@ -140,7 +151,7 @@ export function RecordRecurringTransactionDialog({
         type: transactionType,
         detailedType: detailedType,
         sourceId: recurringItem.source === 'debt' ? recurringItem.id : recurringItem.id,
-        categoryId: recurringItem.categoryId || null,
+        categoryId: finalCategoryId,
         // Use accountId or debtAccountId based on whether this is a debt transaction
         accountId: isDebtAccountTransaction ? undefined : values.accountId,
         debtAccountId: isDebtAccountTransaction ? values.accountId : undefined,
@@ -149,7 +160,49 @@ export function RecordRecurringTransactionDialog({
         tags: ['calendar-recorded'],
       };
 
-      await onSave(transactionData);
+      const savedTransaction = await onSave(transactionData);
+      
+      // Mark the period as complete in the completion tracking system
+      if (savedTransaction && savedTransaction.id) {
+        try {
+          console.log('RecordDialog: Attempting to mark period complete with data:', {
+            recurringItemId: recurringItem.source === 'recurring' ? recurringItem.id : undefined,
+            debtAccountId: recurringItem.source === 'debt' ? recurringItem.id : undefined,
+            periodDate: startOfDay(selectedDate),
+            completedDate: startOfDay(values.date),
+            transactionId: savedTransaction.id,
+            userId: savedTransaction.userId,
+            selectedDate: selectedDate.toISOString(),
+            recurringItemSource: recurringItem.source,
+            recurringItemId: recurringItem.id
+          });
+          
+          const result = await markPeriodComplete({
+            recurringItemId: recurringItem.source === 'recurring' ? recurringItem.id : undefined,
+            debtAccountId: recurringItem.source === 'debt' ? recurringItem.id : undefined,
+            periodDate: startOfDay(selectedDate), // Use the calendar date that was clicked (June 28)
+            completedDate: startOfDay(values.date), // Keep transaction date for when it was actually paid
+            transactionId: savedTransaction.id,
+            userId: savedTransaction.userId,
+          });
+          
+          console.log('RecordDialog: markPeriodComplete result:', result);
+          
+          if (result.error) {
+            console.error('RecordDialog: Error from markPeriodComplete:', result.error);
+          } else {
+            console.log('RecordDialog: Successfully marked period as complete:', result.completion);
+          }
+        } catch (completionError) {
+          console.error('RecordDialog: Exception in markPeriodComplete:', completionError);
+          // Don't fail the whole operation if completion tracking fails
+        }
+      } else {
+        console.log('RecordDialog: Skipping period completion - missing savedTransaction or savedTransaction.id', {
+          hasSavedTransaction: !!savedTransaction,
+          savedTransactionId: savedTransaction?.id
+        });
+      }
       
       toast({
         title: "Transaction Recorded",
@@ -224,6 +277,44 @@ export function RecordRecurringTransactionDialog({
                   <p className="text-sm text-muted-foreground capitalize">
                     {recurringItem.itemDisplayType.replace('-', ' ')} • {recurringItem.frequency}
                   </p>
+                  {/* Category Display */}
+                  {(() => {
+                    // Helper function to get predefined category labels (matching types/index.ts)
+                    const getPredefinedCategoryLabel = (value: string) => {
+                      const categoryLabels: Record<string, string> = {
+                        'housing': 'Housing (Rent/Mortgage)',
+                        'utilities': 'Utilities (Energy, Water, Internet, Phone)',
+                        'transportation': 'Transportation (Insurance, Gasoline, Maint.)',
+                        'food': 'Food (Groceries, Restaurants)',
+                        'health': 'Health (Meds, Insurance, Gym)',
+                        'personal': 'Personal (Toiletries, Salon, Daycare, etc.)',
+                        'home-family': 'Home/Family (Kids, Household needs)',
+                        'media-productivity': 'Media/Productivity (Netflix, iCloud, etc.)',
+                        'gifts': 'Gifts & Holidays',
+                        'pets': 'Pets (Vet, Food, Grooming)',
+                        'education': 'Education (Tuition, Supplies)',
+                        'subscriptions': 'Other Subscriptions (Apps, Tools, Software)',
+                        'self-care': 'Self-Care (Wellness, Hobbies)',
+                        'clothing': 'Clothing & Shoes',
+                        'home-maintenance': 'Home Maintenance & Repairs',
+                        'car-replacement': 'Vehicle Replacement',
+                        'vacation': 'Vacation & Travel'
+                      };
+                      return categoryLabels[value] || `Unknown: ${value}`;
+                    };
+
+
+
+                    const categoryName = recurringItem.categoryId 
+                      ? getPredefinedCategoryLabel(recurringItem.categoryId)
+                      : 'Uncategorized';
+                    
+                    return (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Category: {categoryName}
+                      </p>
+                    );
+                  })()}
                   {recurringItem.source === 'debt' && (
                     <p className="text-xs text-blue-600 mt-1">
                       Payment will be applied to the debt account
