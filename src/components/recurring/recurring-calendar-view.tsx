@@ -413,6 +413,19 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
         
         // Filter occurrences to current month and add to calendar
         allOccurrences.forEach(occurrenceDate => {
+          // Debug: Log raw calculation vs business day adjustment for income items
+          if (unifiedItem.itemDisplayType === 'income') {
+            const rawDate = new Date(occurrenceDate);
+            const businessAdjustedDate = adjustToPreviousBusinessDay(occurrenceDate);
+            console.log(`CalendarView - ${unifiedItem.name}:`, {
+              rawCalculated: rawDate.toISOString().split('T')[0],
+              rawDayOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][rawDate.getDay()],
+              businessAdjusted: businessAdjustedDate.toISOString().split('T')[0],
+              businessDayOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][businessAdjustedDate.getDay()],
+              wasAdjusted: rawDate.getTime() !== businessAdjustedDate.getTime()
+            });
+          }
+          
           // Apply business day adjustment for income items
           const adjustedDate = unifiedItem.itemDisplayType === 'income' 
             ? adjustToPreviousBusinessDay(occurrenceDate) 

@@ -4,10 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, DollarSign, Clock, CreditCard, Briefcase, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import type { UnifiedRecurringListItem } from "@/types";
-import { format, isToday, isPast } from "date-fns";
+import { format, isToday, isPast, startOfDay } from "date-fns";
+import { getYearlyOccurrences } from "@/lib/utils/occurrence-generator";
+import { generateOccurrenceId } from "@/lib/utils/recurring-calculations";
+import type { UserPreferences } from "@/lib/api/user-preferences";
 
 interface UpcomingExpensesCardProps {
   items: UnifiedRecurringListItem[];
+  completedItems: Set<string>;
+  userPreferences: UserPreferences | null;
 }
 
 const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
@@ -50,18 +55,35 @@ const formatDisplayType = (type: UnifiedRecurringListItem['itemDisplayType']) =>
   }
 };
 
-export function UpcomingExpensesCard({ items }: UpcomingExpensesCardProps) {
-  // Show only the next 5 upcoming items
-  const upcomingItems = items
-    .filter(item => item.status !== 'Ended')
-    .slice(0, 5)
+export function UpcomingExpensesCard({ items, completedItems, userPreferences }: UpcomingExpensesCardProps) {
+  const today = startOfDay(new Date());
+
+  // 1. Generate individual occurrences including past due ones
+  // Use occurrence generator to get all individual occurrences, not just next occurrence dates
+  const allOccurrences = getYearlyOccurrences(items, new Date(), userPreferences?.financialTrackingStartDate);
+
+  // 2. Filter out completed items and items that are too far in the future
+  const unpaidOccurrences = allOccurrences
     .map(item => ({
       ...item,
-      isToday: isToday(item.nextOccurrenceDate),
-      isPastDue: isPast(item.nextOccurrenceDate) && !isToday(item.nextOccurrenceDate)
-    }));
+      occurrenceId: generateOccurrenceId(item.id, item.nextOccurrenceDate)
+    }))
+    .filter(item => !completedItems.has(item.occurrenceId));
 
-  if (upcomingItems.length === 0) {
+  // 3. Filter to only current and future items (past due items are shown in separate Past Due card)
+  const upcomingItems = unpaidOccurrences
+    .filter(item => !isPast(item.nextOccurrenceDate) || isToday(item.nextOccurrenceDate))
+    .sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime()); // Soonest first
+
+  // 4. Take first 5 items for display
+  const combinedItems = upcomingItems;
+  const displayItems = combinedItems.slice(0, 5).map(item => ({
+    ...item,
+    isToday: isToday(item.nextOccurrenceDate),
+    isPastDue: isPast(item.nextOccurrenceDate) && !isToday(item.nextOccurrenceDate),
+  }));
+
+  if (displayItems.length === 0) {
     return (
       <Card className="h-full w-full flex flex-col shadow-lg">
         <CardHeader>
@@ -94,8 +116,8 @@ export function UpcomingExpensesCard({ items }: UpcomingExpensesCardProps) {
       </CardHeader>
       <CardContent className="flex-1 flex flex-col">
         <div className="space-y-3 flex-1">
-          {upcomingItems.map((item) => (
-            <div key={item.id + item.source} className="space-y-2">
+          {displayItems.map((item) => (
+            <div key={item.occurrenceId} className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <div className={`w-2 h-2 rounded-full ${getItemColor(item.itemDisplayType)}`} />
@@ -132,10 +154,10 @@ export function UpcomingExpensesCard({ items }: UpcomingExpensesCardProps) {
           ))}
         </div>
         
-        {items.filter(i => i.status !== 'Ended').length > 5 && (
+        {combinedItems.length > 5 && (
           <div className="text-center pt-2 mt-auto">
             <p className="text-xs text-muted-foreground">
-              Showing 5 of {items.filter(i => i.status !== 'Ended').length} upcoming payments
+              Showing 5 of {combinedItems.length} upcoming payments
             </p>
           </div>
         )}

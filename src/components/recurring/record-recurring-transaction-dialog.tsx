@@ -135,9 +135,35 @@ export function RecordRecurringTransactionDialog({
       // Determine if this is a debt account transaction
       const isDebtAccountTransaction = values.isDebtTransaction && recurringItem.source !== 'debt';
 
-      // Handle predefined category values - add PREDEFINED: prefix so parent component can convert to UUID
+      // Handle category assignment based on transaction type
       let finalCategoryId = recurringItem.categoryId || null;
-      if (finalCategoryId && typeof finalCategoryId === 'string' && detailedType !== 'income' && detailedType !== 'debt-payment') {
+      
+      // For income transactions, always use "Income" category
+      if (detailedType === 'income') {
+        const incomeCategoryName = 'Income';
+        let incomeCategory = categories.find(cat => cat.name === incomeCategoryName);
+        
+        if (incomeCategory) {
+          finalCategoryId = incomeCategory.id;
+        } else {
+          // If Income category doesn't exist, it will be created by the parent component
+          finalCategoryId = 'PREDEFINED:income';
+        }
+      } 
+      // For debt payments, always use "Debt" category  
+      else if (detailedType === 'debt-payment') {
+        const debtCategoryName = 'Debt';
+        let debtCategory = categories.find(cat => cat.name === debtCategoryName);
+        
+        if (debtCategory) {
+          finalCategoryId = debtCategory.id;
+        } else {
+          // If Debt category doesn't exist, it will be created by the parent component
+          finalCategoryId = 'PREDEFINED:debt';
+        }
+      }
+      // Handle predefined category values for other transaction types
+      else if (finalCategoryId && typeof finalCategoryId === 'string') {
         const predefinedCategories = ['housing', 'food', 'utilities', 'transportation', 'health', 'personal', 'home-family', 'media-productivity'];
         if (predefinedCategories.includes(finalCategoryId)) {
           finalCategoryId = `PREDEFINED:${finalCategoryId}`;
@@ -165,6 +191,7 @@ export function RecordRecurringTransactionDialog({
       // Mark the period as complete in the completion tracking system
       if (savedTransaction && savedTransaction.id) {
         try {
+          const occurrenceId = `${recurringItem.id}-${format(startOfDay(selectedDate), 'yyyy-MM-dd')}`;
           console.log('RecordDialog: Attempting to mark period complete with data:', {
             recurringItemId: recurringItem.source === 'recurring' ? recurringItem.id : undefined,
             debtAccountId: recurringItem.source === 'debt' ? recurringItem.id : undefined,
@@ -174,7 +201,8 @@ export function RecordRecurringTransactionDialog({
             userId: savedTransaction.userId,
             selectedDate: selectedDate.toISOString(),
             recurringItemSource: recurringItem.source,
-            recurringItemId: recurringItem.id
+            recurringItemId: recurringItem.id,
+            generatedOccurrenceId: occurrenceId
           });
           
           const result = await markPeriodComplete({
@@ -192,6 +220,12 @@ export function RecordRecurringTransactionDialog({
             console.error('RecordDialog: Error from markPeriodComplete:', result.error);
           } else {
             console.log('RecordDialog: Successfully marked period as complete:', result.completion);
+            console.log('RecordDialog: Completion record created with:', {
+              transactionId: result.completion?.transaction_id,
+              periodDate: result.completion?.period_date,
+              recurringItemId: result.completion?.recurring_item_id,
+              debtAccountId: result.completion?.debt_account_id
+            });
           }
         } catch (completionError) {
           console.error('RecordDialog: Exception in markPeriodComplete:', completionError);
