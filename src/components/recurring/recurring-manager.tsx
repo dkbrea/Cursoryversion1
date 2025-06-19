@@ -155,7 +155,13 @@ export function RecurringManager() {
   // Effect for Unified List (for display)
   useEffect(() => {
     const today = startOfDay(new Date());
-    const transformedRecurringItems: UnifiedRecurringListItem[] = recurringItems.map(item => {
+    
+    // Filter out placeholder recurring items created for debt accounts
+    const filteredRecurringItems = recurringItems.filter(item => 
+      !item.name.startsWith('Debt Payment Placeholder -')
+    );
+    
+    const transformedRecurringItems: UnifiedRecurringListItem[] = filteredRecurringItems.map(item => {
       const nextOccurrenceDate = calculateNextRecurringItemOccurrence(item);
       const itemEndDate = item.endDate ? startOfDay(new Date(item.endDate)) : null;
       let status: UnifiedRecurringListItem['status'] = "Upcoming";
@@ -246,39 +252,41 @@ export function RecurringManager() {
         const startDate = trackingStartDate < yearStart ? trackingStartDate : yearStart;
         const endDate = yearEnd;
 
-        const { periods, error } = await getRecurringPeriods(
-          user.id,
-          startDate,
-          endDate,
-          unifiedList
-        );
+        // Fetch completions directly from database (same as dashboard fix)
+        const { data: completionsData, error: completionsError } = await supabase
+          .from('recurring_completions')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('period_date', startDate.toISOString())
+          .lte('period_date', endDate.toISOString());
 
-        if (error) {
-          console.warn('Failed to load completion data:', error);
+        if (completionsError) {
+          console.warn('Failed to load completion data:', completionsError);
           return;
         }
 
-        // Convert completed periods to Set format expected by calendar
+        // Convert completions to Set format expected by calendar
         const completedSet = new Set<string>();
-        if (periods) {
-          periods.forEach(period => {
-            const itemKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
-            console.log('DEBUG: Processing period for calendar:', {
-              itemName: period.itemName,
-              periodDate: format(period.periodDate, 'yyyy-MM-dd'),
-              isCompleted: period.isCompleted,
-              autoCompleted: period.autoCompleted,
-              itemKey
-            });
+        if (completionsData) {
+          completionsData.forEach((completion: any) => {
+            const periodDate = new Date(completion.period_date);
             
-            if (period.isCompleted) {
-              completedSet.add(itemKey);
-              console.log('Adding completed item to set:', itemKey, period.autoCompleted ? '(auto-completed)' : '(manually completed)');
+            // For debt completions, add BOTH IDs to the set (same fix as dashboard)
+            if (completion.debt_account_id) {
+              const debtOccurrenceId = `${completion.debt_account_id}-${format(periodDate, 'yyyy-MM-dd')}`;
+              completedSet.add(debtOccurrenceId);
+              console.log('🗓️ Calendar - Added DEBT completion:', debtOccurrenceId);
+            }
+            
+            if (completion.recurring_item_id) {
+              const recurringOccurrenceId = `${completion.recurring_item_id}-${format(periodDate, 'yyyy-MM-dd')}`;
+              completedSet.add(recurringOccurrenceId);
+              console.log('🗓️ Calendar - Added RECURRING completion:', recurringOccurrenceId);
             }
           });
         }
 
-        console.log('Setting completed items:', Array.from(completedSet));
+        console.log('🗓️ Calendar - Setting completed items:', Array.from(completedSet));
         setCompletedItems(completedSet);
       } catch (error) {
         console.warn('Error loading completion data:', error);
@@ -388,27 +396,39 @@ export function RecurringManager() {
 
           console.log('RecurringManager: Refreshing completion data after transaction record');
           
-          const { periods, error } = await getRecurringPeriods(
-            user.id,
-            startDate,
-            endDate,
-            unifiedList
-          );
+          // Fetch completions directly from database (same as dashboard and loadCompletionData)
+          const { data: completionsData, error: completionsError } = await supabase
+            .from('recurring_completions')
+            .select('*')
+            .eq('user_id', user.id)
+            .gte('period_date', startDate.toISOString())
+            .lte('period_date', endDate.toISOString());
 
-          if (!error && periods) {
-            console.log('RecurringManager: Found periods after refresh:', periods.length);
+          if (!completionsError && completionsData) {
+            console.log('RecurringManager: Found completion records after refresh:', completionsData.length);
             const completedSet = new Set<string>();
-            periods.forEach(period => {
-              if (period.isCompleted) {
-                const itemKey = `${period.itemId}-${format(period.periodDate, 'yyyy-MM-dd')}`;
-                completedSet.add(itemKey);
-                console.log('RecurringManager: Adding completed item to set after refresh:', itemKey);
+            
+            completionsData.forEach((completion: any) => {
+              const periodDate = new Date(completion.period_date);
+              
+              // For debt completions, add BOTH IDs to the set (same fix as dashboard)
+              if (completion.debt_account_id) {
+                const debtOccurrenceId = `${completion.debt_account_id}-${format(periodDate, 'yyyy-MM-dd')}`;
+                completedSet.add(debtOccurrenceId);
+                console.log('RecurringManager: Added DEBT completion to set after refresh:', debtOccurrenceId);
+              }
+              
+              if (completion.recurring_item_id) {
+                const recurringOccurrenceId = `${completion.recurring_item_id}-${format(periodDate, 'yyyy-MM-dd')}`;
+                completedSet.add(recurringOccurrenceId);
+                console.log('RecurringManager: Added RECURRING completion to set after refresh:', recurringOccurrenceId);
               }
             });
+            
             console.log('RecurringManager: Setting completed items after refresh:', Array.from(completedSet));
             setCompletedItems(completedSet);
           } else {
-            console.error('RecurringManager: Error refreshing completion data:', error);
+            console.error('RecurringManager: Error refreshing completion data:', completionsError);
           }
         } catch (completionError) {
           console.error('RecurringManager: Exception refreshing completion data:', completionError);

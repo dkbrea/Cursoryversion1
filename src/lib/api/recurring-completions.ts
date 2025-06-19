@@ -391,6 +391,19 @@ export const getRecurringPeriods = async (
     console.log('DEBUG: Processing recurring items. Total completions found:', completions?.length || 0);
     console.log('DEBUG: Today:', today.toISOString().split('T')[0]);
     console.log('DEBUG: User tracking start date for auto-completion:', userTrackingStartDate?.toISOString().split('T')[0] || 'none');
+    
+    // Debug: Log debt-specific completion records from database
+    const debtCompletionsFromDB = completions?.filter(c => c.debt_account_id) || [];
+    if (debtCompletionsFromDB.length > 0) {
+      console.log('🟨🟨🟨 DEBT COMPLETIONS FROM DATABASE 🟨🟨🟨');
+      console.log('🟨 Count:', debtCompletionsFromDB.length);
+      debtCompletionsFromDB.forEach(c => {
+        console.log(`🟨 DebtID: ${c.debt_account_id} - Date: ${c.period_date} - TxnID: ${c.transaction_id}`);
+      });
+      console.log('🟨🟨🟨 END DB DEBT COMPLETIONS 🟨🟨🟨');
+    } else {
+      console.log('🚨 NO DEBT COMPLETIONS FOUND IN DATABASE');
+    }
 
     // Process each recurring item
     for (const item of recurringItems) {
@@ -438,10 +451,15 @@ export const getRecurringPeriods = async (
 
       // Create periods for each occurrence
       for (const occurrenceDate of occurrences) {
-        const completion = completions?.find(c => 
-          (c.recurring_item_id === item.id || c.debt_account_id === item.id) &&
-          isSameDay(new Date(c.period_date), occurrenceDate)
-        );
+        // For debt items, only match by debt_account_id
+        // For recurring items, only match by recurring_item_id
+        const completion = completions?.find(c => {
+          if (item.source === 'debt') {
+            return c.debt_account_id === item.id && isSameDay(new Date(c.period_date), occurrenceDate);
+          } else {
+            return c.recurring_item_id === item.id && isSameDay(new Date(c.period_date), occurrenceDate);
+          }
+        });
 
         // Check if this occurrence is before the user's tracking start date
         const isBeforeTrackingStart = userTrackingStartDate ? isBefore(occurrenceDate, userTrackingStartDate) : false;
@@ -504,10 +522,65 @@ export const getRecurringPeriods = async (
 };
 
 // Mark a recurring period as complete
+// Helper function to ensure a debt account has a corresponding recurring item placeholder
+const ensureDebtRecurringItemPlaceholder = async (
+  debtAccountId: string,
+  userId: string
+): Promise<{ recurringItemId: string | null; error?: string }> => {
+  try {
+    // Check if a placeholder recurring item already exists for this debt account
+    const { data: existingItem, error: checkError } = await supabase
+      .from('recurring_items')
+      .select('id')
+      .eq('user_id', userId)
+      .ilike('name', `Debt Payment Placeholder - ${debtAccountId}%`)
+      .single();
+
+    if (existingItem) {
+      return { recurringItemId: existingItem.id };
+    }
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
+      return { recurringItemId: null, error: checkError.message };
+    }
+
+    // Create a placeholder recurring item for this debt account
+    const { data: newItem, error: createError } = await supabase
+      .from('recurring_items')
+      .insert({
+        name: `Debt Payment Placeholder - ${debtAccountId}`,
+        type: 'fixed-expense',
+        amount: 0, // Placeholder amount
+        frequency: 'monthly',
+        start_date: new Date().toISOString(),
+        user_id: userId,
+        notes: `Auto-generated placeholder for debt account ${debtAccountId}`
+      })
+      .select('id')
+      .single();
+
+    if (createError) {
+      return { recurringItemId: null, error: createError.message };
+    }
+
+    console.log('🔧 Created placeholder recurring item for debt account:', debtAccountId);
+    return { recurringItemId: newItem.id };
+  } catch (error: any) {
+    return { recurringItemId: null, error: error.message };
+  }
+};
+
 export const markPeriodComplete = async (
   completion: Omit<RecurringCompletion, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<{ completion: RecurringCompletion | null; error?: string }> => {
   try {
+    if (completion.debtAccountId) {
+      console.log('💿💿💿 MARKING DEBT PERIOD COMPLETE 💿💿💿');
+      console.log('💿 Debt Account ID:', completion.debtAccountId);
+      console.log('💿 Period Date:', completion.periodDate.toISOString().split('T')[0]);
+      console.log('💿 Transaction ID:', completion.transactionId);
+      console.log('💿 User ID:', completion.userId);
+    }
     // Check if a completion already exists for this period
     const whereClause = completion.recurringItemId 
       ? { recurring_item_id: completion.recurringItemId }
@@ -555,17 +628,46 @@ export const markPeriodComplete = async (
 
       return { completion: result };
     } else {
+      // For debt items, we need to ensure there's a recurring_item_id that satisfies the NOT NULL constraint
+      let finalRecurringItemId = completion.recurringItemId;
+      
+      if (completion.debtAccountId && !completion.recurringItemId) {
+        // Create or get a placeholder recurring item for this debt account
+        const { recurringItemId, error: placeholderError } = await ensureDebtRecurringItemPlaceholder(
+          completion.debtAccountId,
+          completion.userId
+        );
+        
+        if (placeholderError) {
+          return { completion: null, error: `Failed to create debt placeholder: ${placeholderError}` };
+        }
+        
+        finalRecurringItemId = recurringItemId || undefined;
+        console.log('🔧 Using placeholder recurring item ID for debt:', finalRecurringItemId);
+      }
+      
       // Create new completion
+      const insertData = {
+        recurring_item_id: finalRecurringItemId,
+        debt_account_id: completion.debtAccountId || null,
+        period_date: completion.periodDate.toISOString(),
+        completed_date: completion.completedDate.toISOString(),
+        transaction_id: completion.transactionId || null,
+        user_id: completion.userId,
+      };
+      
+      if (completion.debtAccountId) {
+        console.log('🗄️🗄️🗄️ DATABASE INSERT DATA FOR DEBT 🗄️🗄️🗄️');
+        console.log('🗄️ recurring_item_id:', insertData.recurring_item_id);
+        console.log('🗄️ debt_account_id:', insertData.debt_account_id);
+        console.log('🗄️ period_date:', insertData.period_date);
+        console.log('🗄️ transaction_id:', insertData.transaction_id);
+        console.log('🗄️ user_id:', insertData.user_id);
+      }
+      
       const { data, error } = await supabase
         .from('recurring_completions')
-        .insert({
-          recurring_item_id: completion.recurringItemId || null,
-          debt_account_id: completion.debtAccountId || null,
-          period_date: completion.periodDate.toISOString(),
-          completed_date: completion.completedDate.toISOString(),
-          transaction_id: completion.transactionId || null,
-          user_id: completion.userId,
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -584,6 +686,14 @@ export const markPeriodComplete = async (
         createdAt: new Date(data.created_at),
         updatedAt: new Date(data.updated_at),
       };
+
+      if (result.debtAccountId) {
+        console.log('✅✅✅ DEBT COMPLETION RECORD SAVED SUCCESSFULLY ✅✅✅');
+        console.log('✅ Completion ID:', result.id);
+        console.log('✅ Debt Account ID:', result.debtAccountId);
+        console.log('✅ Period Date:', result.periodDate.toISOString().split('T')[0]);
+        console.log('✅ Transaction ID:', result.transactionId);
+      }
 
       return { completion: result };
     }

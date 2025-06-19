@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from 'react';
-import { createUserPreferencesTable } from '../../lib/create-user-preferences';
+import { createUserPreference } from '../../lib/create-user-preferences';
 import { usePathname, useRouter } from 'next/navigation';
 import { getAccounts } from '@/lib/api/accounts';
 import { getDebtAccounts } from '@/lib/api/debts';
@@ -17,22 +17,24 @@ export function DataPrefetcher() {
   const router = useRouter();
   const { user } = useAuth();
 
-  // Create user_preferences table when the app loads
+  // Create user preference record when the app loads
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     
-    const initializeDatabase = async () => {
+    const initializeUserPreferences = async () => {
       try {
-        // Create user_preferences table if it doesn't exist
-        const result = await createUserPreferencesTable();
-        console.log('Database initialization result:', result);
+        // Create user preference record if it doesn't exist
+        const result = await createUserPreference(user.id);
+        if (!result.success) {
+          console.warn('Could not create user preferences:', result.error);
+        }
       } catch (error) {
-        console.error('Error initializing database:', error);
+        console.error('Error initializing user preferences:', error);
       }
     };
 
-    initializeDatabase();
-  }, [user]);
+    initializeUserPreferences();
+  }, [user?.id]);
 
   // Prefetch common data when navigating between pages
   useEffect(() => {

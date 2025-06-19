@@ -11,10 +11,10 @@ import { getAccounts } from "@/lib/api/accounts";
 import { getTransactions } from "@/lib/api/transactions";
 import { getRecurringItems } from "@/lib/api/recurring";
 import { getDebtAccounts } from "@/lib/api/debts";
-import { getCategories } from "@/lib/api/categories";
+import { getCategories, createCategory } from "@/lib/api/categories";
 import { getFinancialGoals } from "@/lib/api/goals";
 import { getVariableExpenses } from "@/lib/api/variable-expenses";
-import { createTransaction } from "@/lib/api/transactions";
+import { createTransaction, deleteTransaction, updateTransaction } from "@/lib/api/transactions";
 import { formatCurrency } from "@/lib/utils";
 import { SetupGuide } from "@/components/dashboard/setup-guide";
 import { SavingsGoalsCard } from "@/components/dashboard/savings-goals-card";
@@ -29,12 +29,14 @@ import { DashboardAIInsightsCard } from "@/components/dashboard/ai-insights-card
 import { startOfDay, endOfDay, addDays, isSameDay, format, addWeeks, addMonths, subMonths, startOfMonth, getDate, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle } from "lucide-react";
-import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence } from "@/lib/utils/date-calculations";
+import { calculateNextRecurringItemOccurrence } from "@/lib/utils/date-calculations";
+import { calculateNextDebtOccurrence } from "@/lib/utils/date-calculations";
 import { getUserPreferences, type UserPreferences } from "@/lib/api/user-preferences";
 import { getPersonalizedGreeting } from "@/lib/utils/time-greeting";
 import { getRecurringPeriods } from "@/lib/api/recurring-completions";
 import { supabase } from "@/lib/supabase";
 import { generateOccurrenceId } from "@/lib/utils/recurring-calculations";
+import { markPeriodComplete } from "@/lib/api/recurring-completions";
 
 export function DashboardContent() {
   const { user } = useAuth();
@@ -229,21 +231,38 @@ export function DashboardContent() {
           const startDate = subMonths(trackingStartDate, 3);
           const endDate = addMonths(startOfDay(new Date()), 6);
 
-          const { periods, error: periodsError } = await getRecurringPeriods(
-            user.id,
-            startDate,
-            endDate,
-            allUpcomingItems
-          );
+          // Fetch completions directly from the database (same as refresh logic)
+          const { data: completionsData, error: completionsError } = await supabase
+            .from('recurring_completions')
+            .select('*')
+            .eq('user_id', user.id)
+            .gte('period_date', startDate.toISOString())
+            .lte('period_date', endDate.toISOString());
           
-          if (!periodsError && periods) {
+          if (!completionsError && completionsData) {
+            console.log('🔄 Found', completionsData.length, 'completion records');
             const completedSet = new Set<string>();
-            periods.forEach(p => {
-              if (p.isCompleted) {
-                completedSet.add(generateOccurrenceId(p.itemId, p.periodDate));
+            
+            completionsData.forEach((completion: any) => {
+              const periodDate = new Date(completion.period_date);
+              
+              // For debt completions, add the debt account ID with the ACTUAL period date
+              if (completion.debt_account_id) {
+                const debtOccurrenceId = generateOccurrenceId(completion.debt_account_id, periodDate);
+                completedSet.add(debtOccurrenceId);
+                console.log('🔄 Initial load - Added DEBT completion:', debtOccurrenceId);
+              }
+              
+              // For recurring items, add the recurring item ID with the period date
+              if (completion.recurring_item_id) {
+                const recurringOccurrenceId = generateOccurrenceId(completion.recurring_item_id, periodDate);
+                completedSet.add(recurringOccurrenceId);
+                console.log('🔄 Initial load - Added RECURRING completion:', recurringOccurrenceId);
               }
             });
+            
             setCompletedItems(completedSet);
+            console.log('🔄 Initial completion set loaded with', completedSet.size, 'items');
           }
         } catch (error) {
           console.error("Error fetching recurring completions for dashboard:", error);
@@ -360,6 +379,15 @@ export function DashboardContent() {
   const handleRecordTransaction = async (transactionData: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">) => {
     if (!user?.id || !selectedRecurringItem) return;
 
+    console.log('💰 handleRecordTransaction called with:', {
+      selectedRecurringItemId: selectedRecurringItem.id,
+      selectedRecurringItemName: selectedRecurringItem.name,
+      selectedRecurringItemSource: selectedRecurringItem.source,
+      selectedDate: selectedDate.toISOString().split('T')[0],
+      transactionDate: transactionData.date.toISOString().split('T')[0],
+      expectedOccurrenceId: generateOccurrenceId(selectedRecurringItem.id, selectedDate)
+    });
+
     // This is the original, correct logic for handling categories that I mistakenly removed.
     let finalCategoryId = transactionData.categoryId;
     const predefinedCategoryPrefix = 'PREDEFINED:';
@@ -401,15 +429,31 @@ export function DashboardContent() {
         throw new Error(error || "Failed to create transaction");
       }
 
+      console.log('💰 Transaction created successfully:', {
+        transactionId: newTransaction.id,
+        transactionAmount: newTransaction.amount,
+        transactionDate: newTransaction.date.toISOString().split('T')[0]
+      });
+
       setTransactions(prev => [newTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       
       const completionKey = generateOccurrenceId(selectedRecurringItem.id, selectedDate);
+      console.log('💰 Adding completion key to UI state:', completionKey);
       setCompletedItems(prev => new Set(prev).add(completionKey));
 
       // This is the database update that was missing.
       try {
+        console.log('💰 About to call markPeriodComplete with:', {
+          recurringItemId: selectedRecurringItem.source === 'recurring' ? selectedRecurringItem.id : undefined,
+          debtAccountId: selectedRecurringItem.source === 'debt' ? selectedRecurringItem.id : undefined,
+          periodDate: selectedDate.toISOString().split('T')[0],
+          completedDate: startOfDay(new Date(newTransaction.date)).toISOString().split('T')[0],
+          transactionId: newTransaction.id,
+          userId: user.id,
+        });
+
         const { markPeriodComplete } = await import('@/lib/api/recurring-completions');
-        await markPeriodComplete({
+        const markResult = await markPeriodComplete({
             recurringItemId: selectedRecurringItem.source === 'recurring' ? selectedRecurringItem.id : undefined,
             debtAccountId: selectedRecurringItem.source === 'debt' ? selectedRecurringItem.id : undefined,
             periodDate: selectedDate,
@@ -417,8 +461,78 @@ export function DashboardContent() {
             transactionId: newTransaction.id,
             userId: user.id,
         });
+
+        console.log('💰 markPeriodComplete result:', markResult);
+
+        if (markResult.error) {
+          console.error('💰 ERROR in markPeriodComplete:', markResult.error);
+        } else {
+          console.log('💰 SUCCESS in markPeriodComplete:', markResult.completion);
+        }
       } catch (completionError) {
-          console.error("Error marking period as complete from calendar dialog:", completionError);
+          console.error("💰 Exception in markPeriodComplete:", completionError);
+      }
+
+      // Refresh completion data from database to ensure UI consistency
+      try {
+        console.log('💰 Refreshing completion data after transaction recording...');
+        
+        // Use the same date range logic as initial load
+        const today = new Date();
+        let trackingStartDate = subMonths(today, 6); 
+
+        const { data: userPrefs, error: prefsError } = await supabase
+          .from('user_preferences')
+          .select('financial_tracking_start_date')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!prefsError && userPrefs?.financial_tracking_start_date) {
+          trackingStartDate = startOfDay(new Date(userPrefs.financial_tracking_start_date));
+        }
+
+        const startDate = subMonths(trackingStartDate, 3);
+        const endDate = addMonths(startOfDay(new Date()), 6);
+
+        // Fetch completions directly from the database
+        const { data: completionsData, error: completionsError } = await supabase
+          .from('recurring_completions')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('period_date', startDate.toISOString())
+          .lte('period_date', endDate.toISOString());
+
+        if (!completionsError && completionsData) {
+          console.log('💰 Found', completionsData.length, 'completion records');
+          const refreshedCompletedSet = new Set<string>();
+          
+          completionsData.forEach((completion: any) => {
+            const periodDate = new Date(completion.period_date);
+            
+            // For debt completions, we need to add BOTH IDs to the set
+            // because past due items use debt_account_id but completions store recurring_item_id
+            if (completion.debt_account_id) {
+              // Add debt account ID based occurrence (what past due items look for)
+              const debtOccurrenceId = generateOccurrenceId(completion.debt_account_id, periodDate);
+              refreshedCompletedSet.add(debtOccurrenceId);
+              console.log('💰 Added DEBT completion to set:', debtOccurrenceId);
+            }
+            
+            if (completion.recurring_item_id) {
+              // Also add recurring item ID based occurrence (for regular recurring items)
+              const recurringOccurrenceId = generateOccurrenceId(completion.recurring_item_id, periodDate);
+              refreshedCompletedSet.add(recurringOccurrenceId);
+              console.log('💰 Added RECURRING completion to set:', recurringOccurrenceId);
+            }
+          });
+          
+          setCompletedItems(refreshedCompletedSet);
+          console.log('💰 Successfully refreshed completedItems set with', refreshedCompletedSet.size, 'items');
+        } else {
+          console.error('💰 Error fetching completions:', completionsError);
+        }
+      } catch (refreshError) {
+        console.error('💰 Exception while refreshing completion data:', refreshError);
       }
 
       setIsRecordTransactionOpen(false);
@@ -428,7 +542,7 @@ export function DashboardContent() {
       return newTransaction;
 
     } catch (error) {
-      console.error("Error recording transaction:", error);
+      console.error("💰 Error recording transaction:", error);
       throw error;
     }
   };
@@ -533,6 +647,14 @@ export function DashboardContent() {
               const item = allItems.find(item => item.id === p.itemId);
               return item?.itemDisplayType === 'income';
             });
+            
+            // Debug: Log debt-specific completion records
+            const debtCompletions = periods.filter(p => {
+              if (!p.isCompleted) return false;
+              // Find the corresponding item to check if it's a debt item
+              const item = allItems.find(item => item.id === p.itemId);
+              return item?.source === 'debt';
+            });
             console.log('Dashboard: Income completion records:', incomeCompletions.map(p => ({
               itemId: p.itemId,
               itemName: p.itemName,
@@ -567,6 +689,17 @@ export function DashboardContent() {
               periodDate: ic.periodDate.toISOString().split('T')[0],
               occurrenceId: generateOccurrenceId(ic.itemId, ic.periodDate)
             })));
+            
+            if (debtCompletions.length > 0) {
+              console.log('🟦🟦🟦 DEBT COMPLETION RECORDS AFTER REFRESH 🟦🟦🟦');
+              console.log('🟦 Count:', debtCompletions.length);
+              debtCompletions.forEach(p => {
+                console.log(`🟦 ${p.itemName} - Date: ${p.periodDate.toISOString().split('T')[0]} - ID: ${generateOccurrenceId(p.itemId, p.periodDate)} - TxnID: ${p.transactionId}`);
+              });
+              console.log('🟦🟦🟦 END DEBT COMPLETIONS 🟦🟦🟦');
+            } else {
+              console.log('❌ No debt completion records found after refresh');
+            }
             setCompletedItems(completedSet);
           }
         } catch (refreshError) {

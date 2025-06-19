@@ -6,9 +6,8 @@ import { Calendar, DollarSign, Clock, CreditCard, Briefcase, ArrowDownCircle, Ar
 import type { UnifiedRecurringListItem } from "@/types";
 import { format, isToday, isPast, startOfDay, differenceInDays, addDays, addWeeks, addMonths, addQuarters, addYears } from "date-fns";
 
-import { generateOccurrenceId } from "@/lib/utils/recurring-calculations";
+import { generateOccurrenceId, calculateRecurringOccurrences, calculateDebtOccurrences } from "@/lib/utils/recurring-calculations";
 import { adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
-import { calculateRecurringOccurrences, calculateDebtOccurrences } from '@/lib/api/recurring-completions';
 import type { UserPreferences } from "@/lib/api/user-preferences";
 
 interface PastDueItemsCardProps {
@@ -87,14 +86,20 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
   items.filter(item => item.status !== 'Ended').forEach(item => {
     console.log(`Processing item: ${item.name}, type: ${item.itemDisplayType}`);
     
-    // Use the same calculation method as the calendar
-    let occurrenceDates: Date[];
+    // Skip placeholder recurring items created for debt accounts
+    if (item.source === 'recurring' && item.name.startsWith('Debt Payment Placeholder -')) {
+      console.log(`Skipping placeholder item: ${item.name}`);
+      return;
+    }
+    
+    // Use the EXACT same calculation functions as the calendar for perfect consistency
+    let occurrenceDates: Date[] = [];
     
     if (item.source === 'debt') {
-      // For debt items, use debt-specific calculation
-      occurrenceDates = calculateDebtOccurrences(item as any, trackingStartDate, today);
+      // For debt items, use the shared debt calculation function
+      occurrenceDates = calculateDebtOccurrences(item, trackingStartDate, today);
     } else {
-      // For recurring items, use recurring-specific calculation
+      // For recurring items, use the shared recurring calculation function
       occurrenceDates = calculateRecurringOccurrences(item, trackingStartDate, today);
     }
     
@@ -145,6 +150,21 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
   console.log('PastDueItemsCard - Final past due items:', pastDueItems.length);
   console.log('PastDueItemsCard - DEBUGGING IS ACTIVE - Processing items now');
   
+  // Debug: Specifically log debt items and their occurrence IDs
+  const debtItems = pastDueItems.filter(item => item.source === 'debt');
+  if (debtItems.length > 0) {
+    console.log('🔴🔴🔴 DEBT ITEMS REAPPEARING 🔴🔴🔴');
+    console.log('🔴 Count:', debtItems.length);
+    console.log('🔴 CompletedItems Set Size:', completedItems.size);
+    console.log('🔴 All CompletedItems IDs:', Array.from(completedItems));
+    debtItems.forEach(item => {
+      console.log(`🔴 ${item.name} - Date: ${item.nextOccurrenceDate.toISOString().split('T')[0]} - ID: ${item.occurrenceId} - In Completed Set: ${completedItems.has(item.occurrenceId)}`);
+    });
+    console.log('🔴🔴🔴 END DEBT ITEMS 🔴🔴🔴');
+  } else {
+    console.log('✅ No debt items in past due list');
+  }
+  
   // Debug: Specifically log income items and their occurrence IDs
   const incomeItems = pastDueItems.filter(item => item.itemDisplayType === 'income');
   if (incomeItems.length > 0) {
@@ -186,7 +206,19 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
               <div 
                 key={item.occurrenceId} 
                 className="space-y-2 p-3 rounded-lg bg-white border border-red-200 hover:bg-red-50 cursor-pointer transition-colors"
-                onClick={() => onItemClick?.(item, item.nextOccurrenceDate)}
+                onClick={() => {
+                  console.log('🔴 PastDueItem clicked:', {
+                    itemId: item.id,
+                    itemName: item.name,
+                    itemSource: item.source,
+                    itemDisplayType: item.itemDisplayType,
+                    nextOccurrenceDate: item.nextOccurrenceDate.toISOString().split('T')[0],
+                    occurrenceId: item.occurrenceId,
+                    amount: item.amount,
+                    daysOverdue: item.daysOverdue
+                  });
+                  onItemClick?.(item, item.nextOccurrenceDate);
+                }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">

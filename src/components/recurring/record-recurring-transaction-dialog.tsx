@@ -192,6 +192,15 @@ export function RecordRecurringTransactionDialog({
       if (savedTransaction && savedTransaction.id) {
         try {
           const occurrenceId = `${recurringItem.id}-${format(startOfDay(selectedDate), 'yyyy-MM-dd')}`;
+          if (recurringItem.source === 'debt') {
+            console.log('💳💳💳 RECORDING DEBT PAYMENT COMPLETION 💳💳💳');
+            console.log('💳 Debt Item:', recurringItem.name);
+            console.log('💳 Debt ID:', recurringItem.id);
+            console.log('💳 Period Date:', startOfDay(selectedDate).toISOString().split('T')[0]);
+            console.log('💳 Transaction ID:', savedTransaction.id);
+            console.log('💳💳💳 ABOUT TO CALL markPeriodComplete 💳💳💳');
+          }
+          
           console.log('RecordDialog: Attempting to mark period complete with data:', {
             recurringItemId: recurringItem.source === 'recurring' ? recurringItem.id : undefined,
             debtAccountId: recurringItem.source === 'debt' ? recurringItem.id : undefined,
