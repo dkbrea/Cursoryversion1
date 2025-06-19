@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, DollarSign, AlertTriangle, CheckCircle2, Flag, Package, Receipt, Activity, Landmark, PlusCircle, Info } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, AlertTriangle, CheckCircle2, Flag, Package, Receipt, Activity, Landmark, PlusCircle, Info, TriangleAlert, CircleAlert } from "lucide-react";
 import { Button } from "../ui/button";
 
 interface BudgetSummaryProps {
@@ -14,9 +14,10 @@ interface BudgetSummaryProps {
   totalGoalContributions: number;
   totalSinkingFundsContributions: number;
   totalBudgetedVariable: number;
-  totalSpentVariable?: number;
-  remainingVariable?: number;
+  totalSpentVariable: number;
+  remainingVariable: number;
   onAddCategoryClick: () => void;
+  leftToAllocate: number;
 }
 
 export function BudgetSummary({
@@ -27,25 +28,35 @@ export function BudgetSummary({
   totalGoalContributions,
   totalSinkingFundsContributions,
   totalBudgetedVariable,
-  totalSpentVariable = 0,
+  totalSpentVariable,
   remainingVariable,
-  onAddCategoryClick
+  onAddCategoryClick,
+  leftToAllocate,
 }: BudgetSummaryProps) {
 
   const totalFixedOutflows = totalActualFixedExpenses + totalSubscriptions + totalDebtPayments + totalGoalContributions + totalSinkingFundsContributions;
-  const leftToAllocate = totalIncome - totalFixedOutflows - totalBudgetedVariable;
-  const totalAllocated = totalBudgetedVariable + totalFixedOutflows;
-  
-  // Calculate remaining variable if not provided
-  const calculatedRemainingVariable = remainingVariable ?? Math.max(0, totalBudgetedVariable - totalSpentVariable);
-  
-  let progressPercentage = 0;
-  if (totalIncome > 0) {
-    progressPercentage = Math.min((totalAllocated / totalIncome) * 100, 100);
-  } else if (totalIncome <= 0 && totalAllocated > 0) {
-    progressPercentage = 100; // Indicates over-allocation if income is zero or negative
-  }
+  const totalOutflows = totalFixedOutflows + totalBudgetedVariable;
+  const isBalanced = Math.abs(leftToAllocate) < 0.01;
 
+  const getLeftToAllocateStatus = () => {
+    if (isBalanced) {
+      return {
+        message: "Every dollar has a job!",
+        Icon: ({ className }: { className?: string }) => <CheckCircle2 className={cn("h-4 w-4 text-green-500", className)} />,
+        color: "text-green-600",
+        progressBarColor: "bg-green-500",
+      };
+    } else {
+      return {
+        message: "You've assigned more money than you have.",
+        Icon: ({ className }: { className?: string }) => <CircleAlert className={cn("h-4 w-4 text-red-500", className)} />,
+        color: "text-red-600",
+        progressBarColor: "bg-red-500",
+      };
+    }
+  };
+
+  const status = getLeftToAllocateStatus();
 
   const budgetItems = [
     { label: "Fixed Expenses", amount: totalActualFixedExpenses, color: "text-purple-600" },
@@ -82,32 +93,21 @@ export function BudgetSummary({
               <span
                 className={cn(
                   "font-bold",
-                  Math.abs(leftToAllocate) < 0.01 && "text-green-600", // Balanced
-                  leftToAllocate > 0 && "text-orange-500", // Money left
-                  leftToAllocate < 0 && "text-destructive" // Over budget
+                  status.color
                 )}
               >
                 ${leftToAllocate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
             <Progress
-              value={progressPercentage}
-              className={cn(
-                "h-3 mt-2",
-                leftToAllocate < 0 && "!bg-destructive/80 [&>div]:!bg-destructive",
-                Math.abs(leftToAllocate) < 0.01 && totalIncome > 0 && "!bg-green-500/80 [&>div]:!bg-green-500",
-                leftToAllocate > 0 && "!bg-orange-500/80 [&>div]:!bg-orange-500"
-              )}
+              value={isBalanced ? 100 : (totalOutflows / totalIncome) * 100}
+              className="h-3 mt-2"
+              indicatorClassName={status.progressBarColor}
             />
-            {Math.abs(leftToAllocate) < 0.01 && totalIncome > 0 && (
-              <p className="text-xs text-green-600 mt-1 flex items-center"><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Every dollar has a job!</p>
-            )}
-            {leftToAllocate > 0 && (
-              <p className="text-xs text-orange-600 mt-1 flex items-center"><AlertTriangle className="h-3.5 w-3.5 mr-1" /> You have money left to assign.</p>
-            )}
-            {leftToAllocate < 0 && (
-              <p className="text-xs text-destructive mt-1 flex items-center"><AlertTriangle className="h-3.5 w-3.5 mr-1" /> You've budgeted more than your income.</p>
-            )}
+            <p className={cn("text-xs mt-1 flex items-center", status.color)}>
+              <status.Icon className="h-3.5 w-3.5 mr-1" />
+              {status.message}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -160,9 +160,9 @@ export function BudgetSummary({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">${calculatedRemainingVariable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="text-2xl font-bold text-green-600">${remainingVariable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
              <p className="text-xs text-muted-foreground">
-               {totalBudgetedVariable > 0 ? ((calculatedRemainingVariable / totalBudgetedVariable) * 100).toFixed(1) : '0.0'}% of variable budget left
+               {totalBudgetedVariable > 0 ? ((remainingVariable / totalBudgetedVariable) * 100).toFixed(1) : '0.0'}% of variable budget left
              </p>
           </CardContent>
         </Card>

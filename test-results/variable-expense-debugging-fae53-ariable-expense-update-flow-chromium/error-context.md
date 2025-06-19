@@ -1,0 +1,126 @@
+# Page snapshot
+
+```yaml
+- navigation:
+  - text: Unbroken Pockets
+  - button "Features"
+  - button "Screenshots"
+  - button "Pricing"
+  - button "Support"
+  - link "Sign In":
+    - /url: /auth
+    - button "Sign In"
+  - link "Sign Up":
+    - /url: /auth
+    - button "Sign Up"
+- 'heading "A_h!]ve#Fina\\+[el_}reedom" [level=1]'
+- paragraph: Take control of your financial future with our all-in-one personal finance solution. Experience peace of mind knowing your finances are unbroken.
+- link "Start Your Financial Journey":
+  - /url: /auth
+  - button "Start Your Financial Journey":
+    - text: Start Your Financial Journey
+    - img
+- img
+- text: $24,532 Avg. Balance
+- img
+- text: +5.8% Growth
+- img
+- text: Goal Tracking
+- heading "Your All-in-One Financial Command Center" [level=2]
+- paragraph: See how our platform transforms your financial life with these powerful features.
+- img
+- heading "Financial Dashboard" [level=3]
+- paragraph: Overview of your finances
+- img
+- text: Dashboard
+- img
+- text: Accounts
+- img
+- text: Transactions
+- img
+- text: Cash Flow
+- img
+- text: Budget $24,532 Total Balance
+- img
+- text: +12.5% from last month +5.8% Monthly Growth
+- img
+- text: Trending upward $3,250 Saving Goal
+- img
+- text: 65% completed
+- img
+- text: Transaction Tracking
+- img
+- text: Budget Management
+- img
+- text: Financial Goals
+- img
+- text: Investment Portfolio
+- heading "Comprehensive Financial Tools" [level=2]
+- paragraph: Everything you need to manage, track, and grow your wealth in one seamless platform.
+- img
+- heading "Intuitive Dashboard" [level=3]
+- paragraph: Get a holistic view of your finances at a glance with our beautifully designed dashboard that highlights key metrics and insights.
+- img
+- heading "Detailed Reports" [level=3]
+- paragraph: Generate insightful financial reports that help you understand your spending patterns and make informed decisions.
+- img
+- heading "Smart Budgeting" [level=3]
+- paragraph: Create personalized budgets that adapt to your lifestyle and help you reach your financial goals without feeling restricted.
+- heading "Trusted by thousands for their financial success" [level=2]
+- img
+- text: 50K+ Active Users
+- img
+- text: $2.5B+ Money Managed
+- img
+- text: 25K+ Goals Achieved
+- img
+- text: 99.9% Uptime
+- heading "What people are saying" [level=2]
+- text: "\""
+- img
+- img
+- img
+- img
+- img
+- paragraph: "\"This app completely transformed my financial habits. I finally have control over my money and can see my progress clearly.\""
+- text: SM Sarah Mitchell Freelance Designer at Self-Employed "
+- img
+- img
+- img
+- img
+- img
+- paragraph: "\"The budgeting tools are incredible. I've saved more money in 6 months than I did in the previous 2 years combined.\""
+- text: DC David Chen Software Engineer at TechCorp "
+- img
+- img
+- img
+- img
+- img
+- paragraph: "\"Finally, a financial app that doesn't make me feel overwhelmed. The dashboard is beautiful and everything just makes sense.\""
+- text: MR Maria Rodriguez Marketing Manager at StartupXYZ
+- heading "Start Your Financial Transformation" [level=2]
+- paragraph: Join thousands of people who have found peace and success with their finances. Take control of your financial future today.
+- link "Get Started Today":
+  - /url: /auth
+  - button "Get Started Today":
+    - text: Get Started Today
+    - img
+- img
+- text: Free to start • No credit card required
+- contentinfo:
+  - text: Unbroken Pockets
+  - paragraph: Master your money, master your life.
+  - link "Privacy Policy":
+    - /url: /privacy-policy
+  - link "Terms of Service":
+    - /url: /terms-of-service
+  - link "Contact Us":
+    - /url: /contact
+  - link "Support":
+    - /url: /contact
+- region "Notifications (F8)":
+  - list
+- button "Open Next.js Dev Tools":
+  - img
+- alert
+```

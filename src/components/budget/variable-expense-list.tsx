@@ -18,11 +18,18 @@ interface VariableExpenseListProps {
   onUpdateExpenseAmount?: (expenseId: string, newAmount: number) => void;
   onDeleteExpense: (expenseId: string) => void;
   onEditExpense?: (expense: VariableExpense) => void;
+  isLoading?: boolean;
 }
 
-export function VariableExpenseList({ expenses, transactions = [], onUpdateExpenseAmount, onDeleteExpense, onEditExpense }: VariableExpenseListProps) {
+export function VariableExpenseList({ expenses, transactions = [], onUpdateExpenseAmount, onDeleteExpense, onEditExpense, isLoading = false }: VariableExpenseListProps) {
   const { toast } = useToast();
   const [editingAmounts, setEditingAmounts] = useState<Record<string, string>>({});
+
+  console.log('📋 DEBUG: VariableExpenseList rendered', { 
+    expensesCount: expenses.length,
+    expenses: expenses.map(e => ({ id: e.id, name: e.name, amount: e.amount })),
+    totalAmount: expenses.reduce((sum, e) => sum + e.amount, 0)
+  });
 
   // Sync editingAmounts when expenses prop changes (e.g. after adding/deleting)
   // Only reset when expenses are added/removed, not when amounts change
@@ -98,23 +105,41 @@ export function VariableExpenseList({ expenses, transactions = [], onUpdateExpen
   };
 
   const handleAmountBlur = (expenseId: string) => {
-    if (!onUpdateExpenseAmount) return; // Skip if no update handler provided
+    console.log('🔍 DEBUG: handleAmountBlur called', { 
+      expenseId, 
+      hasUpdateHandler: !!onUpdateExpenseAmount, 
+      isLoading, 
+      willReturn: !onUpdateExpenseAmount || isLoading 
+    });
+    
+    if (!onUpdateExpenseAmount || isLoading) return; // Skip if no update handler provided or still loading
     
     const stringValue = editingAmounts[expenseId];
     const originalExpense = expenses.find(e => e.id === expenseId);
+
+    console.log('🔍 DEBUG: handleAmountBlur processing', { 
+      expenseId, 
+      stringValue, 
+      originalAmount: originalExpense?.amount,
+      expenseName: originalExpense?.name 
+    });
 
     if (stringValue === undefined || stringValue.trim() === "" || originalExpense === undefined) {
       // Revert to original if input is cleared or expense not found
       if (originalExpense) {
         setEditingAmounts(prev => ({ ...prev, [expenseId]: originalExpense.amount.toString() }));
       }
+      console.log('🔍 DEBUG: Reverting to original - no valid input');
       return;
     }
     const numericValue = parseFloat(stringValue);
     if (!isNaN(numericValue) && numericValue >= 0) {
+      console.log('🔍 DEBUG: Comparing values', { numericValue, originalAmount: originalExpense.amount, willUpdate: numericValue !== originalExpense.amount });
       if (numericValue !== originalExpense.amount) { // Only update if changed
+        console.log('✅ DEBUG: Triggering update - calling onUpdateExpenseAmount');
         onUpdateExpenseAmount(expenseId, numericValue);
-        toast({ title: "Expense Updated", description: `Amount for ${originalExpense.name} updated.` });
+      } else {
+        console.log('⏭️ DEBUG: No change detected, skipping update');
       }
     } else {
       setEditingAmounts(prev => ({ ...prev, [expenseId]: originalExpense.amount.toString() }));
@@ -162,10 +187,15 @@ export function VariableExpenseList({ expenses, transactions = [], onUpdateExpen
                       value={editingAmounts[analysis.id] ?? analysis.amount.toString()}
                       onChange={(e) => handleAmountChange(analysis.id, e.target.value)}
                       onBlur={() => handleAmountBlur(analysis.id)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur();}}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
                       className="w-32 ml-auto text-right"
                       placeholder="0.00"
-                      disabled={!onUpdateExpenseAmount}
+                      disabled={!onUpdateExpenseAmount || isLoading || expenses.length === 0}
                     />
                   </TableCell>
                   <TableCell>

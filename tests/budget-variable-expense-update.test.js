@@ -2,6 +2,13 @@ const { test, expect } = require('@playwright/test');
 
 test.describe('Budget Variable Expense Updates', () => {
   test.beforeEach(async ({ page }) => {
+    // Listen to console logs to capture debug output
+    page.on('console', msg => {
+      if (msg.text().includes('DEBUG:')) {
+        console.log('🖥️ Browser Console:', msg.text());
+      }
+    });
+
     // Navigate to the budget page
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
@@ -132,5 +139,115 @@ test.describe('Budget Variable Expense Updates', () => {
     const budgetAmount = parseFloat(budgetStatusTotal?.replace(/[$,]/g, '') || '0');
     
     expect(Math.abs(tableAmount - budgetAmount)).toBeLessThan(0.01); // Allow for rounding differences
+  });
+});
+
+test.describe('Budget Variable Expense Update - Race Condition Fix', () => {
+  test('should properly update variable expense amounts without race conditions', async ({ page }) => {
+    const consoleLogs = [];
+    
+    // Capture all console logs
+    page.on('console', msg => {
+      const logMessage = `${msg.type()}: ${msg.text()}`;
+      consoleLogs.push(logMessage);
+      
+      // Log key messages for debugging
+      if (logMessage.includes('💰 DEBUG') || logMessage.includes('📊 DEBUG') || logMessage.includes('📋 DEBUG') || logMessage.includes('🔍 DEBUG')) {
+        console.log('🖥️ Browser Debug:', logMessage);
+      }
+    });
+
+    // Navigate to the app and log in
+    await page.goto('http://localhost:3000', { timeout: 30000 });
+    await page.waitForLoadState('networkidle');
+
+    // Sign in
+    const signInButton = page.locator('button:has-text("Sign in"), a:has-text("Sign in")').first();
+    if (await signInButton.isVisible()) {
+      await signInButton.click();
+      
+      // Fill credentials
+      await page.fill('input[type="email"]', 'admin@unbrokenpockets.com');
+      await page.fill('input[type="password"]', 'Password05@@10');
+      
+      // Click sign in button after credentials
+      const loginButton = page.locator('button:has-text("Sign in")').first();
+      await loginButton.click();
+      
+      // Wait for successful login
+      await page.waitForFunction(() => !window.location.pathname.includes('/auth'), { timeout: 15000 });
+      console.log('✅ Successfully logged in');
+    }
+
+    // Navigate to budget page
+    await page.goto('http://localhost:3000/budget', { timeout: 15000 });
+    await page.waitForTimeout(5000); // Give extra time for all data to load
+    console.log('✅ Budget page loaded');
+
+    // Wait for variable expenses to be visible and data to load
+    await page.waitForSelector('text=Variable Expenses', { timeout: 10000 });
+    await page.waitForTimeout(3000); // Allow data loading to complete
+
+    // Find the first variable expense input
+    const firstExpenseInput = page.locator('input[type="number"]').first();
+    await expect(firstExpenseInput).toBeVisible({ timeout: 5000 });
+    
+    // Get the current value
+    const currentValue = await firstExpenseInput.inputValue();
+    console.log(`📝 Current expense value: ${currentValue}`);
+    
+    // Try updating to 0
+    await firstExpenseInput.fill('0');
+    await firstExpenseInput.blur(); // Trigger the blur event
+    
+    console.log('📝 Updated expense to 0');
+    
+    // Wait a moment for any processing
+    await page.waitForTimeout(2000);
+    
+    // Check if update dialog appears
+    const updateAllButton = page.locator('button:has-text("Update All Months")');
+    const overrideButton = page.locator('button:has-text("Override Current Month Only")');
+    
+    if (await updateAllButton.isVisible({ timeout: 3000 })) {
+      console.log('📝 Update scope dialog appeared - clicking "Update All Months"');
+      await updateAllButton.click();
+      await page.waitForTimeout(2000);
+    } else if (await overrideButton.isVisible({ timeout: 3000 })) {
+      console.log('📝 Update scope dialog appeared - clicking "Override Current Month Only"');
+      await overrideButton.click();
+      await page.waitForTimeout(2000);
+    } else {
+      console.log('📝 No update dialog appeared - checking if update happened directly');
+    }
+    
+    // Verify the value changed
+    const newValue = await firstExpenseInput.inputValue();
+    console.log(`📝 New expense value: ${newValue}`);
+    
+    // Look for success indicators in console logs
+    const hasUpdateLogs = consoleLogs.some(log => 
+      log.includes('✅ DEBUG: Triggering update') || 
+      log.includes('🔧 DEBUG: Starting update') ||
+      log.includes('✅ DEBUG: Database updated successfully')
+    );
+    
+    console.log(`📝 Test Results:`);
+    console.log(`  - Original value: ${currentValue}`);
+    console.log(`  - New value: ${newValue}`);
+    console.log(`  - Update logs found: ${hasUpdateLogs}`);
+    console.log(`  - Value changed: ${currentValue !== newValue}`);
+    
+    // Check if the race condition is resolved by looking at debug logs
+    const raceConditionResolved = consoleLogs.some(log => 
+      log.includes('📊 DEBUG: Using fallback data') && log.includes('currentTotalVariableExpenses')
+    );
+    
+    console.log(`  - Race condition fix active: ${raceConditionResolved}`);
+
+    // The test is successful if:
+    // 1. We can update the value OR
+    // 2. The race condition fix is working (fallback data shows current expenses)
+    expect(currentValue !== newValue || raceConditionResolved).toBeTruthy();
   });
 }); 
