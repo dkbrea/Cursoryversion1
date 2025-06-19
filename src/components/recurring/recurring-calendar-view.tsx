@@ -98,6 +98,11 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
     const monthEnd = endOfMonth(month);
     const dayMap = new Map<string, DayData>();
 
+    // Filter out placeholder recurring items created for debt accounts
+    const filteredItems = items.filter(item => 
+      !(item.source === 'recurring' && item.name.startsWith('Debt Payment Placeholder -'))
+    );
+
     // Helper function to add occurrence to a specific day
     const addOccurrenceToDay = (date: Date, item: DayItem) => {
       const dateKey = format(date, 'yyyy-MM-dd');
@@ -121,7 +126,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
     };
 
     // Calculate year-wide pattern for each item, then filter to displayed month
-    items.forEach(unifiedItem => {
+    filteredItems.forEach(unifiedItem => {
       if (unifiedItem.source === 'debt') {
         // For debt payments, calculate full year pattern based on payment frequency
         const currentYear = getYear(month);
