@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { FinancialGoal, GoalIconKey } from "@/types";
 import { goalIconKeys } from "@/types";
 import { Icons } from "@/components/icons"; // Ensure this is a named import
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addMonths, startOfDay, isBefore } from "date-fns";
@@ -82,19 +81,26 @@ export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded, ini
   const [formResetKey, setFormResetKey] = useState(0); // Add a key to force re-render
   const [keepOpen, setKeepOpen] = useState(false);
 
-  // Define default values outside to reuse them
-  const defaultValues = {
-    name: initialValues?.name || "",
-    targetAmount: initialValues?.targetAmount || undefined,
-    currentAmount: initialValues?.currentAmount || 0,
-    targetDate: initialValues?.targetDate || undefined,
-    icon: initialValues?.icon || 'default',
-  };
+  // Define fresh default values - only use initialValues when editing
+  const getFreshDefaultValues = () => ({
+    name: isEditing && initialValues ? initialValues.name : "",
+    targetAmount: isEditing && initialValues ? initialValues.targetAmount : undefined,
+    currentAmount: isEditing && initialValues ? initialValues.currentAmount : 0,
+    targetDate: isEditing && initialValues ? initialValues.targetDate : undefined,
+    icon: isEditing && initialValues ? initialValues.icon : 'default',
+  });
 
   const form = useForm<AddGoalFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues,
+    defaultValues: getFreshDefaultValues(),
   });
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      resetFormFields();
+    }
+  }, [isOpen]);
 
   async function onSubmit(values: AddGoalFormValues, keepOpenSubmit: boolean = false) {
     setIsLoading(true);
@@ -131,8 +137,11 @@ export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded, ini
     // Clear all form fields and errors
     form.clearErrors();
     
+    // Get fresh default values (empty for new goals, populated for editing)
+    const freshDefaults = getFreshDefaultValues();
+    
     // Reset to completely fresh state
-    form.reset(defaultValues, {
+    form.reset(freshDefaults, {
       keepDefaultValues: false,
       keepErrors: false,
       keepDirty: false,
@@ -156,7 +165,7 @@ export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded, ini
       onOpenChange(open);
     }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-auto flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Financial Goal' : 'Add New Financial Goal'}</DialogTitle>
           <DialogDescription>
@@ -164,107 +173,116 @@ export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded, ini
           </DialogDescription>
         </DialogHeader>
         <Form {...form} key={`goal-form-${formResetKey}`}>
-          <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Goal Name *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Dream Vacation, New Laptop" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="targetAmount"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Target Amount ($) *</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" placeholder="5000.00" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="currentAmount"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Current Amount Saved ($)</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" placeholder="0.00" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="targetDate"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Target Date *</FormLabel>
-                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                          onClick={() => setIsDatePickerOpen(true)}
-                        >
-                          {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value ? new Date(field.value) : undefined}
-                        onSelect={(date) => { field.onChange(date); setIsDatePickerOpen(false); }}
-                        disabled={(date) => isBefore(date, startOfDay(addMonths(new Date(), 1)))} // Disable past dates and current month
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="icon"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Goal Icon (Optional)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+          <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="flex flex-col flex-1">
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4 py-2">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Goal Name *</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an icon" />
-                      </SelectTrigger>
+                      <Input placeholder="e.g., Dream Vacation, New Laptop" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      {goalIconDisplay.map(iconItem => (
-                        <SelectItem key={iconItem.key} value={iconItem.key}>
-                          <div className="flex items-center gap-2">
-                            <iconItem.IconComponent className="h-4 w-4" />
-                            {iconItem.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0 pt-4">
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="targetAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Target Amount ($) *</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="5000.00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="currentAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Current Amount Saved ($)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="targetDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Target Date *</FormLabel>
+                    <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                            onClick={() => setIsDatePickerOpen(true)}
+                          >
+                            {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent 
+                        className="w-auto p-0 max-h-[300px] overflow-y-auto" 
+                        align="start" 
+                        side="bottom" 
+                        sideOffset={4} 
+                        avoidCollisions={false}
+                        sticky="always"
+                      >
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          onSelect={(date) => { field.onChange(date); setIsDatePickerOpen(false); }}
+                          disabled={(date) => isBefore(date, startOfDay(addMonths(new Date(), 1)))} // Disable past dates and current month
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="icon"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Goal Icon (Optional)</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an icon" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {goalIconDisplay.map(iconItem => (
+                          <SelectItem key={iconItem.key} value={iconItem.key}>
+                            <div className="flex items-center gap-2">
+                              <iconItem.IconComponent className="h-4 w-4" />
+                              {iconItem.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0 pt-4 border-t">
               <div className="flex-1 flex justify-start">
                 <Button 
                   type="button" 

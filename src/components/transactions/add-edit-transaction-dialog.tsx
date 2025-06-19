@@ -509,12 +509,13 @@ export function AddEditTransactionDialog({
       if (!isLoading) onOpenChange(open); 
     }}>
       {children && <DialogTrigger asChild>{children}</DialogTrigger>}
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{transactionToEdit ? "Edit Transaction" : "Record Transaction"}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 py-2 max-h-[80vh] overflow-y-auto pr-2">
+          <div className="flex-1 overflow-y-auto pr-2">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 py-2">
             
             <FormField
               control={form.control}
@@ -535,7 +536,14 @@ export function AddEditTransactionDialog({
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent 
+                      className="w-auto p-0" 
+                      align="start" 
+                      side="bottom" 
+                      sideOffset={4} 
+                      avoidCollisions={false}
+                      sticky="always"
+                    >
                       <Calendar
                         mode="single"
                         selected={field.value}
@@ -973,7 +981,8 @@ export function AddEditTransactionDialog({
                 {transactionToEdit ? "Save Changes" : "Save Transaction"}
               </Button>
             </DialogFooter>
-          </form>
+            </form>
+          </div>
         </Form>
       </DialogContent>
     </Dialog>

@@ -24,7 +24,7 @@ import {
   differenceInCalendarMonths, isPast, format, getYear, getMonth, isSameDay
 } from "date-fns";
 import { adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
-import { saveForecastOverride, getForecastOverridesForMonth } from "@/lib/api/forecast-overrides-v2";
+import { saveForecastOverride, getForecastOverridesForMonth, getForecastOverrides, deleteForecastOverride } from "@/lib/api/forecast-overrides-v2";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getTransactions } from "@/lib/api/transactions";
@@ -880,6 +880,8 @@ export function BudgetManager() {
         monthSpecificAmount: vc.amount, // Initialize with default
       }));
       const monthTotalVariableExpenses = forecastVariableExpenses.reduce((sum, ve) => sum + ve.monthSpecificAmount, 0);
+      
+
 
       const forecastGoalContributions: MonthlyForecastGoalContribution[] = goalsWithContributions
         .filter(goal => goal.currentAmount < goal.targetAmount) // Only active goals
@@ -1202,13 +1204,33 @@ export function BudgetManager() {
       ));
       setAiInsightsRefreshTrigger(prev => prev + 1); // Trigger AI insights refresh
 
+      // Clear any existing overrides for this expense when updating base amount
+      // This ensures the new base amount takes effect across all months
+      if (user?.id) {
+        try {
+          // Get all existing overrides for this expense
+          const { overrides } = await getForecastOverrides(user.id);
+          const expenseOverrides = overrides.filter(override => 
+            override.itemId === expenseId && override.type === 'variable-expense'
+          );
+          
+          // Delete each override
+          for (const override of expenseOverrides) {
+            await deleteForecastOverride(user.id, expenseId, override.monthYear, 'variable-expense');
+          }
+
+        } catch (error) {
+          console.warn('Failed to clear existing overrides:', error);
+        }
+      }
+
       // This will cause the forecast to regenerate with the new base amounts
       // The useEffect that generates forecast data will run again because variableExpenses changed
-      // Existing month-specific overrides will be preserved and applied on top of the new base amounts
+      // Existing month-specific overrides have been cleared to ensure new base amount takes effect
 
       toast({
         title: "Variable Expense Updated",
-        description: `Base amount updated for all months. Month-specific adjustments are preserved.`,
+        description: `Base amount updated for all months. Previous month-specific overrides have been cleared.`,
       });
 
     } catch (error) {

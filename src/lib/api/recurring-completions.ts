@@ -128,8 +128,32 @@ export const calculateRecurringOccurrences = (
           currentDate = setDate(addMonths(startOfDay(new Date(startDate)), 1), firstDay);
         }
       } else {
-        // For other frequencies, start from item start date
-        currentDate = new Date(itemDate);
+        // For other frequencies (weekly, bi-weekly, etc.), implement aged billing
+        // Generate periods from search start using the item's due day pattern
+        console.log('DEBUG: Implementing aged billing for non-monthly frequency:', {
+          itemName: item.name,
+          frequency: item.frequency,
+          dueDayOfMonth,
+          searchStartDate: startDate.toISOString().split('T')[0]
+        });
+        
+        if (item.frequency === 'weekly' || item.frequency === 'bi-weekly') {
+          // For weekly/bi-weekly, use the due day of week from the item's start date
+          const itemDayOfWeek = itemDate.getDay(); // 0 = Sunday, 6 = Saturday
+          const searchStartDayOfWeek = startDate.getDay();
+          
+          // Find the first occurrence of the item's day of week on or after search start
+          let daysToAdd = (itemDayOfWeek - searchStartDayOfWeek + 7) % 7;
+          currentDate = addDays(startOfDay(new Date(startDate)), daysToAdd);
+        } else {
+          // For other frequencies, set the due day in the search start month
+          currentDate = setDate(startOfDay(new Date(startDate)), dueDayOfMonth);
+          
+          // If that date is before the search start date, move to next month
+          if (currentDate < startDate) {
+            currentDate = setDate(addMonths(startOfDay(new Date(startDate)), 1), dueDayOfMonth);
+          }
+        }
       }
     }
   } else {
@@ -301,6 +325,19 @@ export const getRecurringPeriods = async (
   recurringItems: UnifiedRecurringListItem[]
 ): Promise<{ periods: RecurringPeriod[] | null; error?: string }> => {
   try {
+    console.log('DEBUG getRecurringPeriods called with:', {
+      userId,
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+      itemCount: recurringItems.length,
+      incomeItems: recurringItems.filter(item => item.itemDisplayType === 'income').map(item => ({
+        name: item.name,
+        startDate: item.startDate?.toISOString?.().split('T')[0] || item.startDate,
+        lastRenewalDate: item.lastRenewalDate?.toISOString?.().split('T')[0] || item.lastRenewalDate,
+        nextOccurrenceDate: item.nextOccurrenceDate.toISOString().split('T')[0]
+      }))
+    });
+    
     // Get user's financial tracking start date
     let userTrackingStartDate: Date | null = null;
     try {
@@ -351,6 +388,10 @@ export const getRecurringPeriods = async (
     const periods: RecurringPeriod[] = [];
     const today = startOfDay(new Date());
 
+    console.log('DEBUG: Processing recurring items. Total completions found:', completions?.length || 0);
+    console.log('DEBUG: Today:', today.toISOString().split('T')[0]);
+    console.log('DEBUG: User tracking start date for auto-completion:', userTrackingStartDate?.toISOString().split('T')[0] || 'none');
+
     // Process each recurring item
     for (const item of recurringItems) {
       let occurrences: Date[] = [];
@@ -382,6 +423,19 @@ export const getRecurringPeriods = async (
         occurrences = calculateRecurringOccurrences(item, startDate, endDate);
       }
 
+      // Debug logging for income items specifically
+      if (item.itemDisplayType === 'income') {
+        console.log('DEBUG: Income item processing:', {
+          itemName: item.name,
+          itemDisplayType: item.itemDisplayType,
+          occurrencesGenerated: occurrences.length,
+          occurrenceDates: occurrences.map(d => d.toISOString().split('T')[0]),
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0],
+          userTrackingStartDate: userTrackingStartDate?.toISOString().split('T')[0] || 'none'
+        });
+      }
+
       // Create periods for each occurrence
       for (const occurrenceDate of occurrences) {
         const completion = completions?.find(c => 
@@ -399,10 +453,24 @@ export const getRecurringPeriods = async (
         if (isBeforeTrackingStart) {
           console.log('DEBUG: Auto-completing period before tracking start:', {
             itemName: item.name,
+            itemDisplayType: item.itemDisplayType,
             periodDate: occurrenceDate.toISOString().split('T')[0],
             trackingStartDate: userTrackingStartDate?.toISOString().split('T')[0],
             isCompleted,
-            isBeforeTrackingStart
+            isBeforeTrackingStart,
+            hasExistingCompletion: !!completion
+          });
+        }
+        
+        // Extra logging for income items to debug Jan-Mar issue
+        if (item.itemDisplayType === 'income') {
+          console.log('DEBUG: Income item period processing:', {
+            itemName: item.name,
+            periodDate: occurrenceDate.toISOString().split('T')[0],
+            isBeforeTrackingStart,
+            hasExistingCompletion: !!completion,
+            willBeMarkedComplete: isCompleted,
+            month: occurrenceDate.toISOString().split('T')[0].substring(0, 7) // YYYY-MM
           });
         }
         const isOverdue = isBefore(occurrenceDate, today) && !isCompleted;

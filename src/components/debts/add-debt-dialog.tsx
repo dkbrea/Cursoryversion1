@@ -81,9 +81,9 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
       return {
         name: initialValues.name || "",
         type: initialValues.type || (undefined as unknown as DebtAccountType),
-        balance: initialValues.balance || undefined,
-        apr: initialValues.apr || undefined,
-        minimumPayment: initialValues.minimumPayment || undefined,
+        balance: initialValues.balance !== undefined ? initialValues.balance : ("" as any),
+        apr: initialValues.apr !== undefined ? initialValues.apr : ("" as any),
+        minimumPayment: initialValues.minimumPayment !== undefined ? initialValues.minimumPayment : ("" as any),
         nextDueDate: initialValues.nextDueDate ? startOfDay(new Date(initialValues.nextDueDate)) : startOfDay(new Date()),
         paymentFrequency: initialValues.paymentFrequency || (undefined as unknown as PaymentFrequency),
       };
@@ -92,9 +92,9 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
       return {
         name: "",
         type: undefined as unknown as DebtAccountType,
-        balance: undefined,
-        apr: undefined,
-        minimumPayment: undefined,
+        balance: "" as any, // Use empty string to avoid controlled/uncontrolled error
+        apr: "" as any, // Use empty string to avoid controlled/uncontrolled error
+        minimumPayment: "" as any, // Use empty string to avoid controlled/uncontrolled error
         nextDueDate: startOfDay(new Date()),
         paymentFrequency: undefined as unknown as PaymentFrequency,
       };
@@ -118,9 +118,9 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
     const freshValues = {
       name: "",
       type: undefined as unknown as DebtAccountType,
-      balance: undefined,
-      apr: undefined,
-      minimumPayment: undefined,
+      balance: "" as any, // Use empty string to avoid controlled/uncontrolled error
+      apr: "" as any, // Use empty string to avoid controlled/uncontrolled error
+      minimumPayment: "" as any, // Use empty string to avoid controlled/uncontrolled error
       nextDueDate: startOfDay(new Date()),
       paymentFrequency: undefined as unknown as PaymentFrequency,
     };
@@ -197,7 +197,7 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
       onOpenChange(open);
     }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Debt Account' : 'Add New Debt Account'}</DialogTitle>
           <DialogDescription>
@@ -205,7 +205,8 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
           </DialogDescription>
         </DialogHeader>
         <Form {...form} key={`debt-form-${formResetKey}`}>
-          <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="space-y-4 py-4">
+          <div className="flex-1 overflow-y-auto pr-2">
+            <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="space-y-4 py-4">
             <FormField
               control={form.control}
               name="name"
@@ -307,7 +308,14 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent 
+                      className="w-auto p-0" 
+                      align="start" 
+                      side="bottom" 
+                      sideOffset={4} 
+                      avoidCollisions={false}
+                      sticky="always"
+                    >
                       <Calendar
                         mode="single"
                         selected={field.value}
@@ -392,7 +400,8 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
                 </Button>
               </div>
             </DialogFooter>
-          </form>
+            </form>
+          </div>
         </Form>
       </DialogContent>
     </Dialog>
