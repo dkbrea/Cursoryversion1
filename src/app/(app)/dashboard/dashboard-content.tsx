@@ -1235,10 +1235,10 @@ export function DashboardContent() {
         </div>
       </div>
 
-      {/* Debt Spending Card and Variable Expense Analysis - above Recent Transactions */}
+      {/* Budget Tracker and Credit Spending - above Recent Transactions */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Debt Spending Card */}
-        <Card className="border-l-4 border-l-red-500">
+        {/* Credit Spending Card - Order 2 (appears second/right) */}
+        <Card className="border-l-4 border-l-red-500 md:order-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium flex items-center">
               <CreditCard className="h-4 w-4 mr-2 text-red-500" />
@@ -1352,8 +1352,8 @@ export function DashboardContent() {
           </CardContent>
         </Card>
 
-        {/* Variable Expense Analysis Card */}
-        <Card className="border-l-4 border-l-orange-500">
+        {/* Budget Tracker Card - Order 1 (appears first/left) */}
+        <Card className="border-l-4 border-l-orange-500 md:order-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium flex items-center">
               <TrendingUp className="h-4 w-4 mr-2 text-orange-500" />

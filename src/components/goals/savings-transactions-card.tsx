@@ -61,6 +61,15 @@ export function SavingsTransactionsCard() {
           return map;
         }, {} as Record<string, string>);
         
+        // Get goals with initial balances to add as "Initial Balance" entries
+        const { data: allGoalsData, error: allGoalsError } = await supabase
+          .from('financial_goals')
+          .select('id, name, current_amount, created_at')
+          .eq('user_id', user.id)
+          .gt('current_amount', 0);
+
+        if (allGoalsError) console.error('Error fetching goals for initial balances:', allGoalsError);
+
         // Transform transactions to SavingsTransactionItems
         const savingsTransactions: SavingsTransactionItem[] = transactionsData.map(transaction => ({
           id: String(transaction.id),
@@ -73,7 +82,36 @@ export function SavingsTransactionsCard() {
           status: new Date(transaction.date) > new Date() ? 'Pending' : 
                  transaction.notes?.includes('failed') ? 'Failed' : 'Completed'
         }));
+
+        // Add initial balance entries for goals with starting amounts (that don't have transaction records)
+        if (allGoalsData) {
+          for (const goal of allGoalsData) {
+            // Check if this goal has any existing transaction records
+            const hasTransactions = transactionsData.some(t => t.source_id === goal.id);
+            
+            // If no transactions but has current amount, add an initial balance entry
+            if (!hasTransactions && goal.current_amount > 0) {
+              savingsTransactions.push({
+                id: `initial-${goal.id}`,
+                date: new Date(goal.created_at),
+                goalName: goal.name,
+                amount: goal.current_amount,
+                method: 'Initial Balance',
+                status: 'Completed'
+              });
+            }
+          }
+        }
         
+        // Sort all transactions by date
+        savingsTransactions.sort((a, b) => {
+          if (sortOrder === 'oldest') {
+            return a.date.getTime() - b.date.getTime();
+          } else {
+            return b.date.getTime() - a.date.getTime();
+          }
+        });
+
         // Apply status filter if needed
         let filteredTransactions = savingsTransactions;
         if (statusFilter !== 'all-status') {

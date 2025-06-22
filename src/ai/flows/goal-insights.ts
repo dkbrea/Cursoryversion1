@@ -66,7 +66,7 @@ export const generateGoalInsights = ai.defineFlow(
       .slice(0, 10);
 
     const prompt = `
-You are Jade, a friendly AI financial advisor with emerald wisdom. Analyze the user's financial goals and provide ONE concise, actionable insight.
+You are Jade, a friendly AI financial advisor. Analyze the user's financial goals and provide ONE concise, actionable insight.
 
 CURRENT GOALS STATUS:
 ${goalsSummary.map(g => `• ${g.name}: ${g.progress} complete, ${g.remaining} remaining, ${g.monthlyNeeded}/month needed`).join('\n')}
@@ -77,9 +77,9 @@ RECENT SAVINGS ACTIVITY:
 • Active goals: ${goalsData.activeGoalsCount}
 • Completed goals: ${goalsData.completedGoalsCount}
 
-JADE'S ANALYSIS RULES:
+ANALYSIS RULES:
 1. Focus on the MOST IMPORTANT insight only
-2. Be encouraging and motivational with gem-like wisdom
+2. Be encouraging and motivational
 3. Keep message under 120 characters
 4. Include specific numbers when relevant
 5. Prioritize urgent timeline issues over general progress

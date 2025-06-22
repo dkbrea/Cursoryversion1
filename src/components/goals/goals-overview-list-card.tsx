@@ -43,7 +43,7 @@ export function GoalsOverviewListCard({ goals, onDeleteGoal, onEditGoal, isDelet
                     <span className="font-medium text-foreground">{goal.name}</span>
                     <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
-                            ${goal.targetAmount.toLocaleString()} ({progressPercentage.toFixed(0)}%)
+                            {progressPercentage.toFixed(0)}% of ${goal.targetAmount.toLocaleString()}
                         </span>
                         {!isAchieved && (
                              <AlertDialog>

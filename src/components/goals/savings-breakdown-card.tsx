@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { FinancialGoalWithContribution, SavingsBreakdownItem } from "@/types";
@@ -74,46 +73,62 @@ export function SavingsBreakdownCard({ goals }: SavingsBreakdownCardProps) {
       </CardHeader>
       <CardContent>
         {chartData.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-            <ChartContainer config={chartConfig} className="aspect-square h-[200px] mx-auto">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip content={<ChartTooltipContent hideLabel nameKey="name" />} />
-                  <Pie
-                    data={chartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    innerRadius={50}
-                    strokeWidth={2}
-                  >
-                    {chartData.map((entry) => (
-                      <Cell key={`cell-${entry.name}`} fill={entry.color} stroke={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-            <div className="space-y-2 text-sm">
-              {chartData.map((item) => (
-                <div key={item.name} className="flex items-center">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full mr-2"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-muted-foreground flex-1">{item.name}</span>
-                  {/* <span className="text-foreground font-medium">${item.value.toLocaleString()}</span> */}
-                </div>
-              ))}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            {/* Chart Container - constrained size on larger screens */}
+            <div className="flex justify-center">
+              <ChartContainer config={chartConfig} className="aspect-square h-[180px] w-[180px] mx-auto">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip content={<ChartTooltipContent hideLabel nameKey="name" />} />
+                    <Pie
+                      data={chartData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={70}
+                      innerRadius={45}
+                      strokeWidth={2}
+                    >
+                      {chartData.map((entry) => (
+                        <Cell key={`cell-${entry.name}`} fill={entry.color} stroke={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </div>
+            
+            {/* Text Content - with proper spacing and constraints */}
+            <div className="space-y-3 min-w-0 flex-1">
+              <div className="space-y-2 text-sm">
+                {chartData.map((item) => (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-muted-foreground truncate flex-1 min-w-0">{item.name}</span>
+                    <span className="text-foreground font-medium shrink-0">${item.value.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Emergency Fund Insight - moved to separate container with proper spacing */}
               {emergencyFund && (
-                <div className="mt-4 pt-3 border-t text-xs text-muted-foreground bg-muted/30 p-2 rounded-md flex items-start gap-2">
-                  <Percent className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                  <span>
-                    Your emergency fund is at {emergencyFundPercentage.toFixed(0)}%. 
-                    {emergencyFundPercentage < 100 && " Consider increasing its priority to build financial security."}
-                  </span>
+                <div className="mt-4 p-3 border border-primary/20 bg-primary/5 rounded-lg">
+                  <div className="flex items-start gap-2 text-xs">
+                    <Percent className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <div className="text-muted-foreground leading-relaxed">
+                      <span className="font-medium text-foreground">Emergency Fund: </span>
+                      Your emergency fund is at {emergencyFundPercentage.toFixed(0)}%.
+                      {emergencyFundPercentage < 100 && (
+                        <span className="block mt-1">
+                          Consider increasing its priority to build financial security.
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

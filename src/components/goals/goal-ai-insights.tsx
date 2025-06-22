@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Lightbulb, Loader2 } from 'lucide-react';
+import { Gem, Loader2 } from 'lucide-react';
 import type { FinancialGoalWithContribution } from '@/types';
 import { formatNumber } from '@/lib/utils';
 
@@ -162,15 +162,15 @@ export function GoalAIInsights({
 
   if (isLoading) {
     return (
-      <Card className={className}>
+      <Card className={`border-emerald-200 bg-emerald-50/50 ${className}`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            <Lightbulb className="h-4 w-4 mr-1 inline-block text-yellow-500" /> AI Insight
+          <CardTitle className="text-sm font-medium text-emerald-700">
+            <Gem className="h-4 w-4 mr-1 inline-block text-emerald-600" /> Jade-powered Insights
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center space-x-2">
-            <Loader2 className="h-4 w-4 animate-spin text-yellow-500" />
+            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
             <span className="text-xs text-muted-foreground">Analyzing your goals...</span>
           </div>
         </CardContent>
@@ -180,10 +180,10 @@ export function GoalAIInsights({
 
   if (insights.length === 0) {
     return (
-      <Card className={className}>
+      <Card className={`border-emerald-200 bg-emerald-50/50 ${className}`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            <Lightbulb className="h-4 w-4 mr-1 inline-block text-yellow-500" /> AI Insight
+          <CardTitle className="text-sm font-medium text-emerald-700">
+            <Gem className="h-4 w-4 mr-1 inline-block text-emerald-600" /> Jade-powered Insights
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -198,10 +198,10 @@ export function GoalAIInsights({
   const primaryInsight = insights[0];
 
   return (
-    <Card className={className}>
+    <Card className={`border-emerald-200 bg-emerald-50/50 ${className}`}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          <Lightbulb className="h-4 w-4 mr-1 inline-block text-yellow-500" /> AI Insight
+        <CardTitle className="text-sm font-medium text-emerald-700">
+          <Gem className="h-4 w-4 mr-1 inline-block text-emerald-600" /> Jade-powered Insights
         </CardTitle>
       </CardHeader>
       <CardContent>

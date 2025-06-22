@@ -370,7 +370,7 @@ export interface SavingsTransactionItem {
   date: Date;
   goalName: string;
   amount: number;
-  method: 'Auto-Save' | 'Manual';
+  method: 'Auto-Save' | 'Manual' | 'Initial Balance';
   status: 'Pending' | 'Completed' | 'Failed';
 }
 
