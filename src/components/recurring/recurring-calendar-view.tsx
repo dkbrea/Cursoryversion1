@@ -6,6 +6,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, isSameDay, startOfMonth, isSameMonth, startOfDay, endOfMonth, isWithinInterval, setDate, addDays, addWeeks, addMonths, addQuarters, addYears, getDate, isBefore, isAfter, getYear } from 'date-fns';
 import { adjustToPreviousBusinessDay } from '@/lib/utils/date-calculations';
 import type { DayContentProps, CaptionProps } from 'react-day-picker';
@@ -459,6 +460,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
     const dateKey = format(date, 'yyyy-MM-dd');
     const dayData = monthlyOccurrences.get(dateKey);
     const isToday = isSameDay(date, new Date());
+    const isSelected = selectedDate && isSameDay(date, selectedDate);
     
     if (!dayData || dayData.items.length === 0) {
       return (
@@ -479,7 +481,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
         )}>{dayOfMonth}</span>
         
         <div className="flex-1 min-h-0 space-y-1 overflow-hidden">
-          {dayData.items.slice(0, 2).map((item, index) => {
+          {(isSelected ? dayData.items : dayData.items.slice(0, 2)).map((item, index) => {
             const isCompleted = completedItems?.has(item.id) || false;
             return (
               <div
@@ -506,7 +508,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
             );
           })}
           
-          {dayData.items.length > 2 && (
+          {!isSelected && dayData.items.length > 2 && (
             <div className="text-[11px] text-muted-foreground leading-tight font-medium px-1">
               +{dayData.items.length - 2} more
             </div>
