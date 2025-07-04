@@ -7,6 +7,7 @@ import { DollarSign, CreditCard, Users, TrendingUp } from "lucide-react";
 import { RecurringList } from "@/components/recurring/recurring-list";
 import type { UnifiedRecurringListItem, RecurringItem, Account, Transaction, DebtAccount, Category, FinancialGoal, FinancialGoalWithContribution, VariableExpense, PaycheckBreakdown, SinkingFund, PaycheckPreferences } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { getAccounts } from "@/lib/api/accounts";
 import { getTransactions } from "@/lib/api/transactions";
 import { getRecurringItems } from "@/lib/api/recurring";
@@ -26,6 +27,7 @@ import { RecurringCalendarOverlay } from "@/components/dashboard/recurring-calen
 import { AddEditTransactionDialog } from "@/components/transactions/add-edit-transaction-dialog";
 import { RecordRecurringTransactionDialog } from "@/components/recurring/record-recurring-transaction-dialog";
 import { DashboardAIInsightsCard } from "@/components/dashboard/ai-insights-card";
+import { BudgetTrackerCard } from "@/components/dashboard/budget-tracker-card";
 import { startOfDay, endOfDay, addDays, isSameDay, format, addWeeks, addMonths, subMonths, startOfMonth, getDate, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle } from "lucide-react";
@@ -44,6 +46,7 @@ import { getSinkingFunds } from "@/lib/api/sinking-funds";
 export function DashboardContent() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -1362,7 +1365,7 @@ export function DashboardContent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${isMobile ? 'max-w-[100vw] overflow-x-hidden' : ''}`}>
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">
           {getPersonalizedGreeting(user?.name, userPreferences?.timezone)}
@@ -1376,7 +1379,7 @@ export function DashboardContent() {
       <SetupGuide />
       
       {/* AI Insights */}
-      <DashboardAIInsightsCard />
+      <DashboardAIInsightsCard isMobile={isMobile} />
       
       {/* Past Due Items - shown prominently if there are any */}
       <PastDueItemsCard 
@@ -1384,18 +1387,19 @@ export function DashboardContent() {
         completedItems={completedItems}
         userPreferences={userPreferences}
         onItemClick={handleCalendarItemClick}
+        isMobile={isMobile}
       />
       
       {/* First row: Key Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className={`flex flex-row items-center justify-between space-y-0 ${isMobile ? 'pb-3' : 'pb-2'}`}>
+            <CardTitle className={`${isMobile ? 'text-base' : 'text-sm'} font-medium`}>Total Balance</CardTitle>
+            <DollarSign className={`${isMobile ? 'h-5 w-5' : 'h-4 w-4'} text-muted-foreground`} />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalBalance)}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className={`${isMobile ? 'text-3xl' : 'text-2xl'} font-bold`}>{formatCurrency(totalBalance)}</div>
+            <p className={`${isMobile ? 'text-sm' : 'text-xs'} text-muted-foreground mt-1`}>
               {accounts.length > 0 
                 ? `Across ${accounts.length} account${accounts.length > 1 ? 's' : ''}`
                 : 'No accounts found'}
@@ -1403,15 +1407,17 @@ export function DashboardContent() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Spending</CardTitle>
-            <select className="text-xs border rounded p-1">
-              <option>This Month</option>
-            </select>
+          <CardHeader className={`flex flex-row items-center justify-between space-y-0 ${isMobile ? 'pb-3' : 'pb-2'}`}>
+            <CardTitle className={`${isMobile ? 'text-base' : 'text-sm'} font-medium`}>Monthly Spending</CardTitle>
+            {!isMobile && (
+              <select className="text-xs border rounded p-1">
+                <option>This Month</option>
+              </select>
+            )}
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(monthlySpending)}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className={`${isMobile ? 'text-3xl' : 'text-2xl'} font-bold`}>{formatCurrency(monthlySpending)}</div>
+            <p className={`${isMobile ? 'text-sm' : 'text-xs'} text-muted-foreground mt-1`}>
               {(() => {
                 const expenseTransactionCount = transactions.filter(tx => 
                   tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription'
@@ -1422,55 +1428,56 @@ export function DashboardContent() {
               })()}
             </p>
             {topCategories.length > 0 && (
-              <div className="mt-4 space-y-2">
-                {topCategories.map((category, index) => (
+              <div className={`${isMobile ? 'mt-3 space-y-2' : 'mt-4 space-y-2'}`}>
+                {topCategories.slice(0, isMobile ? 2 : 3).map((category, index) => (
                   <div key={category.name} className="flex items-center">
-                    <div className={`w-2 h-2 rounded-full mr-2 ${
+                    <div className={`${isMobile ? 'w-3 h-3' : 'w-2 h-2'} rounded-full mr-2 ${
                       index === 0 ? 'bg-blue-500' : 
                       index === 1 ? 'bg-red-500' : 
                       'bg-green-500'
                     }`}></div>
-                    <span className="text-sm">{category.name}</span>
-                    <span className="ml-auto text-sm font-semibold">{formatCurrency(category.amount)}</span>
+                    <span className={`${isMobile ? 'text-sm' : 'text-sm'}`}>{category.name}</span>
+                    <span className={`ml-auto ${isMobile ? 'text-sm' : 'text-sm'} font-semibold`}>{formatCurrency(category.amount)}</span>
                   </div>
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
-        <SavingsGoalsCard refreshTrigger={goalRefreshTrigger} />
+        <SavingsGoalsCard refreshTrigger={goalRefreshTrigger} isMobile={isMobile} />
       </div>
       {/* Second row: Chart and Upcoming Expenses */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        {/* Chart section - takes up 3 columns */}
-        <div className="lg:col-span-3">
-          <ExpenseChart />
+      <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-5'}`}>
+        {/* Chart section - takes up 3 columns on desktop, full width on mobile */}
+        <div className={`${isMobile ? 'order-2' : 'lg:col-span-3'}`}>
+          <ExpenseChart isMobile={isMobile} />
         </div>
-        {/* Right column: Calendar Access + Upcoming Expenses - takes up 2 columns */}
-        <div className="lg:col-span-2 flex flex-col gap-3 h-full">
-          <CalendarAccessCard onViewCalendar={handleViewCalendar} />
+        {/* Right column: Calendar Access + Upcoming Expenses - takes up 2 columns on desktop, full width on mobile */}
+        <div className={`${isMobile ? 'order-1 flex flex-col gap-3' : 'lg:col-span-2 flex flex-col gap-3 h-full'}`}>
+          <CalendarAccessCard onViewCalendar={handleViewCalendar} isMobile={isMobile} />
           <div className="flex flex-col gap-3 flex-1">
-            <PayPeriodSummary breakdown={payPeriodBreakdown} preferences={userPreferences?.paycheckPreferences} />
+            <PayPeriodSummary breakdown={payPeriodBreakdown} preferences={userPreferences?.paycheckPreferences} isMobile={isMobile} />
             <div className="flex-1">
               <UpcomingExpensesCard 
                 items={upcomingItems} 
                 completedItems={completedItems} 
-                userPreferences={userPreferences} 
+                userPreferences={userPreferences}
+                isMobile={isMobile}
               />
             </div>
           </div>
         </div>
       </div>
       {/* Debt Spending Card and Variable Expense Analysis - above Recent Transactions */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
         {/* Debt Spending Card */}
         <Card className="border-l-4 border-l-red-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center">
-              <CreditCard className="h-4 w-4 mr-2 text-red-500" />
+          <CardHeader className={`flex flex-row items-center justify-between space-y-0 ${isMobile ? 'pb-3' : 'pb-2'}`}>
+            <CardTitle className={`${isMobile ? 'text-base' : 'text-sm'} font-medium flex items-center`}>
+              <CreditCard className={`${isMobile ? 'h-5 w-5' : 'h-4 w-4'} mr-2 text-red-500`} />
               Credit Spending
             </CardTitle>
-            <div className="text-xs text-muted-foreground">This Month</div>
+            <div className={`${isMobile ? 'text-sm' : 'text-xs'} text-muted-foreground`}>This Month</div>
           </CardHeader>
           <CardContent>
             {(() => {
@@ -1514,31 +1521,25 @@ export function DashboardContent() {
             })()}
           </CardContent>
         </Card>
-        {/* Variable Expense Analysis Card */}
-        <Card className="border-l-4 border-l-orange-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center">
-              <TrendingUp className="h-4 w-4 mr-2 text-orange-500" />
-              Variable Expense Analysis
-            </CardTitle>
-            <div className="text-xs text-muted-foreground">This Month</div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Coming soon...</div>
-          </CardContent>
-        </Card>
+        {/* Budget Tracker Card */}
+        <BudgetTrackerCard 
+          variableExpenses={variableExpenses}
+          transactions={transactions}
+          isMobile={isMobile}
+        />
       </div>
       {/* Third row: Recent Transactions */}
-      <div className="grid gap-4">
+      <div className={`grid gap-4 ${isMobile ? 'w-full max-w-full' : ''}`}>
         <RecentTransactionsCard 
           transactions={transactions}
           categories={categories}
           accounts={accounts}
           debtAccounts={debtAccounts}
-          limit={10}
+          limit={isMobile ? 5 : 10}
           onAddTransaction={handleAddTransaction}
           onEditTransaction={handleEditTransaction}
           onDeleteTransaction={handleDeleteTransaction}
+          isMobile={isMobile}
         />
       </div>
 
