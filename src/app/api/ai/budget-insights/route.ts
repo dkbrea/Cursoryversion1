@@ -5,12 +5,12 @@ import { getForecastOverridesForMonth } from '@/lib/api/forecast-overrides-v2';
 import { adjustToPreviousBusinessDay } from '@/lib/utils/date-calculations';
 import { startOfMonth, endOfMonth, format, subMonths, differenceInCalendarMonths, startOfDay, isPast } from 'date-fns';
 
+// For API routes, we'll use the service role key to bypass auth
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
 export async function POST(request: NextRequest) {
   try {
-    // Get environment variables at runtime
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    
     // Check environment variables
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error('Missing environment variables:', { 
