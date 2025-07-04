@@ -1,0 +1,13 @@
+# Cursor AI ignore file
+# Exclude large directories and files that don't need AI processing
+node_modules/
+.next/
+.git/
+*.log
+*.lock
+package-lock.json
+
+# Allow environment files (override any global settings)
+!.env
+!.env.local
+!.env.example 

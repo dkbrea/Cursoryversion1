@@ -1,0 +1,698 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: 257 88% 97%; /* #F2EEFD - Light Violet */
+    --foreground: 270 25% 15%; /* Dark grayish purple for readability */
+
+    --card: 0 0% 100%; /* White cards */
+    --card-foreground: 270 25% 15%;
+
+    --popover: 0 0% 100%; /* White popovers */
+    --popover-foreground: 270 25% 15%;
+
+    --primary: 258 62% 60%; /* #7957D6 - Deep Violet */
+    --primary-foreground: 0 0% 100%; /* White */
+
+    --secondary: 257 80% 92%; /* Lighter violet for secondary elements */
+    --secondary-foreground: 258 62% 40%; /* Darker primary for text on secondary */
+
+    --muted: 257 70% 90%; /* Muted violet */
+    --muted-foreground: 270 15% 45%; /* Muted text */
+
+    --accent: 278 100% 25%; /* #4B0082 - Indigo */
+    --accent-foreground: 0 0% 100%; /* White */
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 257 30% 88%; /* Light violet gray border */
+    --input: 257 30% 92%; /* Lighter input background/border */
+    --ring: 258 62% 60%; /* Ring same as primary */
+
+    --chart-1: 258 62% 60%; /* Primary */
+    --chart-2: 278 100% 25%; /* Accent */
+    --chart-3: 250 70% 65%;
+    --chart-4: 265 80% 70%;
+    --chart-5: 290 60% 55%;
+    
+    --radius: 0.5rem;
+
+    /* Sidebar specific theme */
+    --sidebar-background: 250 25% 12%; /* Darker violet/almost black for sidebar */
+    --sidebar-foreground: 257 80% 95%; /* Light text for sidebar */
+    --sidebar-primary: 258 62% 70%; /* Brighter Primary for active/hover in sidebar */
+    --sidebar-primary-foreground: 0 0% 100%; /* White */
+    --sidebar-accent: 250 25% 20%; /* Slightly lighter than sidebar bg for hover */
+    --sidebar-accent-foreground: 0 0% 100%; /* White */
+    --sidebar-border: 250 25% 22%; 
+    --sidebar-ring: 258 62% 70%;
+  }
+
+  .dark {
+    --background: 270 10% 10%; /* Dark Purple/Black */
+    --foreground: 257 80% 90%; /* Light Violet text */
+
+    --card: 270 10% 12%;
+    --card-foreground: 257 80% 90%;
+
+    --popover: 270 10% 10%;
+    --popover-foreground: 257 80% 90%;
+
+    --primary: 258 62% 65%; /* Slightly brighter Deep Violet */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 270 10% 20%;
+    --secondary-foreground: 257 80% 90%;
+
+    --muted: 270 10% 15%;
+    --muted-foreground: 257 80% 70%;
+
+    --accent: 278 100% 35%; /* Lighter Indigo */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 270 10% 25%;
+    --input: 270 10% 25%;
+    --ring: 258 62% 65%;
+    
+    --chart-1: 258 62% 65%;
+    --chart-2: 278 100% 35%;
+    --chart-3: 250 70% 60%;
+    --chart-4: 265 80% 65%;
+    --chart-5: 290 60% 50%;
+
+    /* Sidebar dark theme (can be same as light if sidebar is always dark) */
+    --sidebar-background: 250 25% 12%;
+    --sidebar-foreground: 257 80% 95%;
+    --sidebar-primary: 258 62% 70%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 250 25% 20%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 250 25% 22%;
+    --sidebar-ring: 258 62% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  main {
+    flex-grow: 1;
+  }
+}
+
+/* Ensure <i> and <em> tags are always italic */
+i, em {
+  font-style: italic !important;
+}
+
+/* Custom animations for landing page */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(120, 87, 214, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(120, 87, 214, 0.6); }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes text-reveal {
+  0% { 
+    opacity: 0;
+    transform: translateY(30px) rotateX(90deg);
+  }
+  100% { 
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg);
+  }
+}
+
+@keyframes scale-in {
+  0% { 
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% { 
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-up {
+  0% { 
+    opacity: 0;
+    transform: translateY(100px);
+  }
+  100% { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes rotate-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Utility classes for animations */
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease-in-out infinite;
+}
+
+.animate-text-reveal {
+  animation: text-reveal 0.8s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.6s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.8s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-rotate-slow {
+  animation: rotate-slow 20s linear infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Micro-style 3D transforms */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+/* Glassmorphism effects */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Scroll animations */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(50px);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.scroll-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Parallax layers */
+.parallax-layer {
+  transform-style: preserve-3d;
+  transition: transform 0.1s ease-out;
+}
+
+/* Enhanced hover effects */
+.hover-lift {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.hover-lift:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(120, 87, 214, 0.2);
+}
+
+/* Text gradient animation */
+.gradient-text {
+  background: linear-gradient(45deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)));
+  background-size: 200% 200%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Loading shimmer effect */
+.shimmer-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: shimmer 2s infinite;
+}
+
+/* Custom style for react-day-picker event markers - REMOVED as it's no longer used */
+/*
+.event-day-marker {
+  position: relative;
+}
+
+.event-day-marker::after {
+  content: '';
+  position: absolute;
+  bottom: 6px; 
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px; 
+  height: 6px; 
+  border-radius: 50%;
+  background-color: hsl(var(--primary)); 
+}
+
+.dark .event-day-marker::after {
+  background-color: hsl(var(--primary-foreground)); 
+}
+
+.rdp-day_selected.event-day-marker::after {
+  background-color: hsl(var(--primary-foreground)); 
+}
+.dark .rdp-day_selected.event-day-marker::after {
+   background-color: hsl(var(--primary));
+}
+
+.rdp-day_today.event-day-marker::after {
+    background-color: hsl(var(--accent-foreground)); 
+}
+.dark .rdp-day_today.event-day-marker::after {
+    background-color: hsl(var(--accent-foreground));
+}
+*/
+
+/* Tilt Effect */
+.tilt-card {
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  will-change: transform;
+}
+
+.tilt-card:hover {
+  transform: perspective(1000px) rotateX(5deg) rotateY(5deg) scale(1.05);
+}
+
+/* Magnetic Button Effect */
+.magnetic-button {
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  will-change: transform;
+}
+
+/* Metric Card Hover Effects */
+.metric-card:hover {
+  transform: translateY(-5px) rotateX(5deg);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Feature Highlight Hover */
+.feature-highlight:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 10px 25px rgba(121, 87, 214, 0.2);
+}
+
+/* Gradient Text */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Custom Cursor Enhancements - REMOVED */
+/* .landing-page * {
+  cursor: none !important;
+} */
+
+.custom-cursor {
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: difference;
+  transition: all 0.3s ease;
+}
+
+.cursor-follower {
+  pointer-events: none;
+  z-index: 9998;
+  mix-blend-mode: difference;
+  transition: all 0.3s ease;
+}
+
+/* Interactive Element Cursor States */
+.magnetic-button:hover ~ .custom-cursor,
+.tilt-card:hover ~ .custom-cursor,
+button:hover ~ .custom-cursor,
+a:hover ~ .custom-cursor {
+  transform: scale(1.5) !important;
+  background-color: rgba(121, 87, 214, 0.8) !important;
+}
+
+/* Scroll Progress Bar */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--accent)));
+  z-index: 999;
+  transform-origin: left;
+}
+
+/* Side Navigation Dots */
+.nav-dot {
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.nav-dot:hover {
+  transform: scale(1.3);
+  background-color: hsl(var(--primary));
+}
+
+.nav-dot.active {
+  background-color: hsl(var(--primary));
+  transform: scale(1.5);
+  box-shadow: 0 0 20px rgba(121, 87, 214, 0.5);
+}
+
+/* Financial Symbols Animation */
+@keyframes float-symbols {
+  0%, 100% { 
+    transform: translateY(0px) rotate(0deg); 
+    opacity: 0.02;
+  }
+  50% { 
+    transform: translateY(-10px) rotate(5deg); 
+    opacity: 0.05;
+  }
+}
+
+.financial-symbol {
+  animation: float-symbols 8s ease-in-out infinite;
+}
+
+/* Scroll Indicator */
+.scroll-indicator {
+  transition: all 0.3s ease;
+}
+
+.scroll-indicator:hover {
+  transform: translateX(-50%) scale(1.1);
+  opacity: 1 !important;
+}
+
+/* Card Zoom Effect */
+.card-zoom {
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.card-zoom:hover {
+  transform: scale(1.05) translateZ(50px);
+  box-shadow: 
+    0 25px 50px rgba(0, 0, 0, 0.1),
+    0 0 50px rgba(121, 87, 214, 0.1);
+}
+
+/* Text Stagger Animation */
+.text-stagger span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: text-reveal 0.05s ease forwards;
+}
+
+/* Background Parallax */
+.parallax-bg {
+  will-change: transform;
+  transition: transform 0.3s ease-out;
+}
+
+/* Enhanced Button Styles */
+.btn-enhanced {
+  position: relative;
+  overflow: hidden;
+  transform: translateZ(0);
+  transition: all 0.3s ease;
+}
+
+.btn-enhanced::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  transition: left 0.5s;
+}
+
+.btn-enhanced:hover::before {
+  left: 100%;
+}
+
+/* Responsive Cursor Hide */
+@media (max-width: 768px) {
+  .custom-cursor,
+  .cursor-follower {
+    display: none;
+  }
+  
+  body {
+    cursor: auto;
+  }
+  
+  body * {
+    cursor: auto !important;
+  }
+}
+
+/* Background gradients */
+.bg-gradient-radial {
+  background-image: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.3), transparent);
+}
+
+/* Sinking Fund Envelope Styles */
+.envelope-card {
+  position: relative;
+  perspective: 1000px;
+}
+
+.envelope-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  z-index: 10;
+}
+
+.envelope-flap {
+  position: relative;
+  background: linear-gradient(145deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
+  backdrop-filter: blur(5px);
+}
+
+.envelope-flap::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
+}
+
+.envelope-shadow {
+  box-shadow: 
+    0 4px 20px rgba(0,0,0,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    inset 0 -1px 0 rgba(0,0,0,0.1);
+}
+
+.envelope-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.envelope-hover:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 
+    0 12px 40px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    inset 0 -1px 0 rgba(0,0,0,0.1);
+}
+
+.envelope-paper-texture {
+  background-image: 
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+@keyframes envelope-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(0.5deg); }
+  75% { transform: rotate(-0.5deg); }
+}
+
+.envelope-interactive:hover {
+  animation: envelope-wobble 0.6s ease-in-out;
+}
+
+/* Tropical Summer Background - mimics colorful fruits, drinks, and summer elements */
+.tropical-summer-bg {
+  background: linear-gradient(135deg, 
+    #4FC3F7 0%,    /* Light blue sky */
+    #29B6F6 25%,   /* Medium blue */
+    #03A9F4 50%,   /* Bright blue */
+    #039BE5 75%,   /* Deeper blue */
+    #0288D1 100%   /* Ocean blue */
+  );
+  position: relative;
+}
+
+.tropical-summer-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    /* Orange slices */
+    radial-gradient(circle at 20% 30%, #FF9800 3px, transparent 4px),
+    radial-gradient(circle at 80% 20%, #FF9800 2px, transparent 3px),
+    /* Watermelon slices */
+    radial-gradient(ellipse 8px 4px at 60% 70%, #E91E63 0%, transparent 100%),
+    radial-gradient(ellipse 6px 3px at 15% 80%, #E91E63 0%, transparent 100%),
+    /* Pineapple pattern */
+    radial-gradient(circle at 70% 40%, #FFD54F 2px, transparent 3px),
+    radial-gradient(circle at 25% 60%, #FFD54F 1.5px, transparent 2.5px),
+    /* Lime/citrus slices */
+    radial-gradient(circle at 40% 25%, #4CAF50 2px, transparent 3px),
+    radial-gradient(circle at 85% 75%, #4CAF50 1.5px, transparent 2.5px),
+    /* Drink umbrellas */
+    linear-gradient(45deg, #F44336 1px, transparent 1px),
+    linear-gradient(-45deg, #F44336 1px, transparent 1px);
+  background-size: 
+    40px 40px, 60px 60px,
+    50px 30px, 35px 25px,
+    30px 30px, 45px 45px,
+    35px 35px, 55px 55px,
+    20px 20px, 20px 20px;
+  background-position:
+    10px 15px, 45px 5px,
+    30px 35px, 5px 42px,
+    35px 20px, 12px 30px,
+    20px 12px, 42px 38px,
+    0px 0px, 0px 0px;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tropical-summer-bg::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    /* Summer glow effect */
+    radial-gradient(circle at 30% 20%, rgba(255, 193, 7, 0.1) 20%, transparent 50%),
+    radial-gradient(circle at 70% 60%, rgba(255, 87, 34, 0.08) 25%, transparent 55%),
+    radial-gradient(circle at 20% 80%, rgba(76, 175, 80, 0.06) 15%, transparent 45%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Enhanced text shadows for tropical background */
+.tropical-summer-bg .text-slate-800 {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.tropical-summer-bg .text-slate-700 {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.tropical-summer-bg .text-slate-600 {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(255, 255, 255, 0.3);
+}

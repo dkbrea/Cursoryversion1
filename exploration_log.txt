@@ -1,0 +1,39 @@
+STEP: Go to site
+✔ Success: Go to site
+STEP: Click Sign In
+✔ Success: Click Sign In
+STEP: Login
+✔ Success: Login
+STEP: Visit Dashboard
+✔ Success: Visit Dashboard
+STEP: Visit Budget
+✔ Success: Visit Budget
+STEP: Visit Transactions
+✔ Success: Visit Transactions
+STEP: Visit Recurring
+✔ Success: Visit Recurring
+STEP: Visit Goals
+✔ Success: Visit Goals
+STEP: Visit Investments
+✔ Success: Visit Investments
+STEP: Visit Reports
+✔ Success: Visit Reports
+STEP: Visit Accounts
+✔ Success: Visit Accounts
+STEP: Try Opening Calendar View in Recurring
+✔ Success: Try Opening Calendar View in Recurring
+STEP: Try Opening Add Transaction Modal and Fill
+✖ Failed: Try Opening Add Transaction Modal and Fill - locator.isVisible: Error: strict mode violation: getByText('$123.45') resolved to 2 elements:
+    1) <td class="p-4 align-middle [&:has([role=checkbox])]:pr-0 text-right font-semibold text-orange-600">-$123.45</td> aka getByRole('cell', { name: '-$123.45' }).first()
+    2) <td class="p-4 align-middle [&:has([role=checkbox])]:pr-0 text-right font-semibold text-orange-600">-$123.45</td> aka getByRole('cell', { name: '-$123.45' }).nth(1)
+
+Call log:
+[2m    - checking visibility of getByText('$123.45')[22m
+
+STEP: Try Opening Add Recurring Item Flow and Fill
+✖ Failed: Try Opening Add Recurring Item Flow and Fill - locator.click: Error: strict mode violation: getByRole('option', { name: 'Monthly' }) resolved to 2 elements:
+    1) <div role="option" tabindex="-1" aria-selected="false" data-state="unchecked" aria-labelledby="radix-«rd4»" data-radix-collection-item="" class="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 capitalize">…</div> aka getByRole('option', { name: 'Monthly', exact: true })
+    2) <div role="option" tabindex="-1" aria-selected="false" data-state="unchecked" aria-labelledby="radix-«rd5»" data-radix-collection-item="" class="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 capitalize">…</div> aka getByRole('option', { name: 'Semi Monthly' })
+
+Call log:
+[2m  - waiting for getByRole('option', { name: 'Monthly' })[22m
