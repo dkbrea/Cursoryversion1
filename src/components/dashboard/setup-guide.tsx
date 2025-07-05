@@ -714,13 +714,13 @@ export function SetupGuide() {
                 type: itemData.type,
                 amount: itemData.amount,
                 frequency: itemData.frequency,
-                start_date: itemData.startDate,
-                last_renewal_date: itemData.lastRenewalDate,
-                end_date: itemData.endDate,
-                semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate,
-                semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate,
+                start_date: itemData.startDate ? itemData.startDate.toISOString() : '',
+                last_renewal_date: itemData.lastRenewalDate ? itemData.lastRenewalDate.toISOString() : undefined,
+                end_date: itemData.endDate ? itemData.endDate.toISOString() : undefined,
+                semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate ? itemData.semiMonthlyFirstPayDate.toISOString() : undefined,
+                semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate ? itemData.semiMonthlySecondPayDate.toISOString() : undefined,
                 user_id: user.id,
-                category_id: itemData.categoryId,
+                category_id: itemData.categoryId || undefined,
                 notes: itemData.notes
               });
                 
@@ -784,13 +784,13 @@ export function SetupGuide() {
                 type: itemData.type,
                 amount: itemData.amount,
                 frequency: itemData.frequency,
-                start_date: itemData.startDate,
-                last_renewal_date: itemData.lastRenewalDate,
-                end_date: itemData.endDate,
-                semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate,
-                semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate,
+                start_date: itemData.startDate ? itemData.startDate.toISOString() : '',
+                last_renewal_date: itemData.lastRenewalDate ? itemData.lastRenewalDate.toISOString() : undefined,
+                end_date: itemData.endDate ? itemData.endDate.toISOString() : undefined,
+                semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate ? itemData.semiMonthlyFirstPayDate.toISOString() : undefined,
+                semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate ? itemData.semiMonthlySecondPayDate.toISOString() : undefined,
                 user_id: user.id,
-                category_id: itemData.categoryId,
+                category_id: itemData.categoryId || undefined,
                 notes: itemData.notes
               });
                 
@@ -855,7 +855,7 @@ export function SetupGuide() {
               
               if (result.error) throw new Error(result.error);
               
-              if (result.debt) {
+              if (result.account) {
                 // Mark the debt step as completed
                 const updatedSteps = [...setupSteps];
                 const debtStep = updatedSteps.find(step => step.id === 'debt');

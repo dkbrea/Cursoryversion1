@@ -136,7 +136,7 @@ export function RecordRecurringTransactionDialog({
       const isDebtAccountTransaction = values.isDebtTransaction && recurringItem.source !== 'debt';
 
       // Handle category assignment based on transaction type
-      let finalCategoryId = recurringItem.categoryId || null;
+      let finalCategoryId: string | null = recurringItem.categoryId || null;
       
       // For income transactions, always use "Income" category
       if (detailedType === 'income') {
@@ -210,7 +210,7 @@ export function RecordRecurringTransactionDialog({
             userId: savedTransaction.userId,
             selectedDate: selectedDate.toISOString(),
             recurringItemSource: recurringItem.source,
-            recurringItemId: recurringItem.id,
+            originalRecurringItemId: recurringItem.id,
             generatedOccurrenceId: occurrenceId
           });
           
@@ -230,10 +230,10 @@ export function RecordRecurringTransactionDialog({
           } else {
             console.log('RecordDialog: Successfully marked period as complete:', result.completion);
             console.log('RecordDialog: Completion record created with:', {
-              transactionId: result.completion?.transaction_id,
-              periodDate: result.completion?.period_date,
-              recurringItemId: result.completion?.recurring_item_id,
-              debtAccountId: result.completion?.debt_account_id
+              transactionId: result.completion?.transactionId,
+              periodDate: result.completion?.periodDate,
+              recurringItemId: result.completion?.recurringItemId,
+              debtAccountId: result.completion?.debtAccountId
             });
           }
         } catch (completionError) {
