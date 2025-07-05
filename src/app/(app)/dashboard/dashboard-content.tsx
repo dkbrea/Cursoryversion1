@@ -7,6 +7,7 @@ import { DollarSign, CreditCard, Users, TrendingUp } from "lucide-react";
 import { RecurringList } from "@/components/recurring/recurring-list";
 import type { UnifiedRecurringListItem, RecurringItem, Account, Transaction, DebtAccount, Category, FinancialGoal, FinancialGoalWithContribution, VariableExpense, PaycheckBreakdown, SinkingFund, PaycheckPreferences } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
+import { useAccountRefresh } from "@/contexts/account-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getAccounts } from "@/lib/api/accounts";
 import { getTransactions } from "@/lib/api/transactions";
@@ -45,6 +46,7 @@ import { getSinkingFunds } from "@/lib/api/sinking-funds";
 
 export function DashboardContent() {
   const { user } = useAuth();
+  const { triggerAccountRefresh } = useAccountRefresh();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [isLoading, setIsLoading] = useState(true);
@@ -546,6 +548,23 @@ export function DashboardContent() {
       setIsRecordTransactionOpen(false);
       setSelectedRecurringItem(null);
 
+      // Trigger account balance refresh in the sidebar
+      triggerAccountRefresh();
+
+      // Also refresh the dashboard's account state so transaction dialogs have fresh data
+      try {
+        const { getAccounts } = await import('@/lib/api/accounts');
+        const { accounts: updatedAccounts, error: accountsError } = await getAccounts(user.id);
+        
+        if (!accountsError && updatedAccounts) {
+          setAccounts(updatedAccounts);
+          const newBalance = updatedAccounts.reduce((sum: number, account: Account) => sum + account.balance, 0);
+          setTotalBalance(newBalance);
+        }
+      } catch (error) {
+        console.error("Error refetching accounts after recording transaction:", error);
+      }
+
       // The dialog expects the new transaction to be returned.
       return newTransaction;
 
@@ -734,6 +753,9 @@ export function DashboardContent() {
         } catch (error) {
           console.error("Error refetching accounts:", error);
         }
+        
+        // Trigger account balance refresh in the sidebar
+        triggerAccountRefresh();
         
         // If this was a goal contribution, update the goal's current amount and refetch goals
         if (transactionToDelete.detailedType === 'goal-contribution' && transactionToDelete.sourceId) {
@@ -1023,6 +1045,9 @@ export function DashboardContent() {
           console.error("Error refetching accounts:", error);
           // Continue without showing error to user since transaction was successful
         }
+        
+        // Trigger account balance refresh in the sidebar
+        triggerAccountRefresh();
         
         // If this is a goal contribution, update the goal's current amount and refetch goals
         if (result.transaction.detailedType === 'goal-contribution' && result.transaction.sourceId) {

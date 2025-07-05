@@ -102,7 +102,7 @@ export function RecordRecurringTransactionDialog({
       amount: recurringItem.amount,
       accountId: primaryAccount?.id || '',
       isDebtTransaction: false,
-      notes: `${recurringItem.name} - recorded from calendar`,
+      notes: "",
     });
     }
   }, [isOpen, recurringItem, selectedDate, primaryAccount, form]);

@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useAuth } from "@/contexts/auth-context";
+import { useAccountRefresh } from "@/contexts/account-context";
 import { getAccounts } from "@/lib/api/accounts";
 import type { Account } from "@/types";
 
@@ -741,6 +742,7 @@ SidebarMenuSubButton.displayName = "SidebarMenuSubButton"
 // --- Sidebar Account Balances Section ---
 function SidebarAccountBalances() {
   const { user } = useAuth();
+  const { refreshTrigger } = useAccountRefresh();
   const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showAllChecking, setShowAllChecking] = React.useState(false);
@@ -753,7 +755,7 @@ function SidebarAccountBalances() {
       setAccounts(accounts || []);
       setLoading(false);
     });
-  }, [user?.id]);
+  }, [user?.id, refreshTrigger]);
 
   // Separate and sort accounts
   const checkingAccounts = React.useMemo(() => {
