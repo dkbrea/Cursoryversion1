@@ -102,18 +102,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
+      console.log('Logout function called');
       const result = await signOut();
+      console.log('SignOut result:', result);
       
-      if (result.error) {
-        return { success: false, error: result.error };
-      }
-      
+      // Always clear user state and redirect, even if signOut had issues
       setUser(null);
       setSessionChecked(false); // Allow session check on next login
       router.push("/auth");
+      
+      if (result.error) {
+        console.warn('Sign out had an error, but proceeding with logout:', result.error);
+        return { success: true, error: result.error }; // Still treat as success since we cleared state
+      }
+      
       return { success: true };
     } catch (error: any) {
-      return { success: false, error: error.message };
+      console.error('Logout exception:', error);
+      
+      // Even if there's an exception, clear the user state and redirect
+      setUser(null);
+      setSessionChecked(false);
+      router.push("/auth");
+      
+      return { success: true, error: error.message }; // Treat as success since we cleared state
     }
   };
 

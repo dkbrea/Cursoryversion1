@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, CircleDashed, ArrowRight, Loader2, CalendarIcon } from "lucide-react";
+import { CheckCircle, CircleDashed, ArrowRight, Loader2, CalendarIcon, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -293,170 +293,240 @@ export function SetupGuide() {
                   <p className="text-sm text-gray-500">{step.description}</p>
                 </div>
                 
-                <div className="ml-2">
+                <div className="ml-2 flex items-center space-x-2">
                   {(() => {
                     // Determine which button to show based on step ID
                     switch(step.id) {
                       case 'financial-tracking-start':
                         return (
-                          <Button 
-                            variant={isNextStep ? "default" : "outline"}
-                            size="sm"
-                            className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
-                            disabled={step.isCompleted || isSavingTrackingDate}
-                            onClick={() => setShowTrackingDateDialog(true)}
-                          >
-                            {step.isCompleted ? 'Completed' : (
-                              isSavingTrackingDate ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  Set Up <ArrowRight className="ml-1 h-4 w-4" />
-                                </>
-                              )
-                            )}
-                          </Button>
+                          <>
+                            <Button 
+                              variant={isNextStep ? "default" : "outline"}
+                              size="sm"
+                              className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
+                              disabled={step.isCompleted || isSavingTrackingDate}
+                              onClick={() => setShowTrackingDateDialog(true)}
+                            >
+                              {step.isCompleted ? 'Completed' : (
+                                isSavingTrackingDate ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    Set Up <ArrowRight className="ml-1 h-4 w-4" />
+                                  </>
+                                )
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setShowTrackingDateDialog(true)}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </>
                         );
                       case 'accounts':
                         return (
-                          <Button 
-                            variant={isNextStep ? "default" : "outline"}
-                            size="sm"
-                            className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
-                            disabled={step.isCompleted || isSaving}
-                            onClick={() => setShowAccountDialog(true)}
-                          >
-                            {step.isCompleted ? 'Completed' : (
-                              isSaving ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  Set Up <ArrowRight className="ml-1 h-4 w-4" />
-                                </>
-                              )
-                            )}
-                          </Button>
+                          <>
+                            <Button 
+                              variant={isNextStep ? "default" : "outline"}
+                              size="sm"
+                              className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
+                              disabled={step.isCompleted || isSaving}
+                              onClick={() => setShowAccountDialog(true)}
+                            >
+                              {step.isCompleted ? 'Completed' : (
+                                isSaving ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    Set Up <ArrowRight className="ml-1 h-4 w-4" />
+                                  </>
+                                )
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setShowAccountDialog(true)}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </>
                         );
                       case 'income':
                         return (
-                          <Button 
-                            variant={isNextStep ? "default" : "outline"}
-                            size="sm"
-                            className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
-                            disabled={step.isCompleted || isAddingRecurringItem}
-                            onClick={() => setShowIncomeDialog(true)}
-                          >
-                            {step.isCompleted ? 'Completed' : (
-                              isAddingRecurringItem ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  Set Up <ArrowRight className="ml-1 h-4 w-4" />
-                                </>
-                              )
-                            )}
-                          </Button>
+                          <>
+                            <Button 
+                              variant={isNextStep ? "default" : "outline"}
+                              size="sm"
+                              className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
+                              disabled={step.isCompleted || isAddingRecurringItem}
+                              onClick={() => setShowIncomeDialog(true)}
+                            >
+                              {step.isCompleted ? 'Completed' : (
+                                isAddingRecurringItem ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    Set Up <ArrowRight className="ml-1 h-4 w-4" />
+                                  </>
+                                )
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setShowIncomeDialog(true)}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </>
                         );
                       case 'fixed-expenses':
                         return (
-                          <Button 
-                            variant={isNextStep ? "default" : "outline"}
-                            size="sm"
-                            className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
-                            disabled={step.isCompleted || isAddingRecurringItem}
-                            onClick={() => setShowFixedExpenseDialog(true)}
-                          >
-                            {step.isCompleted ? 'Completed' : (
-                              isAddingRecurringItem ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  Set Up <ArrowRight className="ml-1 h-4 w-4" />
-                                </>
-                              )
-                            )}
-                          </Button>
+                          <>
+                            <Button 
+                              variant={isNextStep ? "default" : "outline"}
+                              size="sm"
+                              className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
+                              disabled={step.isCompleted || isAddingRecurringItem}
+                              onClick={() => setShowFixedExpenseDialog(true)}
+                            >
+                              {step.isCompleted ? 'Completed' : (
+                                isAddingRecurringItem ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    Set Up <ArrowRight className="ml-1 h-4 w-4" />
+                                  </>
+                                )
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setShowFixedExpenseDialog(true)}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </>
                         );
                       case 'subscriptions':
                         return (
-                          <Button 
-                            variant={isNextStep ? "default" : "outline"}
-                            size="sm"
-                            className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
-                            disabled={step.isCompleted || isAddingRecurringItem}
-                            onClick={() => setShowSubscriptionDialog(true)}
-                          >
-                            {step.isCompleted ? 'Completed' : (
-                              isAddingRecurringItem ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  Set Up <ArrowRight className="ml-1 h-4 w-4" />
-                                </>
-                              )
-                            )}
-                          </Button>
+                          <>
+                            <Button 
+                              variant={isNextStep ? "default" : "outline"}
+                              size="sm"
+                              className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
+                              disabled={step.isCompleted || isAddingRecurringItem}
+                              onClick={() => setShowSubscriptionDialog(true)}
+                            >
+                              {step.isCompleted ? 'Completed' : (
+                                isAddingRecurringItem ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    Set Up <ArrowRight className="ml-1 h-4 w-4" />
+                                  </>
+                                )
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setShowSubscriptionDialog(true)}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </>
                         );
                       case 'debt':
                         return (
-                          <Button 
-                            variant={isNextStep ? "default" : "outline"}
-                            size="sm"
-                            className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
-                            disabled={step.isCompleted || isAddingDebt}
-                            onClick={() => setShowDebtDialog(true)}
-                          >
-                            {step.isCompleted ? 'Completed' : (
-                              isAddingDebt ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  Set Up <ArrowRight className="ml-1 h-4 w-4" />
-                                </>
-                              )
-                            )}
-                          </Button>
+                          <>
+                            <Button 
+                              variant={isNextStep ? "default" : "outline"}
+                              size="sm"
+                              className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
+                              disabled={step.isCompleted || isAddingDebt}
+                              onClick={() => setShowDebtDialog(true)}
+                            >
+                              {step.isCompleted ? 'Completed' : (
+                                isAddingDebt ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    Set Up <ArrowRight className="ml-1 h-4 w-4" />
+                                  </>
+                                )
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setShowDebtDialog(true)}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </>
                         );
                       case 'goals':
                         return (
-                          <Button 
-                            variant={isNextStep ? "default" : "outline"}
-                            size="sm"
-                            className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
-                            disabled={step.isCompleted || isAddingGoal}
-                            onClick={() => setShowGoalDialog(true)}
-                          >
-                            {step.isCompleted ? 'Completed' : (
-                              isAddingGoal ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  Set Up <ArrowRight className="ml-1 h-4 w-4" />
-                                </>
-                              )
-                            )}
-                          </Button>
+                          <>
+                            <Button 
+                              variant={isNextStep ? "default" : "outline"}
+                              size="sm"
+                              className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
+                              disabled={step.isCompleted || isAddingGoal}
+                              onClick={() => setShowGoalDialog(true)}
+                            >
+                              {step.isCompleted ? 'Completed' : (
+                                isAddingGoal ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    Set Up <ArrowRight className="ml-1 h-4 w-4" />
+                                  </>
+                                )
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setShowGoalDialog(true)}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </>
                         );
                       default:
                         return (
@@ -548,8 +618,7 @@ export function SetupGuide() {
           }
         }}
       >
-        {/* This button is never shown but is needed to satisfy the React.Children.only requirement */}
-        <Button type="button">Open Account Dialog</Button>
+        <span />
       </AddAccountDialog>
 
       {/* Add Income Dialog */}
@@ -575,13 +644,13 @@ export function SetupGuide() {
                 type: itemData.type,
                 amount: itemData.amount,
                 frequency: itemData.frequency,
-                start_date: itemData.startDate,
-                last_renewal_date: itemData.lastRenewalDate,
-                end_date: itemData.endDate,
-                semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate,
-                semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate,
+                start_date: itemData.startDate ? itemData.startDate.toISOString() : '',
+                last_renewal_date: itemData.lastRenewalDate ? itemData.lastRenewalDate.toISOString() : undefined,
+                end_date: itemData.endDate ? itemData.endDate.toISOString() : undefined,
+                semi_monthly_first_pay_date: itemData.semiMonthlyFirstPayDate ? itemData.semiMonthlyFirstPayDate.toISOString() : undefined,
+                semi_monthly_second_pay_date: itemData.semiMonthlySecondPayDate ? itemData.semiMonthlySecondPayDate.toISOString() : undefined,
                 user_id: user.id,
-                category_id: itemData.categoryId,
+                category_id: itemData.categoryId || undefined,
                 notes: itemData.notes
               });
                 
@@ -619,7 +688,7 @@ export function SetupGuide() {
           }
         }}
       >
-        <Button type="button">Open Income Dialog</Button>
+        <span />
       </AddRecurringItemDialog>
 
       {/* Add Fixed Expense Dialog */}
@@ -786,7 +855,7 @@ export function SetupGuide() {
               
               if (result.error) throw new Error(result.error);
               
-              if (result.account) {
+              if (result.debt) {
                 // Mark the debt step as completed
                 const updatedSteps = [...setupSteps];
                 const debtStep = updatedSteps.find(step => step.id === 'debt');

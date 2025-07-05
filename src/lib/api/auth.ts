@@ -58,28 +58,37 @@ export const signIn = async (email: string, password: string): Promise<{ data?: 
 
 export const signOut = async (): Promise<{ success?: boolean; error?: string }> => {
   try {
-    // Always try to sign out, but handle the AuthSessionMissingError gracefully
-    try {
-      const { error } = await supabase.auth.signOut();
+    console.log('Starting sign out process...');
+    
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      console.log('Supabase signOut returned error:', error);
       
-      if (error) {
-        return handleSupabaseError(error);
-      }
-      
-      return { success: true };
-    } catch (signOutError: any) {
-      // Handle specific AuthSessionMissingError - this means user is already signed out
-      if (signOutError.message?.includes('Auth session missing') || 
-          signOutError.name === 'AuthSessionMissingError' ||
-          signOutError.toString().includes('AuthSessionMissingError')) {
+      // Handle AuthSessionMissingError specifically
+      if (error.message?.includes('Auth session missing') || 
+          error.name === 'AuthSessionMissingError' ||
+          error.toString().includes('AuthSessionMissingError')) {
         console.log('No active session to sign out from, treating as successful signout');
         return { success: true };
       }
       
-      // Re-throw other errors
-      throw signOutError;
+      return handleSupabaseError(error);
     }
-  } catch (error) {
+    
+    console.log('Sign out successful');
+    return { success: true };
+  } catch (error: any) {
+    console.log('Sign out caught error:', error);
+    
+    // Handle AuthSessionMissingError that might be thrown as exception
+    if (error.message?.includes('Auth session missing') || 
+        error.name === 'AuthSessionMissingError' ||
+        error.toString().includes('AuthSessionMissingError')) {
+      console.log('Caught AuthSessionMissingError - treating as successful signout');
+      return { success: true };
+    }
+    
     return handleSupabaseError(error);
   }
 };

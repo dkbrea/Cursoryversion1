@@ -15,7 +15,7 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { Icons } from "@/components/icons";
 import { useState } from "react";
-import { Check, X, Edit3 } from "lucide-react";
+import { Check, X, Edit3, Loader2 } from "lucide-react";
 import { UserSettingsModal } from "@/components/settings/user-settings-modal";
 
 export function UserNav() {
@@ -24,6 +24,7 @@ export function UserNav() {
   const [editedName, setEditedName] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   if (!user) {
     return null;
@@ -70,6 +71,25 @@ export function UserNav() {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      console.log('Sign out button clicked');
+      setIsSigningOut(true);
+      const result = await logout();
+      console.log('Logout result:', result);
+      
+      if (!result.success && result.error) {
+        console.error('Logout failed:', result.error);
+        setIsSigningOut(false);
+        // You could add a toast notification here
+      }
+      // Don't reset loading state on success since we'll be redirecting
+    } catch (error) {
+      console.error('Unexpected error during logout:', error);
+      setIsSigningOut(false);
+    }
+  };
+
   return (
     <>
       <div className="flex items-center gap-3">
@@ -97,6 +117,10 @@ export function UserNav() {
               <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
                 <Icons.Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSignOut} disabled={isSigningOut}>
+                <Icons.Logout className="mr-2 h-4 w-4" />
+                <span>{isSigningOut ? 'Signing out...' : 'Sign out'}</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
@@ -159,11 +183,16 @@ export function UserNav() {
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={logout}
+          onClick={handleSignOut}
+          disabled={isSigningOut}
           className="h-8 w-8 p-0 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           title="Sign out"
         >
-          <Icons.Logout className="h-4 w-4" />
+          {isSigningOut ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Icons.Logout className="h-4 w-4" />
+          )}
         </Button>
       </div>
 
