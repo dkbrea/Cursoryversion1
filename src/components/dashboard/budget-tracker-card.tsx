@@ -6,6 +6,7 @@ import { TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { VariableExpense, Transaction } from "@/types";
 import { useMemo, useState } from "react";
+import { startOfMonth, endOfMonth } from "date-fns";
 
 interface BudgetTrackerCardProps {
   variableExpenses: VariableExpense[];
@@ -18,10 +19,21 @@ export function BudgetTrackerCard({ variableExpenses, transactions, isMobile = f
 
   // Calculate spending for each variable expense category
   const budgetAnalysis = useMemo(() => {
+    // Filter transactions to current month only
+    const now = new Date();
+    const startOfCurrentMonth = startOfMonth(now);
+    const endOfCurrentMonth = endOfMonth(now);
+    
     const analysis = variableExpenses.map((expense) => {
-      // Find transactions linked to this specific variable expense by sourceId
+      // Find transactions linked to this specific variable expense by sourceId AND in current month
       const spent = transactions
-        .filter(tx => tx.detailedType === 'variable-expense' && tx.sourceId === expense.id)
+        .filter(tx => {
+          const txDate = new Date(tx.date);
+          return tx.detailedType === 'variable-expense' && 
+                 tx.sourceId === expense.id &&
+                 txDate >= startOfCurrentMonth && 
+                 txDate <= endOfCurrentMonth;
+        })
         .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
       
       const percentage = expense.amount > 0 ? (spent / expense.amount) * 100 : 0;

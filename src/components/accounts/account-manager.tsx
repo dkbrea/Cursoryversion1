@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { useAccountRefresh } from "@/contexts/account-context";
 import { getAccounts, createAccount, updateAccount, deleteAccount } from "@/lib/api/accounts";
 import { getDebtAccounts } from "@/lib/api/debts";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -23,6 +24,7 @@ export function AccountManager() {
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { triggerAccountRefresh } = useAccountRefresh();
   const isMobile = useIsMobile();
 
   // Fetch accounts from the database
@@ -119,6 +121,9 @@ export function AccountManager() {
         description: `Account "${newAccount.name}" has been successfully created.`,
       });
       
+      // Trigger sidebar refresh
+      triggerAccountRefresh();
+      
       if (!keepOpen) {
         setIsAddAccountDialogOpen(false);
       }
@@ -160,6 +165,9 @@ export function AccountManager() {
         description: `Account "${accountToDelete.name}" has been deleted.`,
         variant: "destructive",
       });
+      
+      // Trigger sidebar refresh
+      triggerAccountRefresh();
     } catch (err: any) {
       console.error("Error deleting account:", err);
       toast({
@@ -207,6 +215,9 @@ export function AccountManager() {
         title: "Primary Account Updated",
         description: `"${accountToSetPrimary.name}" is now your primary account.`,
       });
+      
+      // Trigger sidebar refresh
+      triggerAccountRefresh();
     } catch (err: any) {
       console.error("Error setting primary account:", err);
       toast({
@@ -254,6 +265,9 @@ export function AccountManager() {
         title: "Account Updated",
         description: `Account "${updatedAccount.name}" has been updated.`,
       });
+      
+      // Trigger sidebar refresh
+      triggerAccountRefresh();
     } catch (err: any) {
       console.error("Error updating account:", err);
       toast({

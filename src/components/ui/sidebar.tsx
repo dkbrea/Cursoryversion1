@@ -777,7 +777,7 @@ function SidebarAccountBalances() {
   const maxSavings = 3;
   const showCheckingChevron = checkingAccounts.length > maxChecking;
   const showSavingsChevron = savingsAccounts.length > maxSavings;
-  const visibleChecking = showAllChecking ? checkingAccounts : checkingAccounts.slice(0, 1);
+  const visibleChecking = showAllChecking ? checkingAccounts : checkingAccounts.slice(0, maxChecking);
   const hiddenCheckingCount = checkingAccounts.length - visibleChecking.length;
   const visibleSavings = showSavings ? savingsAccounts.slice(0, maxSavings) : [];
   const hiddenSavingsCount = savingsAccounts.length - maxSavings;
@@ -800,7 +800,7 @@ function SidebarAccountBalances() {
           <ul className="divide-y divide-muted-foreground/10 bg-sidebar rounded-md">
             {visibleChecking.map(acc => (
               <li key={acc.id} className="flex items-center justify-between py-1.5">
-                <span className={`text-xs ${acc.isPrimary ? 'font-semibold text-sidebar-foreground' : 'text-muted-foreground'}`}>{acc.name}{acc.isPrimary ? ' (Primary)' : ''}</span>
+                <span className="text-xs text-muted-foreground">{acc.name}{acc.isPrimary ? ' (Primary)' : ''}</span>
                 <span className="font-bold text-xs text-sidebar-foreground">${acc.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </li>
             ))}
@@ -810,12 +810,6 @@ function SidebarAccountBalances() {
                 <ChevronRight className="w-4 h-4" />
               </li>
             )}
-            {showAllChecking && checkingAccounts.slice(1).map(acc => (
-              <li key={acc.id} className="flex items-center justify-between py-1.5">
-                <span className="text-xs text-muted-foreground">{acc.name}</span>
-                <span className="font-bold text-xs text-sidebar-foreground">${acc.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </li>
-            ))}
             {showAllChecking && showCheckingChevron && (
               <li className="flex items-center justify-between py-1.5 cursor-pointer text-xs text-purple-400 hover:text-purple-300" onClick={() => setShowAllChecking(false)}>
                 <span>Show less</span>

@@ -177,6 +177,7 @@ export function AddEditTransactionDialog({
 
   useEffect(() => {
     if (transactionToEdit && isOpen) {
+      // Editing an existing transaction
       form.reset({
         date: startOfDay(new Date(transactionToEdit.date)),
         detailedType: transactionToEdit.detailedType || 'variable-expense',
@@ -190,10 +191,19 @@ export function AddEditTransactionDialog({
         tags: transactionToEdit.tags?.join(", ") || "",
         isDebtTransaction: false, // Default to false, let user check if needed
       });
-    } else if (!isOpen && !transactionToEdit) { 
+    } else if (isOpen && !transactionToEdit) {
+      // Opening dialog for new transaction - reset to clean state
       form.reset({
-        date: startOfDay(new Date()), detailedType: 'income', description: "", sourceId: undefined,
-        amount: undefined, categoryId: null, accountId: '', toAccountId: null, notes: "", tags: "",
+        date: startOfDay(new Date()),
+        detailedType: 'income',
+        description: "",
+        sourceId: undefined,
+        amount: undefined,
+        categoryId: null,
+        accountId: '',
+        toAccountId: null,
+        notes: "",
+        tags: "",
         isDebtTransaction: false,
       });
     }
@@ -448,11 +458,20 @@ export function AddEditTransactionDialog({
   const getSourceSelectItems = () => {
     switch(selectedDetailedType) {
         case 'income':
-            return recurringItems.filter(item => item.type === 'income').map(item => ({value: item.id, label: item.name}));
+            return recurringItems.filter(item => 
+              item.type === 'income' && 
+              !item.name.startsWith('Debt Payment Placeholder -')
+            ).map(item => ({value: item.id, label: item.name}));
         case 'fixed-expense':
-            return recurringItems.filter(item => item.type === 'fixed-expense').map(item => ({value: item.id, label: item.name}));
+            return recurringItems.filter(item => 
+              item.type === 'fixed-expense' && 
+              !item.name.startsWith('Debt Payment Placeholder -')
+            ).map(item => ({value: item.id, label: item.name}));
         case 'subscription':
-            return recurringItems.filter(item => item.type === 'subscription').map(item => ({value: item.id, label: item.name}));
+            return recurringItems.filter(item => 
+              item.type === 'subscription' && 
+              !item.name.startsWith('Debt Payment Placeholder -')
+            ).map(item => ({value: item.id, label: item.name}));
         case 'variable-expense':
             return variableExpenses.map(item => ({value: item.id, label: item.name}));
         case 'debt-payment':

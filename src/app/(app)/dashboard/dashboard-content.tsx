@@ -300,6 +300,11 @@ export function DashboardContent() {
   const getCategorySpending = () => {
     const categorySpending: Record<string, number> = {};
     
+    // Filter transactions to current month only
+    const now = new Date();
+    const startOfCurrentMonth = startOfMonth(now);
+    const endOfCurrentMonth = endOfMonth(now);
+    
     // Helper function to get predefined category labels
     const getPredefinedCategoryLabel = (value: string) => {
       const categoryLabels: Record<string, string> = {
@@ -315,10 +320,12 @@ export function DashboardContent() {
       return categoryLabels[value] || value;
     };
     
-    // Filter transactions for expense categories and group by category
+    // Filter transactions for expense categories and group by category (current month only)
     transactions.forEach(tx => {
-      // Only include transactions that are variable expenses, fixed expenses, or subscriptions
-      if (tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription') {
+      const txDate = new Date(tx.date);
+      // Only include transactions that are variable expenses, fixed expenses, or subscriptions AND in current month
+      if ((tx.detailedType === 'variable-expense' || tx.detailedType === 'fixed-expense' || tx.detailedType === 'subscription') &&
+          txDate >= startOfCurrentMonth && txDate <= endOfCurrentMonth) {
         let categoryName = 'Uncategorized';
         
         if (tx.categoryId) {
@@ -1506,7 +1513,18 @@ export function DashboardContent() {
           </CardHeader>
           <CardContent>
             {(() => {
-              const debtTxs = transactions.filter(tx => !!tx.debtAccountId && tx.type === 'expense');
+              // Filter debt transactions to current month only
+              const now = new Date();
+              const startOfCurrentMonth = startOfMonth(now);
+              const endOfCurrentMonth = endOfMonth(now);
+              
+              const debtTxs = transactions.filter(tx => {
+                const txDate = new Date(tx.date);
+                return !!tx.debtAccountId && 
+                       tx.type === 'expense' &&
+                       txDate >= startOfCurrentMonth && 
+                       txDate <= endOfCurrentMonth;
+              });
               const totalDebtSpending = debtTxs.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
               const categoryMap: Record<string, number> = {};
               debtTxs.forEach(tx => {
