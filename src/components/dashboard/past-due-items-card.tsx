@@ -15,6 +15,7 @@ interface PastDueItemsCardProps {
   completedItems: Set<string>;
   userPreferences: UserPreferences | null;
   onItemClick?: (item: UnifiedRecurringListItem, date: Date) => void;
+  isMobile?: boolean;
 }
 
 const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
@@ -67,7 +68,7 @@ const getSeverityBadge = (daysOverdue: number) => {
   }
 };
 
-export function PastDueItemsCard({ items, completedItems, userPreferences, onItemClick }: PastDueItemsCardProps) {
+export function PastDueItemsCard({ items, completedItems, userPreferences, onItemClick, isMobile = false }: PastDueItemsCardProps) {
   const today = startOfDay(new Date());
 
   // Generate all occurrences from tracking start date to today
@@ -122,7 +123,7 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
   // console.log('PastDueItemsCard - Tracking period:', { trackingStartDate, today, totalOccurrencesFound: allOccurrences.length });
 
   // Filter to only past due items that haven't been completed
-  const pastDueItems = allOccurrences
+  let pastDueItems = allOccurrences
     .map(item => ({
       ...item,
       occurrenceId: generateOccurrenceId(item.id, item.nextOccurrenceDate),
@@ -144,7 +145,21 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
       if (severityDiff !== 0) return severityDiff;
       return b.amount - a.amount;
     })
-    .slice(0, 10); // Limit to top 10 most critical
+  
+  // Get total count before slicing for mobile counter
+  const totalPastDueCount = allOccurrences
+    .map(item => ({
+      ...item,
+      occurrenceId: generateOccurrenceId(item.id, item.nextOccurrenceDate),
+      daysOverdue: differenceInDays(today, item.nextOccurrenceDate)
+    }))
+    .filter(item => {
+      const isPastDue = isPast(item.nextOccurrenceDate) && !isToday(item.nextOccurrenceDate);
+      const isNotCompleted = !completedItems.has(item.occurrenceId);
+      return isPastDue && isNotCompleted;
+    }).length;
+    
+  pastDueItems = pastDueItems.slice(0, isMobile ? 3 : 10); // Limit to top 3 on mobile, 10 on desktop
 
   // Debug: Log the final past due items (reduced logging)
   console.log('PastDueItemsCard - Final past due items:', pastDueItems.length);
@@ -183,29 +198,29 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
   const totalPastDue = pastDueItems.reduce((sum, item) => sum + item.amount, 0);
 
   return (
-    <Card className="h-full w-full flex flex-col shadow-lg border-l-4 border-l-red-500 bg-red-50/30">
-      <CardHeader>
+    <Card className={`h-full w-full flex flex-col shadow-lg border-l-4 border-l-red-500 bg-red-50/30 ${isMobile ? 'max-w-full overflow-hidden' : ''}`}>
+      <CardHeader className={isMobile ? 'pb-3' : ''}>
         <div className="flex items-start justify-between">
           <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2 text-red-700">
-              <AlertTriangle className="h-5 w-5" />
+            <CardTitle className={`flex items-center gap-2 text-red-700 ${isMobile ? 'text-base' : ''}`}>
+              <AlertTriangle className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
               Past Due Items
             </CardTitle>
-            <p className="text-sm text-red-600">
+            <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-red-600`}>
               {pastDueItems.length} overdue payment{pastDueItems.length !== 1 ? 's' : ''} • ${totalPastDue.toFixed(0)} total
             </p>
           </div>
         </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col">
-        <div className="space-y-3 flex-1">
+        <div className={`${isMobile ? 'space-y-2' : 'space-y-3'} flex-1`}>
           {pastDueItems.map((item) => {
             const severity = getSeverityBadge(item.daysOverdue);
             
             return (
               <div 
                 key={item.occurrenceId} 
-                className="space-y-2 p-3 rounded-lg bg-white border border-red-200 hover:bg-red-50 cursor-pointer transition-colors"
+                className={`${isMobile ? 'p-2' : 'space-y-2 p-3'} rounded-lg bg-white border border-red-200 hover:bg-red-50 cursor-pointer transition-colors`}
                 onClick={() => {
                   console.log('🔴 PastDueItem clicked:', {
                     itemId: item.id,
@@ -220,37 +235,65 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
                   onItemClick?.(item, item.nextOccurrenceDate);
                 }}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${getItemColor(item.itemDisplayType)}`} />
-                    <span className="text-sm font-medium truncate">{item.name}</span>
+                {isMobile ? (
+                  // Compact Mobile Layout - Single Row
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getItemColor(item.itemDisplayType)}`} />
+                      <span className="text-xs font-medium truncate">{item.name}</span>
+                      <Badge variant={severity.variant} className="text-xs flex-shrink-0">
+                        {severity.label}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center space-x-1 flex-shrink-0">
+                      <span className="text-xs font-semibold text-red-600">${item.amount.toFixed(0)}</span>
+                      <span className="text-xs text-red-500">({item.daysOverdue}d)</span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant={severity.variant} className="text-xs">
-                      {severity.label}
-                    </Badge>
-                    <span className="text-sm font-semibold text-red-600">${item.amount.toFixed(0)}</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <div className="flex items-center space-x-1">
-                    {getItemIcon(item.itemDisplayType)}
-                    <span>{formatDisplayType(item.itemDisplayType)}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Calendar className="h-3 w-3" />
-                    <span className="text-red-500 font-medium">
-                      {format(item.nextOccurrenceDate, "MMM d, yyyy")} ({item.daysOverdue} days ago)
-                    </span>
-                  </div>
-                </div>
+                ) : (
+                  // Desktop Layout
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${getItemColor(item.itemDisplayType)}`} />
+                        <span className="text-sm font-medium truncate">{item.name}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={severity.variant} className="text-xs">
+                          {severity.label}
+                        </Badge>
+                        <span className="text-sm font-semibold text-red-600">${item.amount.toFixed(0)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center space-x-1">
+                        {getItemIcon(item.itemDisplayType)}
+                        <span>{formatDisplayType(item.itemDisplayType)}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Calendar className="h-3 w-3" />
+                        <span className="text-red-500 font-medium">
+                          {format(item.nextOccurrenceDate, "MMM d, yyyy")} ({item.daysOverdue} days ago)
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })}
         </div>
         
-        {pastDueItems.length >= 10 && (
+        {/* Show remaining items count */}
+        {isMobile && totalPastDueCount > 3 && (
+          <div className="text-center pt-2 mt-auto">
+            <p className="text-xs text-red-600">
+              +{totalPastDueCount - 3} more overdue items
+            </p>
+          </div>
+        )}
+        {!isMobile && pastDueItems.length >= 10 && (
           <div className="text-center pt-2 mt-auto">
             <p className="text-xs text-muted-foreground">
               Showing top 10 most critical overdue items

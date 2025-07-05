@@ -15,11 +15,12 @@ import { Progress } from "@/components/ui/progress";
 import { getDebtAccounts, createDebtAccount, deleteDebtAccount, updateDebtAccount, getDebtPayoffStrategy, setDebtPayoffStrategy } from "@/lib/api/debts";
 import { useAuth } from "@/contexts/auth-context";
 import { format, addMonths } from "date-fns";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 
 
 // Debt Payoff Plan Component
-function DebtPayoffPlan({ debtAccounts, strategy }: { debtAccounts: DebtAccount[], strategy: DebtPayoffStrategy }) {
+function DebtPayoffPlan({ debtAccounts, strategy, isMobile }: { debtAccounts: DebtAccount[], strategy: DebtPayoffStrategy, isMobile: boolean }) {
   // Sort debts based on the selected strategy
   const sortedDebts = useMemo(() => {
     const debts = [...debtAccounts];
@@ -155,15 +156,15 @@ function DebtPayoffPlan({ debtAccounts, strategy }: { debtAccounts: DebtAccount[
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className={`grid ${isMobile ? 'grid-cols-1 gap-3' : 'grid-cols-1 md:grid-cols-3 gap-4'}`}>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div className="flex flex-col space-y-1">
                 <span className="text-sm font-medium text-muted-foreground">Total Debt</span>
-                <span className="text-2xl font-bold">${totalDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold`}>${totalDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-              <DollarSign className="h-8 w-8 text-primary opacity-70" />
+              <DollarSign className={`${isMobile ? 'h-6 w-6' : 'h-8 w-8'} text-primary opacity-70`} />
             </div>
           </CardContent>
         </Card>
@@ -173,9 +174,9 @@ function DebtPayoffPlan({ debtAccounts, strategy }: { debtAccounts: DebtAccount[
             <div className="flex items-center justify-between">
               <div className="flex flex-col space-y-1">
                 <span className="text-sm font-medium text-muted-foreground">Estimated Payoff Date</span>
-                <span className="text-2xl font-bold">{format(payoffPlan.estimatedPayoffDate, 'MMM yyyy')}</span>
+                <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold`}>{format(payoffPlan.estimatedPayoffDate, 'MMM yyyy')}</span>
               </div>
-              <Calendar className="h-8 w-8 text-primary opacity-70" />
+              <Calendar className={`${isMobile ? 'h-6 w-6' : 'h-8 w-8'} text-primary opacity-70`} />
             </div>
           </CardContent>
         </Card>
@@ -185,28 +186,28 @@ function DebtPayoffPlan({ debtAccounts, strategy }: { debtAccounts: DebtAccount[
             <div className="flex items-center justify-between">
               <div className="flex flex-col space-y-1">
                 <span className="text-sm font-medium text-muted-foreground">Total Interest</span>
-                <span className="text-2xl font-bold">${payoffPlan.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold`}>${payoffPlan.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-              <TrendingDown className="h-8 w-8 text-primary opacity-70" />
+              <TrendingDown className={`${isMobile ? 'h-6 w-6' : 'h-8 w-8'} text-primary opacity-70`} />
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-        <div className="p-6">
-          <h3 className="text-lg font-medium mb-4">Payoff Order</h3>
-          <div className="space-y-4">
+        <div className={`${isMobile ? 'p-4' : 'p-6'}`}>
+          <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium mb-4`}>Payoff Order</h3>
+          <div className={`${isMobile ? 'space-y-3' : 'space-y-4'}`}>
             {payoffPlan.debts.map((debt, index) => (
               <div key={debt.id} className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className={`flex items-center ${isMobile ? 'flex-col gap-2' : 'justify-between'}`}>
                   <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold">
+                    <div className={`flex ${isMobile ? 'h-6 w-6' : 'h-8 w-8'} items-center justify-center rounded-full bg-primary text-primary-foreground font-bold ${isMobile ? 'text-sm' : ''}`}>
                       {index + 1}
                     </div>
                     <div>
-                      <p className="font-medium">{debt.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className={`font-medium ${isMobile ? 'text-sm' : ''}`}>{debt.name}</p>
+                      <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-muted-foreground`}>
                         {strategy === 'snowball' ? 
                           `Balance: $${debt.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 
                           `APR: ${debt.apr.toFixed(2)}%`}
@@ -214,8 +215,8 @@ function DebtPayoffPlan({ debtAccounts, strategy }: { debtAccounts: DebtAccount[
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">{format(debt.payoffDate || new Date(), 'MMM yyyy')}</p>
-                    <p className="text-sm text-muted-foreground">{debt.monthsToPayoff} months</p>
+                    <p className={`font-medium ${isMobile ? 'text-sm' : ''}`}>{format(debt.payoffDate || new Date(), 'MMM yyyy')}</p>
+                    <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-muted-foreground`}>{debt.monthsToPayoff} months</p>
                   </div>
                 </div>
                 <Progress value={100} className="h-2" />
@@ -225,46 +226,81 @@ function DebtPayoffPlan({ debtAccounts, strategy }: { debtAccounts: DebtAccount[
         </div>
       </div>
 
-      <div className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
-        <div className="p-6">
-          <h3 className="text-lg font-medium mb-4">Payment Schedule</h3>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableCaption>Your debt payoff schedule using the {strategy} method.</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Debt</TableHead>
-                  <TableHead>Current Balance</TableHead>
-                  <TableHead>APR</TableHead>
-                  <TableHead>Monthly Payment</TableHead>
-                  <TableHead>Payoff Date</TableHead>
-                  <TableHead>Total Interest</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payoffPlan.debts.map((debt) => (
-                  <TableRow key={debt.id}>
-                    <TableCell className="font-medium">{debt.name}</TableCell>
-                    <TableCell>${debt.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell>{debt.apr.toFixed(2)}%</TableCell>
-                    <TableCell>${debt.minimumPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell>{format(debt.payoffDate || new Date(), 'MMM yyyy')}</TableCell>
-                    <TableCell>${debt.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+      {!isMobile && (
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+          <div className="p-6">
+            <h3 className="text-lg font-medium mb-4">Payment Schedule</h3>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableCaption>Your debt payoff schedule using the {strategy} method.</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[100px]">Debt</TableHead>
+                    <TableHead>Current Balance</TableHead>
+                    <TableHead>APR</TableHead>
+                    <TableHead>Monthly Payment</TableHead>
+                    <TableHead>Payoff Date</TableHead>
+                    <TableHead>Total Interest</TableHead>
                   </TableRow>
-                ))}
-                <TableRow className="bg-muted/50">
-                  <TableCell className="font-bold">Total</TableCell>
-                  <TableCell className="font-bold">${totalDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                  <TableCell>-</TableCell>
-                  <TableCell className="font-bold">${totalMinimumPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                  <TableCell className="font-bold">{format(payoffPlan.estimatedPayoffDate, 'MMM yyyy')}</TableCell>
-                  <TableCell className="font-bold">${payoffPlan.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {payoffPlan.debts.map((debt) => (
+                    <TableRow key={debt.id}>
+                      <TableCell className="font-medium">{debt.name}</TableCell>
+                      <TableCell>${debt.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                      <TableCell>{debt.apr.toFixed(2)}%</TableCell>
+                      <TableCell>${debt.minimumPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                      <TableCell>{format(debt.payoffDate || new Date(), 'MMM yyyy')}</TableCell>
+                      <TableCell>${debt.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-muted/50">
+                    <TableCell className="font-bold">Total</TableCell>
+                    <TableCell className="font-bold">${totalDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell>-</TableCell>
+                    <TableCell className="font-bold">${totalMinimumPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="font-bold">{format(payoffPlan.estimatedPayoffDate, 'MMM yyyy')}</TableCell>
+                    <TableCell className="font-bold">${payoffPlan.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {isMobile && (
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+          <div className="p-4">
+            <h3 className="text-base font-medium mb-3">Payment Details</h3>
+            <div className="space-y-3">
+              {payoffPlan.debts.map((debt) => (
+                <div key={debt.id} className="bg-muted/30 rounded-lg p-3">
+                  <h4 className="font-medium text-sm mb-2">{debt.name}</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Balance:</span>
+                      <span className="ml-1 font-medium">${debt.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">APR:</span>
+                      <span className="ml-1 font-medium">{debt.apr.toFixed(2)}%</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Payment:</span>
+                      <span className="ml-1 font-medium">${debt.minimumPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Interest:</span>
+                      <span className="ml-1 font-medium">${debt.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -279,6 +315,7 @@ export function DebtManager() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     async function fetchDebtData() {
@@ -516,9 +553,9 @@ export function DebtManager() {
   return (
     <div className="space-y-8">
       <Card className="shadow-lg">
-        <CardHeader className="flex flex-row justify-between items-center">
+        <CardHeader className={`flex ${isMobile ? 'flex-col gap-4' : 'flex-row justify-between items-center'}`}>
           <div>
-            <CardTitle>Your Debt Accounts</CardTitle>
+            <CardTitle className={isMobile ? 'text-lg' : 'text-xl'}>Your Debt Accounts</CardTitle>
             <CardDescription>Manage all your outstanding debts here.</CardDescription>
           </div>
           <AddDebtDialog
@@ -526,7 +563,7 @@ export function DebtManager() {
             onOpenChange={setIsAddDebtDialogOpen}
             onDebtAdded={handleAddDebtAccount}
           >
-            <Button onClick={() => setIsAddDebtDialogOpen(true)} disabled={isSubmitting}>
+            <Button onClick={() => setIsAddDebtDialogOpen(true)} disabled={isSubmitting} size={isMobile ? "default" : "sm"} className={isMobile ? "w-full" : ""}>
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />} Add New Debt
             </Button>
           </AddDebtDialog>
@@ -542,10 +579,11 @@ export function DebtManager() {
               debtAccounts={debtAccounts}
               onDeleteDebtAccount={handleDeleteDebtAccount}
               onEditDebtAccount={handleEditDebtAccount}
+              isMobile={isMobile}
             />
           ) : (
             <div className="text-center text-muted-foreground py-10">
-              <p className="text-lg">No debt accounts yet.</p>
+              <p className={`${isMobile ? 'text-base' : 'text-lg'}`}>No debt accounts yet.</p>
               <p>Click "Add New Debt" to start planning your payoff.</p>
             </div>
           )}
@@ -556,15 +594,16 @@ export function DebtManager() {
         <PayoffStrategySelector
           selectedStrategy={payoffStrategy}
           onStrategySelect={handleStrategySelect}
+          isMobile={isMobile}
         />
       )}
 
       {payoffStrategy && debtAccounts.length > 0 && (
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className={`flex items-center gap-2 ${isMobile ? 'text-lg' : 'text-xl'}`}>
               <TrendingDown className="h-5 w-5 text-primary" />
-              Debt Payoff Plan - {payoffStrategy === 'snowball' ? 'Snowball Method' : 'Avalanche Method'}
+              {isMobile ? 'Payoff Plan' : `Debt Payoff Plan - ${payoffStrategy === 'snowball' ? 'Snowball Method' : 'Avalanche Method'}`}
             </CardTitle>
             <CardDescription>
               {payoffStrategy === 'snowball' ? 
@@ -573,7 +612,7 @@ export function DebtManager() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <DebtPayoffPlan debtAccounts={debtAccounts} strategy={payoffStrategy} />
+            <DebtPayoffPlan debtAccounts={debtAccounts} strategy={payoffStrategy} isMobile={isMobile} />
           </CardContent>
         </Card>
       )}

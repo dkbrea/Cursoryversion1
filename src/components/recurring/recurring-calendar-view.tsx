@@ -17,6 +17,7 @@ interface RecurringCalendarViewProps {
   onMonthChange?: (month: Date) => void;
   onItemClick?: (item: UnifiedRecurringListItem, date: Date) => void;
   completedItems?: Set<string>; // Set of completed item IDs in format "itemId-YYYY-MM-DD"
+  isMobile?: boolean;
 }
 
 interface DayItem {
@@ -81,7 +82,7 @@ const getItemBackgroundColor = (itemType: UnifiedRecurringListItem['itemDisplayT
   }
 };
 
-export function RecurringCalendarView({ items, onMonthChange, onItemClick, completedItems }: RecurringCalendarViewProps) {
+export function RecurringCalendarView({ items, onMonthChange, onItemClick, completedItems, isMobile = false }: RecurringCalendarViewProps) {
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
@@ -460,33 +461,41 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
     const dayData = monthlyOccurrences.get(dateKey);
     const isToday = isSameDay(date, new Date());
     
+    // Mobile-optimized sizing
+    const cellHeight = isMobile ? "h-20" : "h-32";
+    const textSize = isMobile ? "text-sm" : "text-sm";
+    const dayNumberSize = isMobile ? "text-base font-bold" : "text-sm font-medium";
+    const itemTextSize = isMobile ? "text-xs" : "text-[11px]";
+    const itemPadding = isMobile ? "px-2 py-1" : "px-1 py-0.5";
+    const maxItemsToShow = isMobile ? 1 : 2;
+    
     if (!dayData || dayData.items.length === 0) {
       return (
-        <div className="h-32 w-full flex flex-col p-2">
+        <div className={`${cellHeight} w-full flex flex-col ${isMobile ? 'p-1' : 'p-2'}`}>
           <span className={cn(
-            "text-sm font-medium self-start",
-            isToday && "bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-bold text-xs"
+            `${dayNumberSize} self-start`,
+            isToday && "bg-primary text-primary-foreground px-2 py-1 rounded-full"
           )}>{dayOfMonth}</span>
         </div>
       );
     }
     
     return (
-      <div className="h-32 w-full flex flex-col p-2">
+      <div className={`${cellHeight} w-full flex flex-col ${isMobile ? 'p-1' : 'p-2'}`}>
         <span className={cn(
-          "text-sm font-medium self-start mb-1 flex-shrink-0",
-          isToday && "bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-bold text-xs"
+          `${dayNumberSize} self-start mb-1 flex-shrink-0`,
+          isToday && "bg-primary text-primary-foreground px-2 py-1 rounded-full"
         )}>{dayOfMonth}</span>
         
         <div className="flex-1 min-h-0 space-y-1 overflow-hidden">
-          {dayData.items.slice(0, 2).map((item, index) => {
+          {dayData.items.slice(0, maxItemsToShow).map((item, index) => {
             const isCompleted = completedItems?.has(item.id) || false;
             return (
               <div
                 key={item.id}
                 onClick={() => onItemClick?.(item.originalItem, item.occurrenceDate)}
                 className={cn(
-                  "flex items-center space-x-1 text-[11px] leading-tight truncate font-medium px-1 py-0.5 rounded border cursor-pointer transition-all duration-200",
+                  `flex items-center space-x-1 ${itemTextSize} leading-tight truncate font-medium ${itemPadding} rounded border cursor-pointer transition-all duration-200`,
                   "hover:bg-opacity-80 hover:scale-105 hover:shadow-sm",
                   isCompleted && "opacity-60 line-through bg-green-50 border-green-200",
                   !isCompleted && getItemTextColor(item.type),
@@ -496,31 +505,40 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
               >
                 <div className="flex-shrink-0">
                   {isCompleted ? (
-                    <span className="text-green-600 text-[10px]">✓</span>
+                    <span className={`text-green-600 ${isMobile ? 'text-xs' : 'text-[10px]'}`}>✓</span>
                   ) : (
-                    getItemIcon(item.type)
+                    isMobile ? 
+                      <div className="w-3 h-3">{getItemIcon(item.type)}</div> :
+                      getItemIcon(item.type)
                   )}
                 </div>
-                <span className="truncate flex-1 text-[11px]">{item.name}</span>
+                <span className={`truncate flex-1 ${itemTextSize}`}>
+                  {isMobile ? 
+                    (item.name.length > 10 ? item.name.substring(0, 10) + '...' : item.name) : 
+                    item.name
+                  }
+                </span>
               </div>
             );
           })}
           
-          {dayData.items.length > 2 && (
-            <div className="text-[11px] text-muted-foreground leading-tight font-medium px-1">
-              +{dayData.items.length - 2} more
+          {dayData.items.length > maxItemsToShow && (
+            <div className={`${isMobile ? 'text-xs' : 'text-[11px]'} text-muted-foreground leading-tight font-medium px-1`}>
+              +{dayData.items.length - maxItemsToShow} more
             </div>
           )}
         </div>
         
-        <div className="flex-shrink-0 mt-1 pt-1 border-t border-muted/20">
-          <div className={cn(
-            "text-[11px] font-bold leading-tight truncate",
-            dayData.netAmount >= 0 ? "text-green-600" : "text-red-600"
-          )}>
-            ${Math.abs(dayData.netAmount).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+        {!isMobile && (
+          <div className="flex-shrink-0 mt-1 pt-1 border-t border-muted/20">
+            <div className={cn(
+              "text-[11px] font-bold leading-tight truncate",
+              dayData.netAmount >= 0 ? "text-green-600" : "text-red-600"
+            )}>
+              ${Math.abs(dayData.netAmount).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   };
@@ -538,33 +556,33 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
     };
 
     return (
-      <div className="flex items-center justify-center gap-1 py-2">
+      <div className={`flex items-center justify-center gap-1 ${isMobile ? 'py-3' : 'py-2'}`}>
         <Button
           variant="outline"
           size="sm"
           onClick={goToPreviousMonth}
-          className="h-7 w-7 p-0"
+          className={isMobile ? "h-9 w-9 p-0" : "h-7 w-7 p-0"}
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className={isMobile ? "h-5 w-5" : "h-4 w-4"} />
         </Button>
-        <div className="text-xl font-semibold px-4 min-w-[200px] text-center">
-          {format(displayMonth, 'MMMM yyyy')}
+        <div className={`font-semibold px-4 text-center ${isMobile ? 'text-lg min-w-[180px]' : 'text-xl min-w-[200px]'}`}>
+          {format(displayMonth, isMobile ? 'MMM yyyy' : 'MMMM yyyy')}
         </div>
         <Button
           variant="outline"
           size="sm"
           onClick={goToNextMonth}
-          className="h-7 w-7 p-0"
+          className={isMobile ? "h-9 w-9 p-0" : "h-7 w-7 p-0"}
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className={isMobile ? "h-5 w-5" : "h-4 w-4"} />
         </Button>
       </div>
     );
   };
 
   return (
-    <Card className="shadow-lg mt-4">
-      <CardContent className="flex justify-center p-2 sm:p-4">
+    <Card className={`shadow-lg ${isMobile ? 'mt-2' : 'mt-4'}`}>
+      <CardContent className={`flex justify-center ${isMobile ? 'p-1' : 'p-2 sm:p-4'}`}>
         <Calendar
           mode="single"
           selected={selectedDate}
@@ -576,18 +594,23 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
           classNames={{
               day_selected: "bg-primary/20 text-primary-foreground ring-1 ring-primary",
               day_today: "",
-              head_cell: "w-[14.28%] text-muted-foreground font-semibold text-sm pb-2 text-center table-cell",
+              head_cell: cn(
+                "w-[14.28%] text-muted-foreground font-semibold text-center table-cell",
+                isMobile ? "text-xs pb-1" : "text-sm pb-2"
+              ),
               head_row: "table-row",
               table: "w-full border-collapse table-fixed",
               row: "table-row border-t", 
               cell: cn( 
-                "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 table-cell align-top",
+                "relative p-0 text-center focus-within:relative focus-within:z-20 table-cell align-top",
                 "[&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
-                "border-l w-[14.28%]" 
+                "border-l w-[14.28%]",
+                isMobile ? "text-xs" : "text-sm"
               ),
               day: cn( 
-                "h-32 w-full rounded-none p-0 font-normal aria-selected:opacity-100 transition-colors hover:bg-accent/50",
-                "focus:bg-accent/70 focus:outline-none block"
+                "w-full rounded-none p-0 font-normal aria-selected:opacity-100 transition-colors hover:bg-accent/50",
+                "focus:bg-accent/70 focus:outline-none block",
+                isMobile ? "h-20" : "h-32"
               ),
               day_outside: "text-muted-foreground/50 aria-selected:bg-accent/30",
               months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",
@@ -596,7 +619,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
           showOutsideDays={true}
           formatters={{
             formatWeekdayName: (date) => {
-              return format(date, 'EEE'); // This will show Sun, Mon, Tue, Wed, Thu, Fri, Sat
+              return isMobile ? format(date, 'EEEEE') : format(date, 'EEE'); // Single letter on mobile, 3 letters on desktop
             }
           }}
         />

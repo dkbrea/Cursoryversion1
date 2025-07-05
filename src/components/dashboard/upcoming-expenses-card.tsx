@@ -13,20 +13,22 @@ interface UpcomingExpensesCardProps {
   items: UnifiedRecurringListItem[];
   completedItems: Set<string>;
   userPreferences: UserPreferences | null;
+  isMobile?: boolean;
 }
 
-const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType']) => {
+const getItemIcon = (itemType: UnifiedRecurringListItem['itemDisplayType'], isMobile = false) => {
+  const iconClass = isMobile ? 'h-4 w-4' : 'h-4 w-4';
   switch (itemType) {
     case 'income':
-      return <ArrowUpCircle className="h-4 w-4 text-green-500" />;
+      return <ArrowUpCircle className={`${iconClass} text-green-500`} />;
     case 'subscription':
-      return <CreditCard className="h-4 w-4 text-blue-500" />;
+      return <CreditCard className={`${iconClass} text-blue-500`} />;
     case 'fixed-expense':
-      return <Briefcase className="h-4 w-4 text-purple-500" />;
+      return <Briefcase className={`${iconClass} text-purple-500`} />;
     case 'debt-payment':
-      return <ArrowDownCircle className="h-4 w-4 text-red-500" />;
+      return <ArrowDownCircle className={`${iconClass} text-red-500`} />;
     default:
-      return <DollarSign className="h-4 w-4 text-gray-500" />;
+      return <DollarSign className={`${iconClass} text-gray-500`} />;
   }
 };
 
@@ -55,7 +57,7 @@ const formatDisplayType = (type: UnifiedRecurringListItem['itemDisplayType']) =>
   }
 };
 
-export function UpcomingExpensesCard({ items, completedItems, userPreferences }: UpcomingExpensesCardProps) {
+export function UpcomingExpensesCard({ items, completedItems, userPreferences, isMobile = false }: UpcomingExpensesCardProps) {
   const today = startOfDay(new Date());
 
   // 1. Generate individual occurrences including past due ones
@@ -86,16 +88,16 @@ export function UpcomingExpensesCard({ items, completedItems, userPreferences }:
   if (displayItems.length === 0) {
     return (
       <Card className="h-full w-full flex flex-col shadow-lg">
-        <CardHeader className="pb-1">
+        <CardHeader className={isMobile ? 'pb-2' : 'pb-1'}>
           <div className="flex items-start justify-between">
             <div className="space-y-0">
-              <CardTitle className="text-lg">Upcoming Expenses</CardTitle>
+              <CardTitle className={isMobile ? 'text-base' : 'text-lg'}>Upcoming Expenses</CardTitle>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="flex-1 flex items-center justify-center pt-1 pb-2">
+        <CardContent className={`flex-1 flex items-center justify-center ${isMobile ? 'pt-2 pb-3' : 'pt-1 pb-2'}`}>
           <div className="text-center py-2">
-            <p className="text-muted-foreground text-xs">No upcoming payments found.</p>
+            <p className={`text-muted-foreground ${isMobile ? 'text-sm' : 'text-xs'}`}>No upcoming payments found.</p>
           </div>
         </CardContent>
       </Card>
@@ -104,48 +106,48 @@ export function UpcomingExpensesCard({ items, completedItems, userPreferences }:
 
   return (
     <Card className="h-full w-full flex flex-col shadow-lg">
-      <CardHeader className="pb-1">
+      <CardHeader className={isMobile ? 'pb-2' : 'pb-1'}>
         <div className="flex items-start justify-between">
           <div className="space-y-0">
-            <CardTitle className="text-lg">Upcoming Expenses</CardTitle>
+            <CardTitle className={isMobile ? 'text-base' : 'text-lg'}>Upcoming Expenses</CardTitle>
             {items.length > 0 && (
-              <p className="text-xs text-muted-foreground">You have {items.filter(i => i.status !== 'Ended').length} upcoming payments</p>
+              <p className={`${isMobile ? 'text-sm' : 'text-xs'} text-muted-foreground`}>You have {items.filter(i => i.status !== 'Ended').length} upcoming payments</p>
             )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col pt-1 pb-2">
-        <div className="space-y-1 flex-1">
-          {displayItems.map((item) => (
-            <div key={item.occurrenceId} className="space-y-0">
+      <CardContent className={`flex-1 flex flex-col ${isMobile ? 'pt-2 pb-3' : 'pt-1 pb-2'}`}>
+        <div className={`${isMobile ? 'space-y-3' : 'space-y-1'} flex-1`}>
+          {displayItems.slice(0, isMobile ? 4 : 5).map((item) => (
+            <div key={item.occurrenceId} className={isMobile ? 'space-y-1' : 'space-y-0'}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <div className={`w-1.5 h-1.5 rounded-full ${getItemColor(item.itemDisplayType)}`} />
-                  <span className="text-xs font-medium truncate">{item.name}</span>
+                  <div className={`${isMobile ? 'w-2 h-2' : 'w-1.5 h-1.5'} rounded-full ${getItemColor(item.itemDisplayType)}`} />
+                  <span className={`${isMobile ? 'text-sm' : 'text-xs'} font-medium truncate`}>{item.name}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   {item.isToday && (
-                    <Badge variant="default" className="bg-blue-500 text-white text-xs py-0 px-1 h-4">
+                    <Badge variant="default" className={`bg-blue-500 text-white ${isMobile ? 'text-xs py-1 px-2 h-auto' : 'text-xs py-0 px-1 h-4'}`}>
                       Today
                     </Badge>
                   )}
                   {item.isPastDue && (
-                    <Badge variant="destructive" className="text-xs py-0 px-1 h-4">
+                    <Badge variant="destructive" className={`${isMobile ? 'text-xs py-1 px-2 h-auto' : 'text-xs py-0 px-1 h-4'}`}>
                       Overdue
                     </Badge>
                   )}
-                  <span className="text-xs font-semibold">${item.amount.toFixed(0)}</span>
+                  <span className={`${isMobile ? 'text-sm' : 'text-xs'} font-semibold`}>${item.amount.toFixed(0)}</span>
                 </div>
               </div>
               
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className={`flex ${isMobile ? 'flex-col space-y-1' : 'items-center justify-between'} ${isMobile ? 'text-sm' : 'text-xs'} text-muted-foreground`}>
                 <div className="flex items-center space-x-1">
-                  {getItemIcon(item.itemDisplayType)}
-                  <span className="text-xs">{formatDisplayType(item.itemDisplayType)}</span>
+                  {getItemIcon(item.itemDisplayType, isMobile)}
+                  <span className={isMobile ? 'text-sm' : 'text-xs'}>{formatDisplayType(item.itemDisplayType)}</span>
                 </div>
                 <div className="flex items-center space-x-1">
-                  <Calendar className="h-3 w-3" />
-                  <span className={`text-xs ${item.isToday ? "text-blue-600 font-medium" : item.isPastDue ? "text-red-500" : ""}`}>
+                  <Calendar className={`${isMobile ? 'h-4 w-4' : 'h-3 w-3'}`} />
+                  <span className={`${isMobile ? 'text-sm' : 'text-xs'} ${item.isToday ? "text-blue-600 font-medium" : item.isPastDue ? "text-red-500" : ""}`}>
                     {format(item.nextOccurrenceDate, "MMM d, yyyy")}
                   </span>
                 </div>
@@ -154,10 +156,10 @@ export function UpcomingExpensesCard({ items, completedItems, userPreferences }:
           ))}
         </div>
         
-        {combinedItems.length > 5 && (
+        {combinedItems.length > (isMobile ? 4 : 5) && (
           <div className="text-center pt-0.5 mt-auto">
-            <p className="text-xs text-muted-foreground">
-              Showing 5 of {combinedItems.length} upcoming payments
+            <p className={`${isMobile ? 'text-sm' : 'text-xs'} text-muted-foreground`}>
+              Showing {isMobile ? 4 : 5} of {combinedItems.length} upcoming payments
             </p>
           </div>
         )}

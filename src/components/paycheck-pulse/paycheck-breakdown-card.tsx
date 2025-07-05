@@ -10,6 +10,7 @@ import { DollarSign, AlertTriangle, TrendingUp, Calendar, Info, Lightbulb, Shiel
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface PaycheckBreakdownCardProps {
   breakdown: PaycheckBreakdown & {
@@ -22,6 +23,7 @@ interface PaycheckBreakdownCardProps {
 
 export function PaycheckBreakdownCard({ breakdown, isHighlighted = false }: PaycheckBreakdownCardProps) {
   const [showInsights, setShowInsights] = useState(false);
+  const isMobile = useIsMobile();
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -62,39 +64,69 @@ export function PaycheckBreakdownCard({ breakdown, isHighlighted = false }: Payc
       breakdown.isDeficit && "border-destructive/50"
     )}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-lg">
+        <div className={cn(
+          "flex items-center",
+          isMobile ? "flex-col space-y-3" : "justify-between"
+        )}>
+          <div className={cn(
+            "flex items-center",
+            isMobile ? "flex-col space-y-2 w-full" : "space-x-3"
+          )}>
+            <div className={cn(
+              "flex items-center space-x-2",
+              isMobile && "justify-center"
+            )}>
+              <Calendar className={cn("text-muted-foreground", isMobile ? "h-5 w-5" : "h-4 w-4")} />
+              <CardTitle className={cn(isMobile ? "text-lg text-center" : "text-lg")}>
                 {format(breakdown.period.paycheckDate, 'MMM d, yyyy')}
                 {breakdown.period.nextPaycheckDate && (
-                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                  <span className={cn(
+                    "font-normal text-muted-foreground ml-2",
+                    isMobile ? "text-sm block" : "text-sm"
+                  )}>
                     - {format(addDays(breakdown.period.nextPaycheckDate, -1), 'MMM d')}
                   </span>
                 )}
               </CardTitle>
             </div>
-            {breakdown.period.paycheckSource === 'estimated' && (
-              <Badge variant="outline" className="text-xs">Estimated</Badge>
-            )}
-            {breakdown.financialHealthScore !== undefined && (
-              <Badge variant="outline" className={cn("text-xs", getHealthScoreColor(breakdown.financialHealthScore))}>
-                <Shield className="h-3 w-3 mr-1" />
-                {getHealthScoreLabel(breakdown.financialHealthScore)} ({breakdown.financialHealthScore})
-              </Badge>
-            )}
+            
+            <div className={cn(
+              "flex items-center space-x-2",
+              isMobile && "justify-center flex-wrap gap-2"
+            )}>
+              {breakdown.period.paycheckSource === 'estimated' && (
+                <Badge variant="outline" className="text-xs">Estimated</Badge>
+              )}
+              {breakdown.financialHealthScore !== undefined && (
+                <Badge variant="outline" className={cn("text-xs", getHealthScoreColor(breakdown.financialHealthScore))}>
+                  <Shield className="h-3 w-3 mr-1" />
+                  {isMobile ? breakdown.financialHealthScore : `${getHealthScoreLabel(breakdown.financialHealthScore)} (${breakdown.financialHealthScore})`}
+                </Badge>
+              )}
+            </div>
           </div>
-          <div className="text-right">
-            <div className="flex items-center space-x-1">
-              <DollarSign className="h-4 w-4 text-green-600" />
-              <span className="text-xl font-bold text-green-600">
+          
+          <div className={cn(
+            isMobile ? "w-full" : "text-right"
+          )}>
+            <div className={cn(
+              "flex items-center",
+              isMobile ? "justify-center space-x-2" : "justify-end space-x-1"
+            )}>
+              <DollarSign className={cn("text-green-600", isMobile ? "h-6 w-6" : "h-4 w-4")} />
+              <span className={cn(
+                "font-bold text-green-600",
+                isMobile ? "text-2xl" : "text-xl"
+              )}>
                 {formatCurrency(breakdown.period.paycheckAmount)}
               </span>
             </div>
             {/* Show carryover info more clearly */}
             {Math.abs(breakdown.remainingAfterObligated - (breakdown.period.paycheckAmount - breakdown.totalObligated)) > 0.01 && (
-              <div className="text-xs mt-1">
+              <div className={cn(
+                "mt-1",
+                isMobile ? "text-center text-sm" : "text-xs"
+              )}>
                 {breakdown.remainingAfterObligated > (breakdown.period.paycheckAmount - breakdown.totalObligated) 
                   ? (
                     <span className="text-green-600 font-medium">
@@ -111,9 +143,12 @@ export function PaycheckBreakdownCard({ breakdown, isHighlighted = false }: Payc
           </div>
         </div>
         {breakdown.isDeficit && (
-          <div className="flex items-center space-x-2 text-destructive">
+          <div className={cn(
+            "flex items-center text-destructive",
+            isMobile ? "justify-center space-x-2" : "space-x-2"
+          )}>
             <AlertTriangle className="h-4 w-4" />
-            <span className="text-sm font-medium">
+            <span className={cn("font-medium", isMobile ? "text-base" : "text-sm")}>
               Deficit: {formatCurrency(breakdown.deficitAmount!)}
             </span>
           </div>
@@ -127,7 +162,7 @@ export function PaycheckBreakdownCard({ breakdown, isHighlighted = false }: Payc
             {breakdown.warnings.map((warning, index) => (
               <Alert key={index} variant={warning.includes('⚠️') ? 'destructive' : 'default'} className="py-2">
                 <Info className="h-4 w-4" />
-                <AlertDescription className="text-xs">
+                <AlertDescription className={cn(isMobile ? "text-sm" : "text-xs")}>
                   {warning}
                 </AlertDescription>
               </Alert>
@@ -138,8 +173,8 @@ export function PaycheckBreakdownCard({ breakdown, isHighlighted = false }: Payc
         {/* Obligated Expenses */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="font-medium text-sm text-muted-foreground">Obligated Expenses</h4>
-            <span className="font-medium text-destructive">
+            <h4 className={cn("font-medium text-muted-foreground", isMobile ? "text-base" : "text-sm")}>Obligated Expenses</h4>
+            <span className={cn("font-medium text-destructive", isMobile ? "text-lg" : "text-base")}>
               -{formatCurrency(breakdown.totalObligated)}
             </span>
           </div>
@@ -147,14 +182,17 @@ export function PaycheckBreakdownCard({ breakdown, isHighlighted = false }: Payc
           {breakdown.obligatedExpenses.length > 0 && (
             <div className="space-y-1 ml-4">
               {breakdown.obligatedExpenses.map((expense) => (
-                <div key={expense.id} className="flex justify-between text-xs text-muted-foreground">
+                <div key={expense.id} className={cn(
+                  "flex justify-between text-muted-foreground",
+                  isMobile ? "text-sm" : "text-xs"
+                )}>
                   <div className="flex flex-col">
                     <span>{expense.name}</span>
                     <span className="text-xs text-muted-foreground/70">
                       Due: {format(expense.dueDate, 'MMM d')}
                     </span>
                   </div>
-                  <span>{formatCurrency(expense.amount)}</span>
+                  <span className="font-medium">{formatCurrency(expense.amount)}</span>
                 </div>
               ))}
             </div>
@@ -165,9 +203,10 @@ export function PaycheckBreakdownCard({ breakdown, isHighlighted = false }: Payc
 
         {/* Remaining After Obligated */}
         <div className="flex items-center justify-between">
-          <span className="font-medium">Available for Allocation</span>
+          <span className={cn("font-medium", isMobile ? "text-base" : "text-sm")}>Available for Allocation</span>
           <span className={cn(
             "font-medium",
+            isMobile ? "text-lg" : "text-base",
             breakdown.remainingAfterObligated >= 0 ? "text-green-600" : "text-destructive"
           )}>
             {formatCurrency(Math.max(0, breakdown.remainingAfterObligated))}

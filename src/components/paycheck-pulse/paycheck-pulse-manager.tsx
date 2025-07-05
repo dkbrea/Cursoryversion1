@@ -23,6 +23,7 @@ import { getForecastOverridesForMonth } from "@/lib/api/forecast-overrides";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // --- ManualExpenseTable component (moved above main component for scope) ---
 function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange, minKey, showDefaults, hasManualOverridesForPeriod }: any) {
@@ -171,6 +172,7 @@ export function PaycheckPulseManager() {
   // All hooks at the very top, before any logic or early return
   const { toast } = useToast();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [mainTab, setMainTab] = useState<'auto' | 'manual'>('auto');
   const [isLoading, setIsLoading] = useState(true);
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
@@ -816,9 +818,9 @@ export function PaycheckPulseManager() {
     <div className="space-y-10">
       {/* Segmented control for Auto/Manual tab switching */}
       <div className="flex justify-center mb-8">
-        <div className="inline-flex rounded-lg bg-gray-100 border border-gray-200 overflow-hidden">
+        <div className={`inline-flex rounded-lg bg-gray-100 border border-gray-200 overflow-hidden ${isMobile ? 'w-full max-w-sm' : ''}`}>
           <button
-            className={`px-6 py-2 text-sm font-semibold focus:outline-none transition-colors ${mainTab === 'auto' ? 'bg-white text-primary shadow' : 'text-gray-500 hover:bg-gray-200'}`}
+            className={`${isMobile ? 'flex-1' : 'px-6'} py-2 text-sm font-semibold focus:outline-none transition-colors ${mainTab === 'auto' ? 'bg-white text-primary shadow' : 'text-gray-500 hover:bg-gray-200'}`}
             onClick={() => setMainTab('auto')}
             aria-pressed={mainTab === 'auto'}
             type="button"
@@ -826,7 +828,7 @@ export function PaycheckPulseManager() {
             Auto
           </button>
           <button
-            className={`px-6 py-2 text-sm font-semibold focus:outline-none transition-colors border-l border-gray-200 ${mainTab === 'manual' ? 'bg-white text-primary shadow' : 'text-gray-500 hover:bg-gray-200'}`}
+            className={`${isMobile ? 'flex-1' : 'px-6'} py-2 text-sm font-semibold focus:outline-none transition-colors border-l border-gray-200 ${mainTab === 'manual' ? 'bg-white text-primary shadow' : 'text-gray-500 hover:bg-gray-200'}`}
             onClick={() => setMainTab('manual')}
             aria-pressed={mainTab === 'manual'}
             type="button"
@@ -837,7 +839,7 @@ export function PaycheckPulseManager() {
       </div>
       {/* Active Plan Toggle (visible on both tabs, directly below tabs) */}
       <div className="flex flex-col items-center mb-4">
-        <div className="flex gap-2">
+        <div className={`flex ${isMobile ? 'flex-col w-full max-w-sm gap-3' : 'gap-2'}`}>
           <Button
             variant={paycheckPreferences.allocationMode === 'auto' ? 'default' : 'outline'}
             onClick={() => {
@@ -845,6 +847,8 @@ export function PaycheckPulseManager() {
               updateUserPreferences(user?.id, { paycheckPreferences: { ...paycheckPreferences, allocationMode: 'auto', activeManualPlan: null } });
             }}
             aria-pressed={paycheckPreferences.allocationMode === 'auto'}
+            className={isMobile ? 'w-full' : ''}
+            size={isMobile ? 'default' : 'sm'}
           >
             Auto {paycheckPreferences.allocationMode === 'auto' && <span className="ml-2 text-xs text-green-600 font-semibold">Active</span>}
           </Button>
@@ -855,11 +859,13 @@ export function PaycheckPulseManager() {
               updateUserPreferences(user?.id, { paycheckPreferences: { ...paycheckPreferences, allocationMode: 'manual', activeManualPlan: selectedPlan } });
             }}
             aria-pressed={paycheckPreferences.allocationMode === 'manual'}
+            className={isMobile ? 'w-full' : ''}
+            size={isMobile ? 'default' : 'sm'}
           >
             Manual {paycheckPreferences.allocationMode === 'manual' && <span className="ml-2 text-xs text-green-600 font-semibold">Active</span>}
           </Button>
         </div>
-        <div className="mt-1 text-xs text-gray-500">Mark which mode is considered the active plan. This affects which allocation is used across the app.</div>
+        <div className={`mt-1 ${isMobile ? 'text-xs' : 'text-xs'} text-gray-500 ${isMobile ? 'text-center px-4' : ''}`}>Mark which mode is considered the active plan. This affects which allocation is used across the app.</div>
       </div>
       {/* --- Existing content --- */}
       {mainTab === 'auto' && (
@@ -869,9 +875,9 @@ export function PaycheckPulseManager() {
             <div className="flex items-center justify-end">
               <Button
                 variant="outline"
-                size="sm"
+                size={isMobile ? 'default' : 'sm'}
                 onClick={() => setIsPreferencesDialogOpen(true)}
-                className="flex items-center gap-2"
+                className={`flex items-center gap-2 ${isMobile ? 'w-full max-w-sm' : ''}`}
               >
                 <Settings className="h-4 w-4" />
                 Preferences
@@ -888,17 +894,18 @@ export function PaycheckPulseManager() {
                       (item: any) => !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))
                     ) || current[0].obligatedExpenses
                   }} 
-                  isHighlighted={true} 
+                  isHighlighted={true}
+                  isMobile={isMobile}
                 />
               </div>
             )}
 
             {/* Tabbed View */}
             <Tabs value={selectedTimeframe} onValueChange={(value) => setSelectedTimeframe(value as PaycheckTimeframe)}>
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="past">Past ({past.length})</TabsTrigger>
+              <TabsList className={`grid w-full ${isMobile ? 'grid-cols-3 text-xs' : 'grid-cols-3'}`}>
+                <TabsTrigger value="past">{isMobile ? `Past (${past.length})` : `Past (${past.length})`}</TabsTrigger>
                 <TabsTrigger value="current">Recent</TabsTrigger>
-                <TabsTrigger value="future">Upcoming ({future.length})</TabsTrigger>
+                <TabsTrigger value="future">{isMobile ? `Future (${future.length})` : `Upcoming (${future.length})`}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="past" className="space-y-6">
@@ -909,7 +916,8 @@ export function PaycheckPulseManager() {
                       (item: any) => !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))
                     ) || bd.obligatedExpenses
                   }))} 
-                  title="Past Paychecks" 
+                  title="Past Paychecks"
+                  isMobile={isMobile}
                 />
               </TabsContent>
 
@@ -923,11 +931,12 @@ export function PaycheckPulseManager() {
                         (item: any) => !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))
                       ) || bd.obligatedExpenses
                     }))} 
-                    title="Most Recent Paycheck" 
+                    title="Most Recent Paycheck"
+                    isMobile={isMobile}
                   />
                 ) : (
                   <div className="text-center py-8">
-                    <h3 className="text-lg font-medium text-muted-foreground mb-2">No Most Recent Paycheck</h3>
+                    <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-muted-foreground mb-2`}>No Most Recent Paycheck</h3>
                     <p className="text-sm text-muted-foreground">
                       Your most recent paycheck information will appear here once you receive a paycheck.
                     </p>
@@ -943,7 +952,8 @@ export function PaycheckPulseManager() {
                       (item: any) => !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))
                     ) || bd.obligatedExpenses
                   }))} 
-                  title="Upcoming Paychecks" 
+                  title="Upcoming Paychecks"
+                  isMobile={isMobile}
                 />
               </TabsContent>
             </Tabs>
@@ -954,71 +964,78 @@ export function PaycheckPulseManager() {
         <>
           {/* --- Active Manual Plan Selector --- */}
           {paycheckPreferences.allocationMode === 'manual' && (
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-sm font-medium text-gray-700">Active Manual Plan:</span>
-              {PLAN_KEYS.map(plan => (
-                <Button
-                  key={plan}
-                  variant={paycheckPreferences.activeManualPlan === plan ? 'default' : 'outline'}
-                  onClick={() => {
-                    setSelectedPlan(plan);
-                    setPaycheckPreferences(prev => ({ ...prev, activeManualPlan: plan }));
-                    if (user && user.id) {
-                      updateUserPreferences(user.id, { paycheckPreferences: { ...paycheckPreferences, activeManualPlan: plan } });
-                    }
-                  }}
-                  className={paycheckPreferences.activeManualPlan === plan ? 'font-bold' : ''}
-                  aria-pressed={paycheckPreferences.activeManualPlan === plan}
-                >
-                  {plan === 'plan1' ? 'Plan 1' : plan === 'plan2' ? 'Plan 2' : 'Plan 3'}
-                  {paycheckPreferences.activeManualPlan === plan && (
-                    <span className="ml-2 text-xs text-green-600 font-semibold">Active</span>
-                  )}
-                </Button>
-              ))}
+            <div className={`flex ${isMobile ? 'flex-col gap-3' : 'items-center gap-2'} mb-4`}>
+              <span className={`${isMobile ? 'text-sm text-center' : 'text-sm'} font-medium text-gray-700`}>Active Manual Plan:</span>
+              <div className={`flex ${isMobile ? 'flex-col gap-2' : 'gap-2'}`}>
+                {PLAN_KEYS.map(plan => (
+                  <Button
+                    key={plan}
+                    variant={paycheckPreferences.activeManualPlan === plan ? 'default' : 'outline'}
+                    onClick={() => {
+                      setSelectedPlan(plan);
+                      setPaycheckPreferences(prev => ({ ...prev, activeManualPlan: plan }));
+                      if (user && user.id) {
+                        updateUserPreferences(user.id, { paycheckPreferences: { ...paycheckPreferences, activeManualPlan: plan } });
+                      }
+                    }}
+                    className={`${paycheckPreferences.activeManualPlan === plan ? 'font-bold' : ''} ${isMobile ? 'w-full' : ''}`}
+                    aria-pressed={paycheckPreferences.activeManualPlan === plan}
+                    size={isMobile ? 'default' : 'sm'}
+                  >
+                    {plan === 'plan1' ? 'Plan 1' : plan === 'plan2' ? 'Plan 2' : 'Plan 3'}
+                    {paycheckPreferences.activeManualPlan === plan && (
+                      <span className="ml-2 text-xs text-green-600 font-semibold">Active</span>
+                    )}
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
           {/* --- Plan Tabs Row --- */}
-          <div className="flex gap-2 mb-4">
+          <div className={`flex ${isMobile ? 'flex-col gap-2' : 'gap-2'} mb-4`}>
             {PLAN_KEYS.map(plan => (
               <Button
                 key={plan}
                 variant={selectedPlan === plan ? 'default' : 'outline'}
                 onClick={() => setSelectedPlan(plan)}
-                className={selectedPlan === plan ? 'font-bold' : ''}
+                className={`${selectedPlan === plan ? 'font-bold' : ''} ${isMobile ? 'w-full' : ''}`}
+                size={isMobile ? 'default' : 'sm'}
               >
                 {plan === 'plan1' ? 'Plan 1' : plan === 'plan2' ? 'Plan 2' : 'Plan 3'}
               </Button>
             ))}
           </div>
           {/* --- Manual Paycheck Budget Section (plan-aware) --- */}
-          <section className="bg-white rounded-xl p-6 shadow space-y-6 border border-gray-200">
+          <section className={`bg-white rounded-xl ${isMobile ? 'p-4' : 'p-6'} shadow space-y-6 border border-gray-200`}>
             {/* Summary Card */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 bg-gray-50 rounded-lg p-4 border border-gray-100">
+            <div className={`flex ${isMobile ? 'flex-col gap-4' : 'flex-col md:flex-row md:items-center md:justify-between gap-4'} mb-4 bg-gray-50 rounded-lg ${isMobile ? 'p-3' : 'p-4'} border border-gray-100`}>
               {/* Date selection row styled like screenshot */}
-              <div className="flex items-center gap-4">
-                <span className="flex items-center gap-2 text-gray-600 font-semibold text-base">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <div className={`flex ${isMobile ? 'flex-col gap-3' : 'items-center gap-4'}`}>
+                <span className={`flex items-center gap-2 text-gray-600 font-semibold ${isMobile ? 'text-sm' : 'text-base'}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z" /></svg>
                   Budget Period
                 </span>
-                <input
-                  type="date"
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-primary-200"
-                  value={manualStartDate ? manualStartDate.toISOString().slice(0, 10) : ''}
-                  onChange={e => handleManualDateChange(setManualStartDate, e.target.value ? new Date(e.target.value) : null)}
-                />
-                <span className="text-gray-400 font-semibold">to</span>
-                <input
-                  type="date"
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-primary-200"
-                  value={manualEndDate ? manualEndDate.toISOString().slice(0, 10) : ''}
-                  onChange={e => handleManualDateChange(setManualEndDate, e.target.value ? new Date(e.target.value) : null)}
-                />
+                <div className={`flex ${isMobile ? 'flex-col gap-2' : 'items-center gap-4'}`}>
+                  <input
+                    type="date"
+                    className={`rounded-lg border border-gray-300 ${isMobile ? 'px-2 py-2 text-sm w-full' : 'px-3 py-2 text-base'} focus:outline-none focus:ring-2 focus:ring-primary-200`}
+                    value={manualStartDate ? manualStartDate.toISOString().slice(0, 10) : ''}
+                    onChange={e => handleManualDateChange(setManualStartDate, e.target.value ? new Date(e.target.value) : null)}
+                  />
+                  {!isMobile && <span className="text-gray-400 font-semibold">to</span>}
+                  {isMobile && <span className="text-gray-400 font-semibold text-center text-sm">to</span>}
+                  <input
+                    type="date"
+                    className={`rounded-lg border border-gray-300 ${isMobile ? 'px-2 py-2 text-sm w-full' : 'px-3 py-2 text-base'} focus:outline-none focus:ring-2 focus:ring-primary-200`}
+                    value={manualEndDate ? manualEndDate.toISOString().slice(0, 10) : ''}
+                    onChange={e => handleManualDateChange(setManualEndDate, e.target.value ? new Date(e.target.value) : null)}
+                  />
+                </div>
               </div>
               {manualStartDate && manualEndDate && (
-                <div className="flex flex-col items-end gap-2">
-                  <div className="text-xs text-gray-500 font-semibold">Left to Budget</div>
-                  <div className="text-2xl font-bold flex items-center gap-2">
+                <div className={`flex flex-col ${isMobile ? 'items-center gap-2' : 'items-end gap-2'}`}>
+                  <div className={`${isMobile ? 'text-xs' : 'text-xs'} text-gray-500 font-semibold`}>Left to Budget</div>
+                  <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold flex items-center gap-2`}>
                     {/* Calculate total income for the selected period and render the result directly */}
                     {(() => {
                       // Calculate total income for the selected period
@@ -1042,13 +1059,13 @@ export function PaycheckPulseManager() {
                     })()}
                   </div>
                   {/* Category Chips */}
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    <span className="px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-semibold">Income: ${getManualTabTotal(recurringItems.filter(item => item.type === 'income' && item.startDate && item.startDate >= manualStartDate && item.startDate <= manualEndDate), 'income', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className="px-2 py-1 rounded bg-blue-100 text-blue-700 text-xs font-semibold">Fixed: ${getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className="px-2 py-1 rounded bg-purple-100 text-purple-700 text-xs font-semibold">Variable: ${getManualTabTotal(variableExpenses, 'variable', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className="px-2 py-1 rounded bg-indigo-100 text-indigo-700 text-xs font-semibold">Subscriptions: ${getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className="px-2 py-1 rounded bg-red-100 text-red-700 text-xs font-semibold">Debt: ${getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment').toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-700 text-xs font-semibold">Savings: ${getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                  <div className={`flex flex-wrap gap-2 mt-2 ${isMobile ? 'justify-center' : ''}`}>
+                    <span className={`px-2 py-1 rounded bg-green-100 text-green-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Income: ${getManualTabTotal(recurringItems.filter(item => item.type === 'income' && item.startDate && item.startDate >= manualStartDate && item.startDate <= manualEndDate), 'income', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-blue-100 text-blue-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Fixed: ${getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-purple-100 text-purple-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Variable: ${getManualTabTotal(variableExpenses, 'variable', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-indigo-100 text-indigo-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Subscriptions: ${getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-red-100 text-red-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Debt: ${getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment').toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-yellow-100 text-yellow-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Savings: ${getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                   </div>
                 </div>
               )}
@@ -1057,28 +1074,59 @@ export function PaycheckPulseManager() {
             {manualStartDate && manualEndDate && (
               <>
                 <Tabs value={manualTab} onValueChange={setManualTab} className="w-full mb-4">
-                  <TabsList className="grid grid-cols-5 mb-4">
-                    <TabsTrigger value="fixed">
-                      Fixed Expenses
-                      <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="subscription">
-                      Subscriptions
-                      <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="variable">
-                      Variable Expenses
-                      <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(variableExpenses, 'variable', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="debt">
-                      Debt
-                      <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment').toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="goal">
-                      Savings Goals
-                      <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                    </TabsTrigger>
+                  <TabsList className={`${isMobile ? 'grid grid-cols-2 mb-4' : 'grid grid-cols-5 mb-4'}`}>
+                    {!isMobile ? (
+                      <>
+                        <TabsTrigger value="fixed">
+                          Fixed Expenses
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="subscription">
+                          Subscriptions
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="variable">
+                          Variable Expenses
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(variableExpenses, 'variable', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="debt">
+                          Debt
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment').toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="goal">
+                          Savings Goals
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </TabsTrigger>
+                      </>
+                    ) : (
+                      <>
+                        <TabsTrigger value="fixed" className="text-xs">
+                          Fixed
+                          <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="subscription" className="text-xs">
+                          Subs
+                          <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        </TabsTrigger>
+                      </>
+                    )}
                   </TabsList>
+                  {isMobile && (
+                    <TabsList className="grid grid-cols-3 mb-4">
+                      <TabsTrigger value="variable" className="text-xs">
+                        Variable
+                        <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(variableExpenses, 'variable', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="debt" className="text-xs">
+                        Debt
+                        <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment').toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="goal" className="text-xs">
+                        Goals
+                        <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                      </TabsTrigger>
+                    </TabsList>
+                  )}
                   <TabsContent value="fixed">
                     <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
@@ -1171,9 +1219,9 @@ export function PaycheckPulseManager() {
                 </Tabs>
               </>
             )}
-            <div className="flex gap-4 mt-6">
-              <Button variant="default" onClick={saveManualOverrides}>Save Manual Overrides</Button>
-              <Button variant="outline" onClick={revertManualOverrides}>Revert to Auto</Button>
+            <div className={`flex ${isMobile ? 'flex-col gap-3 mt-6' : 'gap-4 mt-6'}`}>
+              <Button variant="default" onClick={saveManualOverrides} className={isMobile ? 'w-full' : ''} size={isMobile ? 'default' : 'sm'}>Save Manual Overrides</Button>
+              <Button variant="outline" onClick={revertManualOverrides} className={isMobile ? 'w-full' : ''} size={isMobile ? 'default' : 'sm'}>Revert to Auto</Button>
             </div>
           </section>
         </>

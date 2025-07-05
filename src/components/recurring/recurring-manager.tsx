@@ -25,6 +25,7 @@ import { getDebtAccounts } from "@/lib/api/debts";
 import { getCategories } from "@/lib/api/categories";
 import { createTransaction } from "@/lib/api/transactions";
 import { getRecurringPeriods } from "@/lib/api/recurring-completions";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface MonthlySummary {
   income: number;
@@ -44,6 +45,7 @@ export function RecurringManager() {
   const [dialogKey, setDialogKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [displayedMonth, setDisplayedMonth] = useState<Date>(startOfMonth(new Date())); // Track displayed month
+  const isMobile = useIsMobile();
   
   // Transaction recording states
   const [isRecordTransactionOpen, setIsRecordTransactionOpen] = useState(false);
@@ -909,6 +911,7 @@ export function RecurringManager() {
             onMonthChange={setDisplayedMonth}
             onItemClick={handleCalendarItemClick}
             completedItems={completedItems}
+            isMobile={isMobile}
           />
         </TabsContent>
       </Tabs>

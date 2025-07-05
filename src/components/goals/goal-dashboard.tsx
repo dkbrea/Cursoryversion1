@@ -22,6 +22,7 @@ import { SinkingFundsOverviewCard } from "@/components/sinking-funds/sinking-fun
 import { SinkingFundsSummaryCard } from "@/components/sinking-funds/sinking-funds-summary-card";
 import { SinkingFundsEnvelopePage } from "@/components/sinking-funds/sinking-funds-envelope-page";
 import { getSinkingFundsWithProgress, createSinkingFund, updateSinkingFund, deleteSinkingFund } from "@/lib/api/sinking-funds";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function GoalDashboard() {
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
@@ -37,6 +38,7 @@ export function GoalDashboard() {
   const [activeTab, setActiveTab] = useState("goals");
   const { toast } = useToast();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   const goalsWithContributions = useMemo((): FinancialGoalWithContribution[] => {
     const today = startOfDay(new Date());
@@ -383,20 +385,20 @@ export function GoalDashboard() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+        <div className={`flex ${isMobile ? 'flex-col gap-4' : 'flex-col sm:flex-row justify-between items-start sm:items-center gap-4'} mb-6`}>
+          <TabsList className={`grid w-full ${isMobile ? 'grid-cols-2' : 'max-w-md grid-cols-2'}`}>
             <TabsTrigger value="goals" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
               Goals
             </TabsTrigger>
             <TabsTrigger value="sinking-funds" className="flex items-center gap-2">
               <PiggyBank className="h-4 w-4" />
-              Sinking Funds
+              {isMobile ? 'Funds' : 'Sinking Funds'}
             </TabsTrigger>
           </TabsList>
           
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" size="sm" disabled>
+          <div className={`flex ${isMobile ? 'flex-col gap-3' : 'flex-col sm:flex-row gap-2'}`}>
+            <Button variant="outline" size={isMobile ? "default" : "sm"} disabled className={isMobile ? "w-full" : ""}>
               <Download className="mr-2 h-4 w-4" /> Export Report
             </Button>
             
@@ -407,12 +409,12 @@ export function GoalDashboard() {
                   onOpenChange={setIsAddGoalDialogOpen}
                   onGoalAdded={handleAddGoal}
                 >
-                  <Button onClick={() => setIsAddGoalDialogOpen(true)} size="sm" variant="outline">
+                  <Button onClick={() => setIsAddGoalDialogOpen(true)} size={isMobile ? "default" : "sm"} variant="outline" className={isMobile ? "w-full" : ""}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Goal
                   </Button>
                 </AddGoalDialog>
-                <Button variant="outline" size="sm" className="text-primary border-primary hover:bg-primary/10 hover:text-primary" disabled>
-                  <Settings2 className="mr-2 h-4 w-4" /> Optimize Savings Plan
+                <Button variant="outline" size={isMobile ? "default" : "sm"} className={`text-primary border-primary hover:bg-primary/10 hover:text-primary ${isMobile ? "w-full" : ""}`} disabled>
+                  <Settings2 className="mr-2 h-4 w-4" /> {isMobile ? 'Optimize' : 'Optimize Savings Plan'}
                 </Button>
               </>
             )}
@@ -423,7 +425,7 @@ export function GoalDashboard() {
                 onOpenChange={setIsAddSinkingFundDialogOpen}
                 onSinkingFundAdded={handleAddSinkingFund}
               >
-                <Button onClick={() => setIsAddSinkingFundDialogOpen(true)} size="sm">
+                <Button onClick={() => setIsAddSinkingFundDialogOpen(true)} size={isMobile ? "default" : "sm"} className={isMobile ? "w-full" : ""}>
                   <PiggyBank className="mr-2 h-4 w-4" /> Add Sinking Fund
                 </Button>
               </AddSinkingFundDialog>
@@ -470,30 +472,30 @@ export function GoalDashboard() {
               {!hasAnyGoals ? (
                 <div className="text-center py-12 border-2 border-dashed border-muted-foreground/30 rounded-lg">
                   <Flag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <h2 className="text-xl font-semibold text-foreground mb-2">Start Your Financial Goals!</h2>
+                  <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold text-foreground mb-2`}>Start Your Financial Goals!</h2>
                   <p className="text-muted-foreground mb-6">Create financial goals for your long-term dreams and aspirations.</p>
                   <AddGoalDialog
                     isOpen={isAddGoalDialogOpen}
                     onOpenChange={setIsAddGoalDialogOpen}
                     onGoalAdded={handleAddGoal}
                   >
-                    <Button onClick={() => setIsAddGoalDialogOpen(true)} variant="outline">
+                    <Button onClick={() => setIsAddGoalDialogOpen(true)} variant="outline" size={isMobile ? "default" : "sm"}>
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Goal
                     </Button>
                   </AddGoalDialog>
                 </div>
               ) : (
                 <>
-                  <GoalSummaryCards goals={goalsWithContributions} />
+                  <GoalSummaryCards goals={goalsWithContributions} isMobile={isMobile} />
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-                    <SavingsBreakdownCard goals={goalsWithContributions} />
-                    <SinkingFundsSummaryCard sinkingFunds={sinkingFunds} />
-                    <GoalPerformanceChartCard />
+                  <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : 'grid-cols-1 lg:grid-cols-3 gap-6'} mt-6`}>
+                    <SavingsBreakdownCard goals={goalsWithContributions} isMobile={isMobile} />
+                    <SinkingFundsSummaryCard sinkingFunds={sinkingFunds} isMobile={isMobile} />
+                    <GoalPerformanceChartCard isMobile={isMobile} />
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                    <SavingsTransactionsCard />
+                  <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : 'grid-cols-1 lg:grid-cols-2 gap-6'} mt-6`}>
+                    <SavingsTransactionsCard isMobile={isMobile} />
                     <div></div>
                   </div>
 
@@ -502,6 +504,7 @@ export function GoalDashboard() {
                     onDeleteGoal={handleDeleteGoal} 
                     onEditGoal={handleEditGoal} 
                     isDeleting={isDeleting}
+                    isMobile={isMobile}
                   />
                 </>
               )}
@@ -517,6 +520,7 @@ export function GoalDashboard() {
                 isAddDialogOpen={isAddSinkingFundDialogOpen}
                 onAddDialogChange={setIsAddSinkingFundDialogOpen}
                 onAddSinkingFund={handleAddSinkingFund}
+                isMobile={isMobile}
               />
             </TabsContent>
           </>

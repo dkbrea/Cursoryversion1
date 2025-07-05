@@ -12,11 +12,13 @@ import { TaxReport } from "@/components/reports/tax-report";
 import { NetWorthTrendReport } from "@/components/reports/net-worth-trend-report";
 import { GoalProgressReport } from "@/components/reports/goal-progress-report";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export type TimePeriod = 'last-30-days' | 'last-3-months' | 'last-6-months' | 'last-12-months' | 'last-2-years';
 
 export default function ReportsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('last-6-months');
+  const isMobile = useIsMobile();
 
   const getPeriodLabel = (period: TimePeriod) => {
     switch (period) {
@@ -31,11 +33,11 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Reports</h1>
-        <div className="flex items-center gap-2">
+      <div className={`flex ${isMobile ? 'flex-col gap-4' : 'flex-col sm:flex-row justify-between items-start sm:items-center gap-4'}`}>
+        <h1 className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold tracking-tight text-foreground`}>Reports</h1>
+        <div className={`flex ${isMobile ? 'flex-col gap-3 w-full' : 'items-center gap-2'}`}>
           <Select value={selectedPeriod} onValueChange={(value: TimePeriod) => setSelectedPeriod(value)}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className={`${isMobile ? 'w-full' : 'w-[180px]'}`}>
               <Icons.CalendarDays className="mr-2 h-4 w-4" />
               <SelectValue />
             </SelectTrigger>
@@ -47,7 +49,7 @@ export default function ReportsPage() {
               <SelectItem value="last-2-years">Last 2 years</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" disabled>
+          <Button variant="outline" disabled className={isMobile ? 'w-full' : ''} size={isMobile ? 'default' : 'sm'}>
             <Icons.Download className="mr-2 h-4 w-4" />
             Export
           </Button>
@@ -55,39 +57,70 @@ export default function ReportsPage() {
       </div>
 
       <Tabs defaultValue="spending-by-category" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:w-auto md:inline-flex">
-          <TabsTrigger value="spending-by-category" className="text-xs sm:text-sm">
-            <Icons.History className="mr-2 h-4 w-4" /> Spending by Category
+        <TabsList className={`${isMobile ? 'grid w-full grid-cols-2 gap-1' : 'grid w-full grid-cols-2 sm:grid-cols-4 md:w-auto md:inline-flex'}`}>
+          <TabsTrigger value="spending-by-category" className={`${isMobile ? 'text-xs px-2 py-2' : 'text-xs sm:text-sm'}`}>
+            {isMobile ? (
+              <>
+                <Icons.History className="mr-1 h-3 w-3" /> Category
+              </>
+            ) : (
+              <>
+                <Icons.History className="mr-2 h-4 w-4" /> Spending by Category
+              </>
+            )}
           </TabsTrigger>
-          <TabsTrigger value="income-analysis" className="text-xs sm:text-sm">
-            <Icons.BarChartBig className="mr-2 h-4 w-4" /> Income Analysis
+          <TabsTrigger value="income-analysis" className={`${isMobile ? 'text-xs px-2 py-2' : 'text-xs sm:text-sm'}`}>
+            {isMobile ? (
+              <>
+                <Icons.BarChartBig className="mr-1 h-3 w-3" /> Income
+              </>
+            ) : (
+              <>
+                <Icons.BarChartBig className="mr-2 h-4 w-4" /> Income Analysis
+              </>
+            )}
           </TabsTrigger>
-          <TabsTrigger value="spending-trends" className="text-xs sm:text-sm">
-            <Icons.LineChartIcon className="mr-2 h-4 w-4" /> Spending Trends
-          </TabsTrigger>
-          <TabsTrigger value="tax-report" className="text-xs sm:text-sm">
-            <Icons.FileTextIcon className="mr-2 h-4 w-4" /> Tax Report
-          </TabsTrigger>
+          {!isMobile && (
+            <>
+              <TabsTrigger value="spending-trends" className="text-xs sm:text-sm">
+                <Icons.LineChartIcon className="mr-2 h-4 w-4" /> Spending Trends
+              </TabsTrigger>
+              <TabsTrigger value="tax-report" className="text-xs sm:text-sm">
+                <Icons.FileTextIcon className="mr-2 h-4 w-4" /> Tax Report
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
+        {isMobile && (
+          <TabsList className="grid w-full grid-cols-2 gap-1 mt-2">
+            <TabsTrigger value="spending-trends" className="text-xs px-2 py-2">
+              <Icons.LineChartIcon className="mr-1 h-3 w-3" /> Trends
+            </TabsTrigger>
+            <TabsTrigger value="tax-report" className="text-xs px-2 py-2">
+              <Icons.FileTextIcon className="mr-1 h-3 w-3" /> Tax
+            </TabsTrigger>
+          </TabsList>
+        )}
+
         <TabsContent value="spending-by-category" className="mt-6">
-          <SpendingByCategoryReport timePeriod={selectedPeriod} />
+          <SpendingByCategoryReport timePeriod={selectedPeriod} isMobile={isMobile} />
         </TabsContent>
         <TabsContent value="income-analysis" className="mt-6">
-          <IncomeAnalysisReport timePeriod={selectedPeriod} />
+          <IncomeAnalysisReport timePeriod={selectedPeriod} isMobile={isMobile} />
         </TabsContent>
         <TabsContent value="spending-trends" className="mt-6">
-          <SpendingTrendsReport timePeriod={selectedPeriod} />
+          <SpendingTrendsReport timePeriod={selectedPeriod} isMobile={isMobile} />
         </TabsContent>
         <TabsContent value="tax-report" className="mt-6">
-          <TaxReport timePeriod={selectedPeriod} />
+          <TaxReport timePeriod={selectedPeriod} isMobile={isMobile} />
         </TabsContent>
       </Tabs>
 
       {/* Creative Bottom Section */}
-      <div className="grid gap-6 mt-8 md:grid-cols-1 lg:grid-cols-2">
-        <NetWorthTrendReport timePeriod={selectedPeriod} />
-        <GoalProgressReport timePeriod={selectedPeriod} />
+      <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : 'gap-6 mt-8 md:grid-cols-1 lg:grid-cols-2'}`}>
+        <NetWorthTrendReport timePeriod={selectedPeriod} isMobile={isMobile} />
+        <GoalProgressReport timePeriod={selectedPeriod} isMobile={isMobile} />
       </div>
     </div>
   );

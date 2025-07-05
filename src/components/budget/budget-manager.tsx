@@ -29,10 +29,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getTransactions } from "@/lib/api/transactions";
 import { getSinkingFunds } from "@/lib/api/sinking-funds";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function BudgetManager() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [isLoading, setIsLoading] = useState(true);
   const [isDataReady, setIsDataReady] = useState(false);
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
@@ -1776,60 +1778,66 @@ export function BudgetManager() {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="currentMonth" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:w-[400px] mb-6">
-          <TabsTrigger value="currentMonth">Current Month Budget</TabsTrigger>
-          <TabsTrigger value="forecast">12-Month Forecast</TabsTrigger>
+        <TabsList className={`grid w-full grid-cols-2 ${isMobile ? 'mb-4' : 'md:w-[400px] mb-6'}`}>
+          <TabsTrigger value="currentMonth">{isMobile ? 'Current' : 'Current Month Budget'}</TabsTrigger>
+          <TabsTrigger value="forecast">{isMobile ? 'Forecast' : '12-Month Forecast'}</TabsTrigger>
         </TabsList>
         <TabsContent value="currentMonth">
           <div className="mb-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground">Budget for {format(selectedMonth, 'MMMM yyyy')}</h2>
-              <div className="flex items-center space-x-2">
+            <div className={`flex ${isMobile ? 'flex-col gap-4' : 'justify-between items-center'}`}>
+              <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-semibold tracking-tight text-foreground`}>
+                Budget for {format(selectedMonth, 'MMMM yyyy')}
+              </h2>
+              <div className={`flex ${isMobile ? 'flex-col gap-3' : 'items-center space-x-2'}`}>
                 <Button 
                   variant="outline" 
-                  size="sm"
+                  size={isMobile ? "default" : "sm"}
                   onClick={() => {
                     const now = new Date();
                     setSelectedCurrentMonthYear(now.getFullYear());
                     setSelectedMonth(now);
                   }}
-                  className={format(selectedMonth, 'yyyy-MM') === format(new Date(), 'yyyy-MM') ? 'bg-primary/10' : ''}
+                  className={`${format(selectedMonth, 'yyyy-MM') === format(new Date(), 'yyyy-MM') ? 'bg-primary/10' : ''} ${isMobile ? 'w-full' : ''}`}
                 >
                   Current Month
                 </Button>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Year:</span>
-                  <Select 
-                    value={selectedCurrentMonthYear.toString()} 
-                    onValueChange={(value) => handleCurrentMonthYearChange(parseInt(value))}
-                  >
-                    <SelectTrigger className="w-[100px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + i).map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-sm text-muted-foreground">Month:</span>
-                  <Select 
-                    value={getMonth(selectedMonth).toString()} 
-                    onValueChange={(value) => handleCurrentMonthChange(parseInt(value))}
-                  >
-                    <SelectTrigger className="w-[120px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => i).map((monthIndex) => (
-                        <SelectItem key={monthIndex} value={monthIndex.toString()}>
-                          {format(new Date(2024, monthIndex, 1), 'MMMM')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className={`flex ${isMobile ? 'flex-col gap-3' : 'items-center gap-2'}`}>
+                  <div className={`flex ${isMobile ? 'justify-between' : 'items-center gap-2'}`}>
+                    <span className="text-sm text-muted-foreground">Year:</span>
+                    <Select 
+                      value={selectedCurrentMonthYear.toString()} 
+                      onValueChange={(value) => handleCurrentMonthYearChange(parseInt(value))}
+                    >
+                      <SelectTrigger className={`${isMobile ? 'w-[120px]' : 'w-[100px]'} h-9`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + i).map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className={`flex ${isMobile ? 'justify-between' : 'items-center gap-2'}`}>
+                    <span className="text-sm text-muted-foreground">Month:</span>
+                    <Select 
+                      value={getMonth(selectedMonth).toString()} 
+                      onValueChange={(value) => handleCurrentMonthChange(parseInt(value))}
+                    >
+                      <SelectTrigger className={`${isMobile ? 'w-[140px]' : 'w-[120px]'} h-9`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 12 }, (_, i) => i).map((monthIndex) => (
+                          <SelectItem key={monthIndex} value={monthIndex.toString()}>
+                            {format(new Date(2024, monthIndex, 1), 'MMMM')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1921,6 +1929,7 @@ export function BudgetManager() {
               remainingVariable={variableExpenseSpending.remaining}
               leftToAllocate={leftToAllocate}
               onAddCategoryClick={() => setIsAddCategoryDialogOpen(true)}
+              isMobile={isMobile}
             />
           ) : (
             <div className="flex justify-center items-center h-32">
@@ -1939,6 +1948,7 @@ export function BudgetManager() {
             onDeleteExpense={handleDeleteVariableExpense}
             onEditExpense={handleOpenEditDialog}
             isLoading={isLoading} // Remove the condition that prevents updates when expenses array is empty
+            isMobile={isMobile}
           />
           {console.log('🔍 DEBUG: VariableExpenseList rendered with', { 
             isLoading, 
@@ -1956,6 +1966,7 @@ export function BudgetManager() {
                 onUpdateGoalContribution={(monthIndex, goalId, newAmount) => handleUpdateForecastGoalContribution(monthIndex, goalId, newAmount)}
                 onUpdateSinkingFundContribution={(monthIndex, sinkingFundId, newAmount) => handleUpdateForecastSinkingFundContribution(monthIndex, sinkingFundId, newAmount)}
                 onUpdateDebtAdditionalPayment={(monthIndex, debtId, newAmount) => handleUpdateForecastDebtAdditionalPayment(monthIndex, debtId, newAmount)}
+                isMobile={isMobile}
             />
         </TabsContent>
       </Tabs>
@@ -1965,7 +1976,7 @@ export function BudgetManager() {
         onOpenChange={setIsAddCategoryDialogOpen}
         onExpenseAdded={handleAddVariableExpense}
       >
-        <Button onClick={() => setIsAddCategoryDialogOpen(true)}>
+        <Button onClick={() => setIsAddCategoryDialogOpen(true)} size={isMobile ? "default" : "sm"} className={isMobile ? "w-full" : ""}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add Variable Expense
         </Button>
       </AddEditVariableExpenseDialog>

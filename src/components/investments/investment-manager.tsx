@@ -27,9 +27,11 @@ import {
   updateHolding,
   deleteHolding as deleteHoldingAPI
 } from "@/lib/api/investment-accounts";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function InvestmentManager() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [investmentAccounts, setInvestmentAccounts] = useState<InvestmentAccount[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [isAddAccountDialogOpen, setIsAddAccountDialogOpen] = useState(false);
@@ -304,23 +306,24 @@ export function InvestmentManager() {
         </AlertDescription>
       </Alert>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
-          <MarketOverviewCard />
+      <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : 'grid-cols-1 lg:grid-cols-3 gap-6'}`}>
+        <div className={`${isMobile ? 'w-full' : 'lg:col-span-1'} space-y-6`}>
+          <MarketOverviewCard isMobile={isMobile} />
         </div>
-        <div className="lg:col-span-2 space-y-6">
+        <div className={`${isMobile ? 'w-full' : 'lg:col-span-2'} space-y-6`}>
           <PortfolioSummaryCard 
             totalPortfolioValue={totalPortfolioValue} 
             holdings={holdings} 
             investmentAccounts={investmentAccounts}
+            isMobile={isMobile}
           />
         </div>
       </div>
       
       <Card className="shadow-lg">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className={`flex ${isMobile ? 'flex-col gap-4' : 'flex-row items-center justify-between'} space-y-0 pb-4`}>
             <div>
-                <CardTitle className="text-xl flex items-center gap-2"><Icons.BarChartBig className="h-5 w-5 text-primary"/> Investment Accounts</CardTitle>
+                <CardTitle className={`${isMobile ? 'text-lg' : 'text-xl'} flex items-center gap-2`}><Icons.BarChartBig className="h-5 w-5 text-primary"/> Investment Accounts</CardTitle>
                 <CardDescription>Manage your individual investment accounts.</CardDescription>
             </div>
             <AddInvestmentAccountDialog
@@ -328,7 +331,7 @@ export function InvestmentManager() {
                 onOpenChange={setIsAddAccountDialogOpen}
                 onAccountAdded={handleAddInvestmentAccount}
             >
-                <Button onClick={() => setIsAddAccountDialogOpen(true)} variant="outline" className="bg-card hover:bg-muted">
+                <Button onClick={() => setIsAddAccountDialogOpen(true)} variant="outline" className={`bg-card hover:bg-muted ${isMobile ? 'w-full' : ''}`} size={isMobile ? "default" : "sm"}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Account
                 </Button>
             </AddInvestmentAccountDialog>
@@ -339,18 +342,19 @@ export function InvestmentManager() {
                     accounts={investmentAccounts}
                     onDeleteAccount={handleDeleteInvestmentAccount}
                     onEditAccount={handleEditInvestmentAccount}
+                    isMobile={isMobile}
                 />
             ) : (
                  <div className="text-center text-muted-foreground py-12 border-2 border-dashed border-border rounded-lg bg-muted/30">
                     <Icons.Clock className="mx-auto h-12 w-12 text-muted-foreground/70 mb-4" />
-                    <h3 className="text-xl font-semibold text-foreground mb-2">No Investment Accounts Yet</h3>
+                    <h3 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold text-foreground mb-2`}>No Investment Accounts Yet</h3>
                     <p className="text-muted-foreground mb-6">Add your brokerage, retirement, or other investment accounts to start tracking your portfolio.</p>
                     <AddInvestmentAccountDialog
                         isOpen={isAddAccountDialogOpen}
                         onOpenChange={setIsAddAccountDialogOpen}
                         onAccountAdded={handleAddInvestmentAccount}
                     >
-                        <Button onClick={() => setIsAddAccountDialogOpen(true)}>
+                        <Button onClick={() => setIsAddAccountDialogOpen(true)} size={isMobile ? "default" : "sm"}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Account
                         </Button>
                     </AddInvestmentAccountDialog>
@@ -360,9 +364,9 @@ export function InvestmentManager() {
       </Card>
 
       <Card className="shadow-lg">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className={`flex ${isMobile ? 'flex-col gap-4' : 'flex-row items-center justify-between'} space-y-0 pb-4`}>
             <div>
-                <CardTitle className="text-xl flex items-center gap-2"><Icons.TrendingUp className="h-5 w-5 text-primary"/> Top Holdings</CardTitle>
+                <CardTitle className={`${isMobile ? 'text-lg' : 'text-xl'} flex items-center gap-2`}><Icons.TrendingUp className="h-5 w-5 text-primary"/> Top Holdings</CardTitle>
                 <CardDescription>Overview of your major investment positions.</CardDescription>
             </div>
             <AddHoldingDialog
@@ -371,7 +375,7 @@ export function InvestmentManager() {
                 onHoldingAdded={handleAddHolding}
                 investmentAccounts={investmentAccounts}
             >
-                <Button onClick={() => setIsAddHoldingDialogOpen(true)} variant="outline" className="bg-card hover:bg-muted">
+                <Button onClick={() => setIsAddHoldingDialogOpen(true)} variant="outline" className={`bg-card hover:bg-muted ${isMobile ? 'w-full' : ''}`} size={isMobile ? "default" : "sm"}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Holding
                 </Button>
             </AddHoldingDialog>
@@ -382,11 +386,12 @@ export function InvestmentManager() {
                holdings={holdings} 
                onDeleteHolding={handleDeleteHolding}
                onEditHolding={handleEditHolding}
+               isMobile={isMobile}
              />
            ) : (
              <div className="text-center text-muted-foreground py-12 border-2 border-dashed border-border rounded-lg bg-muted/30">
                 <Icons.LineChartIcon className="mx-auto h-12 w-12 text-muted-foreground/70 mb-4" />
-                <h3 className="text-xl font-semibold text-foreground mb-2">No Holdings Tracked</h3>
+                <h3 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold text-foreground mb-2`}>No Holdings Tracked</h3>
                 <p className="text-muted-foreground mb-6">Add individual stocks, ETFs, or crypto to see your positions here.</p>
                 <AddHoldingDialog
                     isOpen={isAddHoldingDialogOpen}
@@ -394,7 +399,7 @@ export function InvestmentManager() {
                     onHoldingAdded={handleAddHolding}
                     investmentAccounts={investmentAccounts}
                 >
-                    <Button onClick={() => setIsAddHoldingDialogOpen(true)}>
+                    <Button onClick={() => setIsAddHoldingDialogOpen(true)} size={isMobile ? "default" : "sm"}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Holding
                     </Button>
                 </AddHoldingDialog>

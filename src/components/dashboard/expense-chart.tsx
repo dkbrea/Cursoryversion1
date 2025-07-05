@@ -99,7 +99,11 @@ const chartConfig = {
   },
 };
 
-export function ExpenseChart() {
+interface ExpenseChartProps {
+  isMobile?: boolean;
+}
+
+export function ExpenseChart({ isMobile = false }: ExpenseChartProps) {
   const { user } = useAuth();
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -252,27 +256,27 @@ export function ExpenseChart() {
 
   return (
     <Card className="col-span-2 shadow-lg"> 
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
+      <CardHeader className={`${isMobile ? 'flex flex-col space-y-3' : 'flex flex-row items-center justify-between'} pb-2`}>
         <div>
-          <CardTitle>Financial Overview</CardTitle>
-          <CardDescription>Income and expenses over time</CardDescription>
+          <CardTitle className={isMobile ? 'text-lg' : 'text-base'}>Financial Overview</CardTitle>
+          <CardDescription className={isMobile ? 'text-sm' : 'text-sm'}>Income and expenses over time</CardDescription>
         </div>
-        <div className="flex space-x-2">
+        <div className={`flex ${isMobile ? 'w-full justify-center' : 'space-x-2'}`}>
           <button 
             onClick={() => setViewPeriod('week')} 
-            className={`px-3 py-1 text-xs rounded-md ${viewPeriod === 'week' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+            className={`${isMobile ? 'flex-1 px-4 py-2 text-sm' : 'px-3 py-1 text-xs'} rounded-md ${viewPeriod === 'week' ? 'bg-primary text-primary-foreground' : 'bg-muted'} ${isMobile ? 'rounded-l-md rounded-r-none' : ''}`}
           >
             Week
           </button>
           <button 
             onClick={() => setViewPeriod('month')} 
-            className={`px-3 py-1 text-xs rounded-md ${viewPeriod === 'month' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+            className={`${isMobile ? 'flex-1 px-4 py-2 text-sm' : 'px-3 py-1 text-xs'} rounded-md ${viewPeriod === 'month' ? 'bg-primary text-primary-foreground' : 'bg-muted'} ${isMobile ? 'rounded-none' : ''}`}
           >
             Month
           </button>
           <button 
             onClick={() => setViewPeriod('year')} 
-            className={`px-3 py-1 text-xs rounded-md ${viewPeriod === 'year' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+            className={`${isMobile ? 'flex-1 px-4 py-2 text-sm' : 'px-3 py-1 text-xs'} rounded-md ${viewPeriod === 'year' ? 'bg-primary text-primary-foreground' : 'bg-muted'} ${isMobile ? 'rounded-r-md rounded-l-none' : ''}`}
           >
             Year
           </button>
@@ -280,9 +284,9 @@ export function ExpenseChart() {
       </CardHeader>
       <CardContent>
         {hasData ? (
-          <ChartContainer config={chartConfig} className="h-[300px] w-full">
+          <ChartContainer config={chartConfig} className={`${isMobile ? 'h-[250px]' : 'h-[300px]'} w-full`}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: isMobile ? 10 : 30, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(143, 85%, 56%)" stopOpacity={0.8}/>
@@ -300,8 +304,9 @@ export function ExpenseChart() {
                   axisLine={false} 
                   tickMargin={8}
                   tickFormatter={formatXAxisTick}
+                  fontSize={isMobile ? 10 : 12}
                 />
-                <YAxis />
+                <YAxis fontSize={isMobile ? 10 : 12} />
                 <Tooltip
                   content={<ChartTooltipContent indicator="line" />}
                   formatter={(value, name) => {
@@ -310,7 +315,7 @@ export function ExpenseChart() {
                     return [value, name];
                   }}
                 />
-                <Legend />
+                {!isMobile && <Legend />}
                 <Area 
                   type="monotone" 
                   dataKey="income" 
@@ -331,11 +336,11 @@ export function ExpenseChart() {
             </ResponsiveContainer>
           </ChartContainer>
         ) : (
-          <div className="h-[300px] w-full flex flex-col items-center justify-center text-muted-foreground">
+          <div className={`${isMobile ? 'h-[250px]' : 'h-[300px]'} w-full flex flex-col items-center justify-center text-muted-foreground`}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="54"
-              height="54"
+              width={isMobile ? "48" : "54"}
+              height={isMobile ? "48" : "54"}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -347,42 +352,42 @@ export function ExpenseChart() {
               <path d="M3 3v18h18" />
               <path d="m19 9-5 5-4-4-3 3" />
             </svg>
-            <p className="text-center mb-2">No transaction data available</p>
-            <p className="text-center text-sm">Add transactions to see your financial trends</p>
+            <p className={`text-center mb-2 ${isMobile ? 'text-sm' : ''}`}>No transaction data available</p>
+            <p className={`text-center ${isMobile ? 'text-xs' : 'text-sm'}`}>Add transactions to see your financial trends</p>
           </div>
         )}
       </CardContent>
-      <CardFooter className="flex justify-between items-center pt-6 border-t">
-        <div className="flex items-center gap-6">
+      <CardFooter className={`${isMobile ? 'flex flex-col space-y-4' : 'flex justify-between items-center'} pt-6 border-t`}>
+        <div className={`flex ${isMobile ? 'w-full justify-around' : 'items-center gap-6'}`}>
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-green-500"></span>
-              <span className="text-sm text-muted-foreground">Income</span>
+              <span className={`${isMobile ? 'w-3 h-3' : 'w-3 h-3'} rounded-full bg-green-500`}></span>
+              <span className={`${isMobile ? 'text-sm' : 'text-sm'} text-muted-foreground`}>Income</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold">{formatCurrency(totalIncome)}</span>
-              <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">+8%</span>
+            <div className={`flex items-center ${isMobile ? 'flex-col space-y-1' : 'gap-2'}`}>
+              <span className={`${isMobile ? 'text-lg' : 'text-lg'} font-bold`}>{formatCurrency(totalIncome)}</span>
+              {!isMobile && <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">+8%</span>}
             </div>
           </div>
           
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-red-500"></span>
-              <span className="text-sm text-muted-foreground">Expenses</span>
+              <span className={`${isMobile ? 'w-3 h-3' : 'w-3 h-3'} rounded-full bg-red-500`}></span>
+              <span className={`${isMobile ? 'text-sm' : 'text-sm'} text-muted-foreground`}>Expenses</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold">-{formatCurrency(totalExpense)}</span>
-              <span className="text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded">-3%</span>
+            <div className={`flex items-center ${isMobile ? 'flex-col space-y-1' : 'gap-2'}`}>
+              <span className={`${isMobile ? 'text-lg' : 'text-lg'} font-bold`}>-{formatCurrency(totalExpense)}</span>
+              {!isMobile && <span className="text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded">-3%</span>}
             </div>
           </div>
         </div>
         
-        <div className="flex flex-col items-end gap-1">
+        <div className={`flex flex-col ${isMobile ? 'items-center w-full' : 'items-end'} gap-1`}>
           <div className="flex items-center gap-2">
-            <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Net</span>
+            <ArrowDownUp className={`${isMobile ? 'h-4 w-4' : 'h-4 w-4'} text-muted-foreground`} />
+            <span className={`${isMobile ? 'text-sm' : 'text-sm'} text-muted-foreground`}>Net</span>
           </div>
-          <span className={`text-lg font-bold ${totalIncome - totalExpense >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <span className={`${isMobile ? 'text-xl' : 'text-lg'} font-bold ${totalIncome - totalExpense >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(totalIncome - totalExpense)}
           </span>
         </div>

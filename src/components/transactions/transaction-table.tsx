@@ -6,9 +6,11 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Wand2, Trash2, Edit3, MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -31,6 +33,7 @@ export function TransactionTable({
   onDeleteTransaction, onEditTransaction,
 }: TransactionTableProps) {
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+  const isMobile = useIsMobile();
   
   // Helper function to format currency with commas
   const formatCurrency = (amount: number): string => {
@@ -144,9 +147,83 @@ export function TransactionTable({
   };
 
   if (transactions.length === 0) {
-    return <p className="text-muted-foreground mt-4 text-center py-6">No transactions yet. Click "Add Transaction" to get started.</p>;
+    return <p className={`text-muted-foreground mt-4 text-center ${isMobile ? 'py-4 text-sm' : 'py-6'}`}>No transactions yet. Click "Add Transaction" to get started.</p>;
   }
 
+  // Mobile Card Layout
+  if (isMobile) {
+    return (
+      <>
+        <div className="space-y-3">
+          {transactions.map((transaction) => (
+            <Card key={transaction.id} className="border">
+              <CardContent className="p-4">
+                <div className="flex flex-col space-y-3">
+                  {/* Header row with description and amount */}
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-base truncate">{transaction.description}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {format(new Date(transaction.date), "MMM dd, yyyy")}
+                      </p>
+                    </div>
+                    <div className="text-right ml-3">
+                      <p className={cn("font-bold text-lg", getAmountColor(transaction.type, transaction.detailedType))}>
+                        {transaction.type === 'income' ? '+' : '-'}${formatCurrency(Math.abs(transaction.amount))}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Account and Category info */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Account:</span>
+                      <span className="text-sm font-medium">{getAccountName(transaction)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs ${getTransactionTypeColor(transaction.type, transaction.detailedType)}`}
+                      >
+                        {getTransactionTypeLabel(transaction.type, transaction.detailedType)}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {getCategoryName(transaction.categoryId, transaction)}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex justify-end gap-2 pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onEditTransaction(transaction)}
+                      className="flex items-center gap-2"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteClick(transaction)}
+                      className="flex items-center gap-2 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </>
+    );
+  }
+
+  // Desktop Table Layout
   return (
     <>
       <Table>

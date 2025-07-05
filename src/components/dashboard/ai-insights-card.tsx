@@ -101,7 +101,11 @@ const healthColors = {
   needs_attention: 'text-red-600',
 };
 
-export function DashboardAIInsightsCard() {
+interface DashboardAIInsightsCardProps {
+  isMobile?: boolean;
+}
+
+export function DashboardAIInsightsCard({ isMobile = false }: DashboardAIInsightsCardProps) {
   const [insights, setInsights] = useState<DashboardInsightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -158,12 +162,12 @@ export function DashboardAIInsightsCard() {
   if (loading) {
     return (
       <Card className="border-l-4 border-l-emerald-500">
-        <CardContent className="p-4">
+        <CardContent className={isMobile ? "p-3" : "p-4"}>
           <div className="flex items-center gap-3">
-            <Gem className="h-5 w-5 text-emerald-600" />
+            <Gem className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-emerald-600`} />
             <div className="flex-1">
-              <Skeleton className="h-4 w-3/4 mb-2" />
-              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className={`${isMobile ? 'h-3' : 'h-4'} w-3/4 mb-2`} />
+              <Skeleton className={`${isMobile ? 'h-2' : 'h-3'} w-1/2`} />
             </div>
           </div>
         </CardContent>
@@ -171,20 +175,20 @@ export function DashboardAIInsightsCard() {
     );
   }
 
-  if (error || !insights) {
+  if (error || !insights || !insights.summary) {
     return (
       <Card className="border-l-4 border-l-emerald-500">
-        <CardContent className="p-4">
+        <CardContent className={isMobile ? "p-3" : "p-4"}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Gem className="h-5 w-5 text-emerald-600" />
+              <Gem className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-emerald-600`} />
               <div>
-                <p className="text-sm font-medium text-gray-900">Jade-powered Insights</p>
-                <p className="text-xs text-gray-500">Unable to load insights</p>
+                <p className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-gray-900`}>Jade-powered Insights</p>
+                <p className={`${isMobile ? 'text-xs' : 'text-xs'} text-gray-500`}>Unable to load insights</p>
               </div>
             </div>
             <Button variant="ghost" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`${isMobile ? 'h-3 w-3' : 'h-4 w-4'}`} />
             </Button>
           </div>
         </CardContent>
@@ -195,7 +199,7 @@ export function DashboardAIInsightsCard() {
   // Get only the top 1-2 highest priority insights for compact display
   const topInsights = insights.insights
     .sort((a, b) => b.priority - a.priority)
-    .slice(0, 2);
+    .slice(0, isMobile ? 1 : 2);
   
   if (topInsights.length === 0) {
     return null;
@@ -203,14 +207,14 @@ export function DashboardAIInsightsCard() {
 
   return (
     <Card className="border-l-4 border-l-emerald-500">
-      <CardContent className="p-3">
-        <div className="flex items-center justify-between mb-2">
+      <CardContent className={isMobile ? "p-3" : "p-3"}>
+        <div className={`flex items-center justify-between ${isMobile ? 'mb-3' : 'mb-2'}`}>
           <div className="flex items-center gap-2">
-            <Gem className="h-3 w-3 text-emerald-600" />
-            <span className="text-xs font-medium text-emerald-700">Jade-powered Insights</span>
+            <Gem className={`${isMobile ? 'h-4 w-4' : 'h-3 w-3'} text-emerald-600`} />
+            <span className={`${isMobile ? 'text-sm' : 'text-xs'} font-medium text-emerald-700`}>Jade-powered Insights</span>
             <Badge 
               variant="outline" 
-              className={cn("text-xs px-1 py-0", healthColors[insights.summary.overallHealth])}
+              className={cn(`${isMobile ? 'text-xs' : 'text-xs'} px-1 py-0`, healthColors[insights.summary.overallHealth])}
             >
               {insights.summary.overallHealth.replace('_', ' ')}
             </Badge>
@@ -220,13 +224,13 @@ export function DashboardAIInsightsCard() {
             size="sm" 
             onClick={handleRefresh}
             disabled={refreshing}
-            className="h-6 w-6 p-0"
+            className={`${isMobile ? 'h-8 w-8' : 'h-6 w-6'} p-0`}
           >
-            <RefreshCw className={cn("h-2 w-2", refreshing && "animate-spin")} />
+            <RefreshCw className={cn(`${isMobile ? 'h-3 w-3' : 'h-2 w-2'}`, refreshing && "animate-spin")} />
           </Button>
         </div>
 
-        <div className="space-y-2">
+        <div className={isMobile ? "space-y-3" : "space-y-2"}>
           {topInsights.map((insight, index) => {
             const TypeIcon = typeIcons[insight.type];
             const SeverityIcon = severityConfig[insight.severity].icon;
@@ -236,34 +240,40 @@ export function DashboardAIInsightsCard() {
               <div 
                 key={index}
                 className={cn(
-                  "p-2 rounded border",
+                  `${isMobile ? 'p-3' : 'p-2'} rounded border`,
                   config.bgColor,
                   config.borderColor
                 )}
               >
                 <div className="flex items-start gap-2">
-                  <TypeIcon className={cn("h-3 w-3 mt-0.5 flex-shrink-0", config.iconColor)} />
+                  <TypeIcon className={cn(`${isMobile ? 'h-4 w-4' : 'h-3 w-3'} mt-0.5 flex-shrink-0`, config.iconColor)} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <h4 className={cn("font-medium text-xs", config.textColor)}>
+                    <div className={`flex items-center gap-1 ${isMobile ? 'mb-2' : 'mb-0.5'}`}>
+                      <h4 className={cn(`font-medium ${isMobile ? 'text-sm' : 'text-xs'}`, config.textColor)}>
                         {insight.title}
                       </h4>
                       {insight.data?.trend && (
                         <div className="flex items-center">
-                          {insight.data.trend === 'improving' && <TrendingUp className="h-2 w-2 text-green-500" />}
-                          {insight.data.trend === 'declining' && <TrendingDown className="h-2 w-2 text-red-500" />}
+                          {insight.data.trend === 'improving' && <TrendingUp className={`${isMobile ? 'h-3 w-3' : 'h-2 w-2'} text-green-500`} />}
+                          {insight.data.trend === 'declining' && <TrendingDown className={`${isMobile ? 'h-3 w-3' : 'h-2 w-2'} text-red-500`} />}
                         </div>
                       )}
-                      <SeverityIcon className={cn("h-2 w-2", config.iconColor)} />
+                      <SeverityIcon className={cn(`${isMobile ? 'h-3 w-3' : 'h-2 w-2'}`, config.iconColor)} />
                     </div>
-                    <p className="text-xs text-gray-600 leading-tight">
-                      {insight.message.length > 200 ? `${insight.message.substring(0, 200)}...` : insight.message}
+                    <p className={`${isMobile ? 'text-sm' : 'text-xs'} text-gray-600 leading-tight`}>
+                      {isMobile ? 
+                        (insight.message.length > 150 ? `${insight.message.substring(0, 150)}...` : insight.message) :
+                        (insight.message.length > 200 ? `${insight.message.substring(0, 200)}...` : insight.message)
+                      }
                     </p>
                     
                     {/* Show compact suggestion */}
                     {insight.suggestions && insight.suggestions.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        💎 {insight.suggestions[0].length > 80 ? `${insight.suggestions[0].substring(0, 80)}...` : insight.suggestions[0]}
+                      <p className={`${isMobile ? 'text-sm' : 'text-xs'} text-gray-500 ${isMobile ? 'mt-2' : 'mt-1'}`}>
+                        💎 {isMobile ? 
+                          (insight.suggestions[0].length > 100 ? `${insight.suggestions[0].substring(0, 100)}...` : insight.suggestions[0]) :
+                          (insight.suggestions[0].length > 80 ? `${insight.suggestions[0].substring(0, 80)}...` : insight.suggestions[0])
+                        }
                       </p>
                     )}
                   </div>

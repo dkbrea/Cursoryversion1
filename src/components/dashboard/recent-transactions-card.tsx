@@ -16,6 +16,7 @@ interface RecentTransactionsCardProps {
   onAddTransaction?: () => void;
   onEditTransaction?: (transaction: Transaction) => void;
   onDeleteTransaction?: (transactionId: string) => void;
+  isMobile?: boolean;
 }
 
 export function RecentTransactionsCard({ 
@@ -26,7 +27,8 @@ export function RecentTransactionsCard({
   limit = 5, 
   onAddTransaction,
   onEditTransaction,
-  onDeleteTransaction
+  onDeleteTransaction,
+  isMobile = false
 }: RecentTransactionsCardProps) {
   // Sort transactions by date (most recent first) and limit the results
   const recentTransactions = transactions
@@ -125,24 +127,24 @@ export function RecentTransactionsCard({
 
   if (recentTransactions.length === 0) {
     return (
-      <Card>
+      <Card className={isMobile ? 'w-full max-w-full overflow-hidden' : ''}>
         <CardHeader>
-          <div className="flex items-start justify-between">
+          <div className={`flex ${isMobile ? 'flex-col space-y-3' : 'items-start justify-between'}`}>
             <div>
-              <CardTitle>Recent Transactions</CardTitle>
-              <CardDescription>Your latest financial activity</CardDescription>
+              <CardTitle className={isMobile ? 'text-lg' : 'text-base'}>Recent Transactions</CardTitle>
+              <CardDescription className={isMobile ? 'text-sm' : 'text-sm'}>Your latest financial activity</CardDescription>
             </div>
             {onAddTransaction && (
-              <Button onClick={onAddTransaction} size="sm">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button onClick={onAddTransaction} size={isMobile ? "default" : "sm"} className={isMobile ? 'w-full' : ''}>
+                <Plus className={`${isMobile ? 'h-4 w-4' : 'h-4 w-4'} mr-2`} />
                 Add Transaction
               </Button>
             )}
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-6 text-muted-foreground">
-            No transactions found
+          <div className={`text-center ${isMobile ? 'py-4' : 'py-6'} text-muted-foreground`}>
+            <p className={isMobile ? 'text-sm' : ''}>No transactions found</p>
           </div>
         </CardContent>
       </Card>
@@ -150,97 +152,139 @@ export function RecentTransactionsCard({
   }
 
   return (
-    <Card>
+    <Card className={isMobile ? 'w-full max-w-full overflow-hidden' : ''}>
       <CardHeader>
-        <div className="flex items-start justify-between">
+        <div className={`flex ${isMobile ? 'flex-col space-y-3' : 'items-start justify-between'}`}>
           <div>
-            <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>Your latest {limit} transactions</CardDescription>
+            <CardTitle className={isMobile ? 'text-lg' : 'text-base'}>Recent Transactions</CardTitle>
+            <CardDescription className={isMobile ? 'text-sm' : 'text-sm'}>Your latest {limit} transactions</CardDescription>
           </div>
           {onAddTransaction && (
-            <Button onClick={onAddTransaction} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button onClick={onAddTransaction} size={isMobile ? "default" : "sm"} className={isMobile ? 'w-full' : ''}>
+              <Plus className={`${isMobile ? 'h-4 w-4' : 'h-4 w-4'} mr-2`} />
               Add Transaction
             </Button>
           )}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className={isMobile ? 'space-y-2' : 'space-y-4'}>
           {recentTransactions.map((transaction) => (
             <div
               key={transaction.id}
-              className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+              className={`${isMobile ? 'flex items-center justify-between' : 'flex items-center justify-between'} ${isMobile ? 'p-3' : 'p-3'} rounded-lg border bg-card hover:bg-accent/5 transition-colors`}
             >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className={`p-2 rounded-full ${getTransactionTypeColor(transaction.type, transaction.detailedType)}`}>
-                  {getTransactionIcon(transaction.type, transaction.detailedType)}
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium text-sm truncate">
-                      {transaction.description}
-                    </p>
-                    <Badge 
-                      variant="secondary" 
-                      className={`text-xs ${getTransactionTypeColor(transaction.type, transaction.detailedType)}`}
-                    >
-                      {getTransactionTypeLabel(transaction.type, transaction.detailedType)}
-                    </Badge>
+              {isMobile ? (
+                // Ultra-Compact Mobile Layout
+                <>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                    <div className={`p-1 rounded-full flex-shrink-0 ${getTransactionTypeColor(transaction.type, transaction.detailedType)}`}>
+                      {getTransactionIcon(transaction.type, transaction.detailedType)}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="font-medium text-xs truncate">
+                        {transaction.description}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {formatDate(transaction.date).split(',')[0]}
+                      </p>
+                    </div>
                   </div>
                   
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{getAccountName(transaction)}</span>
-                    <span>•</span>
-                    <span>{getCategoryName(transaction.categoryId)}</span>
-                    <span>•</span>
-                    <span>{formatDate(transaction.date)}</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <p className={`text-xs font-semibold text-right min-w-0 ${getAmountColor(transaction.type, transaction.detailedType)}`}>
+                      {transaction.type === 'income' ? '+' : transaction.type === 'expense' ? '-' : ''}
+                      {formatCurrency(Math.abs(transaction.amount))}
+                    </p>
+                    
+                    {onEditTransaction && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEditTransaction(transaction)}
+                        className="h-6 w-6 p-0 hover:bg-blue-100 flex-shrink-0"
+                        title="Edit"
+                      >
+                        <Edit className="h-3 w-3 text-blue-600" />
+                      </Button>
+                    )}
                   </div>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <div className="text-right">
-                  <p className={`font-semibold ${getAmountColor(transaction.type, transaction.detailedType)}`}>
-                    {transaction.type === 'income' ? '+' : transaction.type === 'expense' ? '-' : ''}
-                    {formatCurrency(Math.abs(transaction.amount))}
-                  </p>
-                </div>
-                
-                {/* Edit and Delete buttons */}
-                <div className="flex items-center gap-1 ml-2">
-                  {onEditTransaction && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEditTransaction(transaction)}
-                      className="h-8 w-8 p-0 hover:bg-blue-100"
-                      title="Edit transaction"
-                    >
-                      <Edit className="h-4 w-4 text-blue-600" />
-                    </Button>
-                  )}
-                  {onDeleteTransaction && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDeleteTransaction(transaction.id)}
-                      className="h-8 w-8 p-0 hover:bg-red-100"
-                      title="Delete transaction"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  )}
-                </div>
-              </div>
+                </>
+              ) : (
+                // Desktop Layout
+                <>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={`p-2 rounded-full ${getTransactionTypeColor(transaction.type, transaction.detailedType)}`}>
+                      {getTransactionIcon(transaction.type, transaction.detailedType)}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium text-sm truncate">
+                          {transaction.description}
+                        </p>
+                        <Badge 
+                          variant="secondary" 
+                          className={`text-xs ${getTransactionTypeColor(transaction.type, transaction.detailedType)}`}
+                        >
+                          {getTransactionTypeLabel(transaction.type, transaction.detailedType)}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{getAccountName(transaction)}</span>
+                        <span>•</span>
+                        <span>{getCategoryName(transaction.categoryId)}</span>
+                        <span>•</span>
+                        <span>{formatDate(transaction.date)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className={`font-semibold ${getAmountColor(transaction.type, transaction.detailedType)}`}>
+                        {transaction.type === 'income' ? '+' : transaction.type === 'expense' ? '-' : ''}
+                        {formatCurrency(Math.abs(transaction.amount))}
+                      </p>
+                    </div>
+                    
+                    {/* Edit and Delete buttons */}
+                    <div className="flex items-center gap-1 ml-2">
+                      {onEditTransaction && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onEditTransaction(transaction)}
+                          className="h-8 w-8 p-0 hover:bg-blue-100"
+                          title="Edit transaction"
+                        >
+                          <Edit className="h-4 w-4 text-blue-600" />
+                        </Button>
+                      )}
+                      {onDeleteTransaction && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onDeleteTransaction(transaction.id)}
+                          className="h-8 w-8 p-0 hover:bg-red-100"
+                          title="Delete transaction"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
         
         {transactions.length > limit && (
           <div className="mt-4 text-center">
-            <p className="text-sm text-muted-foreground">
+            <p className={`${isMobile ? 'text-sm' : 'text-sm'} text-muted-foreground`}>
               Showing {limit} of {transactions.length} transactions
             </p>
           </div>

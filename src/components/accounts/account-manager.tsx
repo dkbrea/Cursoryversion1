@@ -11,9 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccounts, createAccount, updateAccount, deleteAccount } from "@/lib/api/accounts";
 import { getDebtAccounts } from "@/lib/api/debts";
-
-
-
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function AccountManager() {
   const [assetAccounts, setAssetAccounts] = useState<Account[]>([]);
@@ -25,6 +23,7 @@ export function AccountManager() {
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   // Fetch accounts from the database
   useEffect(() => {
@@ -303,6 +302,7 @@ export function AccountManager() {
             onSetPrimaryAccount={handleSetPrimaryAccount} // Only affects asset accounts from here
             onEditAccount={handleEditAccount} // Only affects asset accounts from here
             isUpdating={isUpdating}
+            isMobile={isMobile}
           />
           {allDisplayAccounts.length === 0 && (
             <div className="text-center text-muted-foreground py-10">
