@@ -20,6 +20,8 @@ import {
   startOfMonth, endOfMonth, isWithinInterval, isSameMonth, getYear, format, subMonths
 } from "date-fns";
 import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence, adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
+import { getYearlyOccurrences } from "@/lib/utils/occurrence-generator";
+import { generateOccurrenceId } from "@/lib/utils/recurring-calculations";
 import { getAccounts } from "@/lib/api/accounts";
 import { getDebtAccounts } from "@/lib/api/debts";
 import { getCategories } from "@/lib/api/categories";
@@ -38,6 +40,7 @@ export function RecurringManager() {
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [unifiedList, setUnifiedList] = useState<UnifiedRecurringListItem[]>([]);
+  const [baseItemsForCalendar, setBaseItemsForCalendar] = useState<UnifiedRecurringListItem[]>([]);
   const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -163,7 +166,11 @@ export function RecurringManager() {
       !item.name.startsWith('Debt Payment Placeholder -')
     );
     
-    const transformedRecurringItems: UnifiedRecurringListItem[] = filteredRecurringItems.map(item => {
+    const allRecurringOccurrences: UnifiedRecurringListItem[] = [];
+    const baseRecurringItems: UnifiedRecurringListItem[] = [];
+    
+    // Process each recurring item
+    filteredRecurringItems.forEach(item => {
       const nextOccurrenceDate = calculateNextRecurringItemOccurrence(item);
       const itemEndDate = item.endDate ? startOfDay(new Date(item.endDate)) : null;
       let status: UnifiedRecurringListItem['status'] = "Upcoming";
@@ -175,8 +182,9 @@ export function RecurringManager() {
       } else if (nextOccurrenceDate < today) {
         status = "Ended";
       }
-      
-      return {
+
+      // Create base item for calendar view (always single occurrence per item)
+      const baseUnifiedItem: UnifiedRecurringListItem = {
         id: item.id,
         name: item.name,
         itemDisplayType: item.type,
@@ -194,8 +202,35 @@ export function RecurringManager() {
         categoryId: item.categoryId,
         source: 'recurring',
       };
+      
+      baseRecurringItems.push(baseUnifiedItem);
+
+      if (item.frequency === 'monthly') {
+        // For monthly items: show only single next occurrence (same for both views)
+        allRecurringOccurrences.push(baseUnifiedItem);
+      } else {
+        // For non-monthly items: show multiple occurrences within next 30 days (list view only)
+        const multipleOccurrences = getYearlyOccurrences([baseUnifiedItem], new Date());
+        const endDate = addDays(today, 30);
+        
+        multipleOccurrences
+          .filter(occurrence => occurrence.nextOccurrenceDate >= today && occurrence.nextOccurrenceDate <= endDate)
+          .forEach(occurrence => {
+            let status: UnifiedRecurringListItem['status'] = "Upcoming";
+            if (isSameDay(occurrence.nextOccurrenceDate, today)) {
+              status = "Today";
+            }
+            
+            allRecurringOccurrences.push({
+              ...occurrence,
+              status,
+              id: `${occurrence.id}-${format(occurrence.nextOccurrenceDate, 'yyyy-MM-dd')}`, // Unique ID for each occurrence
+            });
+          });
+      }
     });
 
+    // Process debt items (keep original single occurrence logic for all debt items)
     const transformedDebtItems: UnifiedRecurringListItem[] = debtAccounts.map(debt => {
       const nextOccurrenceDate = calculateNextDebtOccurrence(debt);
       return {
@@ -211,13 +246,28 @@ export function RecurringManager() {
       };
     });
 
-    const combined = [...transformedRecurringItems, ...transformedDebtItems];
-    combined.sort((a, b) => {
+    // Combined list for list view (expanded occurrences)
+    const combinedListView = [...allRecurringOccurrences, ...transformedDebtItems];
+    combinedListView.sort((a, b) => {
+        if (a.status === "Today" && b.status !== "Today") return -1;
+        if (b.status === "Today" && a.status !== "Today") return 1;
         if (a.status === "Ended" && b.status !== "Ended") return 1;
         if (b.status === "Ended" && a.status !== "Ended") return -1;
         return new Date(a.nextOccurrenceDate).getTime() - new Date(b.nextOccurrenceDate).getTime();
     });
-    setUnifiedList(combined);
+    
+    // Combined list for calendar view (base items only)
+    const combinedCalendarView = [...baseRecurringItems, ...transformedDebtItems];
+    combinedCalendarView.sort((a, b) => {
+        if (a.status === "Today" && b.status !== "Today") return -1;
+        if (b.status === "Today" && a.status !== "Today") return 1;
+        if (a.status === "Ended" && b.status !== "Ended") return 1;
+        if (b.status === "Ended" && a.status !== "Ended") return -1;
+        return new Date(a.nextOccurrenceDate).getTime() - new Date(b.nextOccurrenceDate).getTime();
+    });
+    
+    setUnifiedList(combinedListView);
+    setBaseItemsForCalendar(combinedCalendarView);
 
   }, [recurringItems, debtAccounts]);
 
@@ -461,8 +511,8 @@ export function RecurringManager() {
     let currentSubscriptions = 0;
     let currentDebtPayments = 0;
 
-    // Use the same comprehensive calculation logic as the calendar
-    unifiedList.forEach(unifiedItem => {
+    // Use base items for calendar (avoid double-counting expanded list view items)
+    baseItemsForCalendar.forEach(unifiedItem => {
       if (unifiedItem.source === 'debt') {
         // For debt payments, calculate occurrences in the displayed month
         const currentYear = getYear(displayedMonth);
@@ -683,7 +733,7 @@ export function RecurringManager() {
       debtPayments: currentDebtPayments,
     });
 
-  }, [unifiedList, displayedMonth]);
+  }, [baseItemsForCalendar, displayedMonth]);
 
   const handleAddRecurringItem = (newItemData: Omit<RecurringItem, "id" | "userId" | "createdAt">) => {
     if (!user?.id) return;
@@ -907,7 +957,7 @@ export function RecurringManager() {
         </TabsContent>
         <TabsContent value="calendar">
           <RecurringCalendarView 
-            items={unifiedList} 
+            items={baseItemsForCalendar} 
             onMonthChange={setDisplayedMonth}
             onItemClick={handleCalendarItemClick}
             completedItems={completedItems}
