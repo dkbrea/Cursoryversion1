@@ -10,6 +10,7 @@ import {
   differenceInWeeks, differenceInMonths
 } from "date-fns";
 import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence } from "./date-calculations";
+import { calculateRecurringOccurrences } from "./recurring-calculations";
 import { getVariableExpenseSpending } from "../api/transactions";
 
 // Generate individual paycheck events from all income sources
@@ -619,29 +620,25 @@ export const getExpensesDuePeriod = (
 
 // Get all occurrences of a recurring item within a date range
 export const getOccurrencesInPeriod = (item: RecurringItem, startDate: Date, endDate: Date): Date[] => {
-  const occurrences: Date[] = [];
-  // Use the user-supplied next expected pay date or item.startDate as the anchor
-  let anchorDate = item.startDate ? startOfDay(new Date(item.startDate)) : startOfDay(new Date());
-  // Backtrack from anchorDate by frequency until we reach or pass startDate
-  let firstOccurrence = new Date(anchorDate);
-  while (firstOccurrence > startDate) {
-    firstOccurrence = getPreviousOccurrence(firstOccurrence, item.frequency);
-    // Prevent infinite loop if frequency is invalid
-    if (firstOccurrence.getTime() === anchorDate.getTime()) break;
-    anchorDate = new Date(firstOccurrence);
-  }
-  // If we went past startDate, move forward one step to the first on/after startDate
-  while (firstOccurrence < startDate) {
-    firstOccurrence = getNextOccurrence(firstOccurrence, item.frequency);
-  }
-  // Now generate all occurrences from firstOccurrence up to endDate
-  let currentDate = new Date(firstOccurrence);
-  while (currentDate <= endDate) {
-    if (!item.endDate || currentDate <= item.endDate) {
-      occurrences.push(new Date(currentDate));
-    }
-    currentDate = getNextOccurrence(currentDate, item.frequency);
-  }
+  // Calculate the proper next occurrence date using the same logic as recurring manager
+  const nextOccurrenceDate = calculateNextRecurringItemOccurrence(item);
+  
+  // Convert RecurringItem to UnifiedRecurringListItem format for consistent calculation
+  const unifiedItem = {
+    ...item,
+    itemDisplayType: item.type as any,
+    nextOccurrenceDate: nextOccurrenceDate,
+    status: 'Upcoming' as const,
+    isDebt: false,
+    source: 'recurring' as const,
+    semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
+    semiMonthlySecondPayDate: item.semiMonthlySecondPayDate,
+    lastRenewalDate: item.lastRenewalDate
+  };
+  
+  // Use the same calculation logic as the recurring items list for consistency
+  const occurrences = calculateRecurringOccurrences(unifiedItem, startDate, endDate);
+  
   return occurrences;
 };
 

@@ -1628,12 +1628,12 @@ export function PaycheckPulseManager() {
 
   const { past, current, future } = categorizeBreakdowns();
 
-  // Only sync selectedPlan from preferences (not allocationMode/mainTab)
+  // Only sync selectedPlan from preferences on initial load (not on every preference change)
   useEffect(() => {
     if (paycheckPreferences.activeManualPlan && PLAN_KEYS.includes(paycheckPreferences.activeManualPlan as PlanKey)) {
       setSelectedPlan(paycheckPreferences.activeManualPlan as PlanKey);
     }
-  }, [paycheckPreferences]);
+  }, [paycheckPreferences.activeManualPlan]); // Only react to activeManualPlan changes, not all preference changes
 
   // Filter items that have occurrences within the selected period
   const getFilteredItemsForPeriod = (items: any[], itemType: 'recurring' | 'debt' = 'recurring') => {
@@ -1937,7 +1937,7 @@ export function PaycheckPulseManager() {
                     type="date"
                     className={`rounded-lg border border-gray-300 ${isMobile ? 'px-2 py-2 text-sm w-full' : 'px-3 py-2 text-base'} focus:outline-none focus:ring-2 focus:ring-primary-200`}
                     value={manualStartDate ? manualStartDate.toISOString().slice(0, 10) : ''}
-                    onChange={e => handleManualDateChange(setManualStartDate, e.target.value ? new Date(e.target.value) : null)}
+                    onChange={e => handleManualDateChange(setManualStartDate, e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
                   />
                   {!isMobile && <span className="text-gray-400 font-semibold">to</span>}
                   {isMobile && <span className="text-gray-400 font-semibold text-center text-sm">to</span>}
@@ -1945,7 +1945,7 @@ export function PaycheckPulseManager() {
                     type="date"
                     className={`rounded-lg border border-gray-300 ${isMobile ? 'px-2 py-2 text-sm w-full' : 'px-3 py-2 text-base'} focus:outline-none focus:ring-2 focus:ring-primary-200`}
                     value={manualEndDate ? manualEndDate.toISOString().slice(0, 10) : ''}
-                    onChange={e => handleManualDateChange(setManualEndDate, e.target.value ? new Date(e.target.value) : null)}
+                    onChange={e => handleManualDateChange(setManualEndDate, e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
                   />
                 </div>
               </div>

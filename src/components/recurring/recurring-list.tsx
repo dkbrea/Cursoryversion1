@@ -150,7 +150,7 @@ export function RecurringList({ items, onDeleteItem, onEditItem }: RecurringList
                     </Badge>
                   </TableCell>
                   <TableCell className={`text-right font-semibold ${getAmountTextColor(item.itemDisplayType)}`}>
-                    ${item.amount.toFixed(2)}
+                    ${item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell>{formatFrequencyDisplay(item.frequency)}</TableCell>
                   <TableCell>
