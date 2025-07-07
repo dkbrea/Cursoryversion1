@@ -21,15 +21,7 @@ export const generatePaycheckPeriods = (
 ): PaycheckPeriod[] => {
   const incomeItems = recurringItems.filter(item => item.type === 'income');
   
-  console.log('Found income items:', incomeItems.map(item => ({
-    name: item.name,
-    amount: item.amount,
-    frequency: item.frequency,
-    type: item.type
-  })));
-  
   if (incomeItems.length === 0) {
-    console.log('No income items found, using defaults');
     return generateDefaultPaycheckPeriods(startDate, periodsCount, 'bi-weekly', 3000, pastPeriodsCount);
   }
 
@@ -37,31 +29,20 @@ export const generatePaycheckPeriods = (
   const allPaycheckEvents: PaycheckEvent[] = [];
   
   incomeItems.forEach(incomeItem => {
-    console.log(`Generating events for: ${incomeItem.name}`);
     const paycheckEvents = generatePaycheckEventsForIncome(
       incomeItem,
       startDate,
       periodsCount,
       pastPeriodsCount
     );
-    console.log(`Generated ${paycheckEvents.length} events for ${incomeItem.name}`);
     allPaycheckEvents.push(...paycheckEvents);
   });
 
-  console.log(`Total paycheck events before sorting: ${allPaycheckEvents.length}`);
-  
   // Sort all paycheck events chronologically
   allPaycheckEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
-  
-  console.log('Sorted paycheck events:', allPaycheckEvents.map(event => ({
-    date: event.date.toISOString().split('T')[0],
-    source: event.source,
-    amount: event.amount
-  })));
 
   // Convert paycheck events to periods with proper expense allocation
   const periods = convertEventsToPeriodsWithExpenseAllocation(allPaycheckEvents);
-  console.log(`Final periods generated: ${periods.length}`);
   
   return periods;
 };
@@ -88,13 +69,8 @@ const generatePaycheckEventsForIncome = (
     const today = startOfDay(new Date());
     const rangeEnd = addMonths(today, Math.ceil(periodsCount / 4)); // Go forward based on periods
 
-    console.log(`Generating events for ${incomeItem.name} between ${rangeStart.toISOString().split('T')[0]} and ${rangeEnd.toISOString().split('T')[0]}`);
-    
     // Get all occurrences of this income item within the date range
     const occurrences = getOccurrencesInPeriod(incomeItem, rangeStart, rangeEnd);
-    
-    console.log(`Found ${occurrences.length} occurrences for ${incomeItem.name}:`, 
-      occurrences.map(date => date.toISOString().split('T')[0]));
     
     // Convert occurrences to paycheck events
     occurrences.forEach((date, index) => {
@@ -105,8 +81,6 @@ const generatePaycheckEventsForIncome = (
         incomeItemId: incomeItem.id
       });
     });
-    
-    console.log(`Generated ${events.length} events for ${incomeItem.name}`);
     
   } catch (error) {
     console.error(`Error generating events for ${incomeItem.name}:`, error);
@@ -644,7 +618,7 @@ export const getExpensesDuePeriod = (
 };
 
 // Get all occurrences of a recurring item within a date range
-const getOccurrencesInPeriod = (item: RecurringItem, startDate: Date, endDate: Date): Date[] => {
+export const getOccurrencesInPeriod = (item: RecurringItem, startDate: Date, endDate: Date): Date[] => {
   const occurrences: Date[] = [];
   // Use the user-supplied next expected pay date or item.startDate as the anchor
   let anchorDate = item.startDate ? startOfDay(new Date(item.startDate)) : startOfDay(new Date());
@@ -1290,25 +1264,37 @@ export const generatePaycheckBreakdownWithSinkingFunds = (
   goals: FinancialGoal[],
   sinkingFunds: SinkingFund[],
   paycheckPreferences: PaycheckPreferences,
-  actualSpendingData?: { categoryId: string; spent: number; budgeted: number }[]
+  actualSpendingData?: { categoryId: string; spent: number; budgeted: number }[],
+  currentPlanDateRanges?: {
+    plan1?: { start: Date | null; end: Date | null };
+    plan2?: { start: Date | null; end: Date | null };
+    plan3?: { start: Date | null; end: Date | null };
+  }
 ): PaycheckBreakdown[] => {
   // If manual mode, generate breakdowns for each plan and tag with planKey
   if (paycheckPreferences.allocationMode === 'manual') {
     const planKeys = ['plan1', 'plan2', 'plan3'] as const;
     let allBreakdowns: PaycheckBreakdown[] = [];
     for (const planKey of planKeys) {
-      // Check for custom date range for this plan
-      const customRange = paycheckPreferences.manualPlanDateRanges?.[planKey];
+      // Only use current date range from component state - no automatic fallback to saved preferences
+      const currentRange = currentPlanDateRanges?.[planKey];
+      
       let planPeriods = periods;
-      if (customRange && customRange.start && customRange.end) {
-        // Use the custom date range for this plan
-        const start = new Date(customRange.start);
-        const end = new Date(customRange.end);
+      
+      // Only use current date range if both dates are selected in the UI
+      if (currentRange && currentRange.start && currentRange.end) {
+        const start = currentRange.start;
+        const end = currentRange.end;
+        
+        // Calculate the actual income for this custom date range
+        const incomeItems = recurringItems.filter(item => item.type === 'income');
+        const totalIncome = calculateTotalIncomeInPeriod(incomeItems, start, end);
+        
         // Create a single PaycheckPeriod for this custom range
         planPeriods = [{
           id: `${planKey}-custom-period`,
           paycheckDate: start, // Use start as the "paycheck" date for this period
-          paycheckAmount: periods[0]?.paycheckAmount || 0, // Use first period's amount as a fallback
+          paycheckAmount: totalIncome, // Use calculated income instead of fallback
           periodStart: start,
           periodEnd: end,
           paycheckSource: 'estimated',

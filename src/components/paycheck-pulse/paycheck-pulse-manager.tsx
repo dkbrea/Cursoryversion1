@@ -14,21 +14,34 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaycheckBreakdownCard } from "./paycheck-breakdown-card";
 import { PaycheckTimelineView } from "./paycheck-timeline-view";
 import { PaycheckPreferencesDialog } from "./paycheck-preferences-dialog";
-import { generatePaycheckPeriods, generatePaycheckBreakdownWithSinkingFunds } from "@/lib/utils/paycheck-calculations";
+import { generatePaycheckPeriods, generatePaycheckBreakdownWithSinkingFunds, getOccurrencesInPeriod } from "@/lib/utils/paycheck-calculations";
+import { calculateRecurringOccurrences } from "@/lib/utils/recurring-calculations";
 import { getSinkingFundsWithProgress } from "@/lib/api/sinking-funds";
 import { getUserPreferences, updateUserPreferences } from "@/lib/api/user-preferences";
 import { getVariableExpenseSpending } from "@/lib/api/transactions";
-import { isBefore, isAfter, startOfDay, startOfMonth, format } from "date-fns";
+import { isBefore, isAfter, startOfDay, startOfMonth, format, addDays, addWeeks, addMonths, addQuarters, addYears, getDate, endOfMonth, differenceInCalendarMonths, isPast } from "date-fns";
 import { getForecastOverridesForMonth } from "@/lib/api/forecast-overrides";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
 
 // --- ManualExpenseTable component (moved above main component for scope) ---
-function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange, minKey, showDefaults, hasManualOverridesForPeriod }: any) {
+function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange, minKey, showDefaults, hasManualOverridesForPeriod, manualStartDate, manualEndDate, onGetCurrentValues }: any) {
   // Local state for input values
   const [inputStates, setInputStates] = useState<Record<string, string>>({});
+
+  // Expose current values to parent component (debounced to prevent excessive updates)
+  useEffect(() => {
+    if (onGetCurrentValues && typeof onGetCurrentValues === 'function') {
+      const timeoutId = setTimeout(() => {
+        onGetCurrentValues(inputStates);
+      }, 100); // 100ms debounce
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [inputStates, onGetCurrentValues]);
 
   useEffect(() => {
     // Reset local state when items or overrides change
@@ -38,11 +51,169 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
       if (manualOverrides.hasOwnProperty(key)) {
         newStates[key] = String(manualOverrides[key]);
       } else {
-        newStates[key] = hasManualOverridesForPeriod ? '' : String(minKey ? item[minKey] : item.amount);
+        // Only auto-fill if this item has occurrences in the selected period
+        let shouldAutoFill = false;
+        
+        // For recurring items, check occurrences in period
+        if (manualStartDate && manualEndDate && (prefix === 'fixed' || prefix === 'subscription' || prefix === 'debt')) {
+          
+          console.log(`🔍 AUTOFILL DEBUG: ${item.name} (${prefix}) - checking period ${manualStartDate.toISOString().split('T')[0]} to ${manualEndDate.toISOString().split('T')[0]}`);
+          console.log(`🔍 AUTOFILL DEBUG: Item data:`, { 
+            name: item.name, 
+            type: item.type, 
+            frequency: item.frequency,
+            startDate: item.startDate?.toISOString?.()?.split('T')[0],
+            nextOccurrenceDate: item.nextOccurrenceDate?.toISOString?.()?.split('T')[0],
+            lastRenewalDate: item.lastRenewalDate?.toISOString?.()?.split('T')[0],
+            // Show all fields to debug
+            allFields: Object.keys(item)
+          });
+          
+          // Use the same occurrence calculation logic as the calendar
+          if (prefix === 'debt') {
+            // For debt items, treat them as recurring payments and use the same calculation logic
+            if (item.nextOccurrenceDate) {
+              const unifiedItem = {
+                ...item,
+                itemDisplayType: 'debt',
+                frequency: item.paymentFrequency || 'monthly', // Most debt is monthly
+                nextOccurrenceDate: item.nextOccurrenceDate,
+                source: 'debt' as const,
+                status: 'Upcoming' as const,
+                isDebt: true,
+                categoryId: item.categoryId
+              };
+              
+              console.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - unified item:`, {
+                name: unifiedItem.name,
+                frequency: unifiedItem.frequency,
+                nextOccurrenceDate: unifiedItem.nextOccurrenceDate?.toISOString?.()?.split('T')[0]
+              });
+              
+              // Calculate all occurrences within the period
+              const occurrences = calculateRecurringOccurrences(unifiedItem, manualStartDate, manualEndDate);
+              
+              // Filter occurrences to only include those within the manual date range
+              const occurrencesInRange = occurrences.filter(date => 
+                date >= manualStartDate && date <= manualEndDate
+              );
+              
+              shouldAutoFill = occurrencesInRange.length > 0;
+              
+              console.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - total occurrences: ${occurrences.length}, occurrences in range: ${occurrencesInRange.length}, shouldAutoFill: ${shouldAutoFill}`);
+              if (occurrences.length > 0) {
+                console.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - all occurrence dates:`, occurrences.map(d => d.toISOString().split('T')[0]));
+              }
+              if (occurrencesInRange.length > 0) {
+                console.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - occurrences in range:`, occurrencesInRange.map(d => d.toISOString().split('T')[0]));
+              }
+            }
+          } else {
+            // For recurring items (fixed and subscription), use the same logic as calendar
+            // Create a UnifiedRecurringListItem-like object for the calculation functions
+            const unifiedItem = {
+              ...item,
+              itemDisplayType: item.type || 'fixed-expense',
+              nextOccurrenceDate: item.nextOccurrenceDate || item.startDate,
+              source: 'recurring' as const,
+              status: 'Upcoming' as const,
+              isDebt: false,
+              categoryId: item.categoryId
+            };
+            
+            console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - unified item:`, {
+              name: unifiedItem.name,
+              itemDisplayType: unifiedItem.itemDisplayType,
+              frequency: unifiedItem.frequency,
+              nextOccurrenceDate: unifiedItem.nextOccurrenceDate?.toISOString?.()?.split('T')[0],
+              startDate: unifiedItem.startDate?.toISOString?.()?.split('T')[0]
+            });
+            
+            // Check if item has valid date information (including lastRenewalDate for subscriptions)
+            const hasValidDates = unifiedItem.nextOccurrenceDate || unifiedItem.startDate || 
+                                 (prefix === 'subscription' && item.lastRenewalDate);
+            
+            if (hasValidDates) {
+              // For subscriptions with lastRenewalDate but no other dates, calculate the next occurrence
+              if (prefix === 'subscription' && !unifiedItem.nextOccurrenceDate && !unifiedItem.startDate && item.lastRenewalDate) {
+                let nextOccurrence = new Date(item.lastRenewalDate);
+                switch (item.frequency) {
+                  case "daily": nextOccurrence = addDays(nextOccurrence, 1); break;
+                  case "weekly": nextOccurrence = addWeeks(nextOccurrence, 1); break;
+                  case "bi-weekly": nextOccurrence = addWeeks(nextOccurrence, 2); break;
+                  case "monthly": nextOccurrence = addMonths(nextOccurrence, 1); break;
+                  case "quarterly": nextOccurrence = addQuarters(nextOccurrence, 1); break;
+                  case "yearly": nextOccurrence = addYears(nextOccurrence, 1); break;
+                  default: nextOccurrence = addDays(nextOccurrence, 1); break;
+                }
+                unifiedItem.nextOccurrenceDate = nextOccurrence;
+                console.log(`🔍 AUTOFILL DEBUG: SUBSCRIPTION ${item.name} - calculated nextOccurrence from lastRenewalDate: ${nextOccurrence.toISOString().split('T')[0]}`);
+              }
+            
+            // Import and use the same calculation function as the calendar
+            const occurrences = calculateRecurringOccurrences(unifiedItem, manualStartDate, manualEndDate);
+              
+              // Filter occurrences to only include those within the manual date range
+              const occurrencesInRange = occurrences.filter(date => 
+                date >= manualStartDate && date <= manualEndDate
+              );
+              
+              shouldAutoFill = occurrencesInRange.length > 0;
+              
+              console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - total occurrences: ${occurrences.length}, occurrences in range: ${occurrencesInRange.length}, shouldAutoFill: ${shouldAutoFill}`);
+              if (occurrences.length > 0) {
+                console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - all occurrence dates:`, occurrences.map(d => d.toISOString().split('T')[0]));
+              }
+              if (occurrencesInRange.length > 0) {
+                console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - occurrences in range:`, occurrencesInRange.map(d => d.toISOString().split('T')[0]));
+              }
+            } else {
+              // If no valid date information, don't autofill
+              shouldAutoFill = false;
+              console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - no valid date information, shouldAutoFill: false`);
+            }
+          }
+          
+        } else {
+          // For non-recurring items (goals, variable), check prefix for specific behavior
+          if (prefix === 'goal') {
+            // For savings goals, never auto-fill (always manual input)
+            shouldAutoFill = false;
+          } else {
+            // For variable expenses, always auto-fill (they don't have scheduled occurrences)
+          shouldAutoFill = true;
+          }
+        }
+        
+        if (shouldAutoFill && !hasManualOverridesForPeriod) {
+          let autofillAmount = minKey ? item[minKey] : item.amount;
+          
+          // For variable expenses, prorate based on the timeframe
+          if (prefix === 'variable' && manualStartDate && manualEndDate) {
+            // Calculate days in selected timeframe
+            const timeDiff = manualEndDate.getTime() - manualStartDate.getTime();
+            const daysInTimeframe = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
+            
+            // Calculate total days in the month (using start date's month)
+            const year = manualStartDate.getFullYear();
+            const month = manualStartDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            // Prorate the amount
+            const proratedAmount = (daysInTimeframe / daysInMonth) * autofillAmount;
+            autofillAmount = Math.round(proratedAmount);
+            
+            console.log(`🔍 VARIABLE PRORATION DEBUG: ${item.name} - timeframe: ${daysInTimeframe} days, month: ${daysInMonth} days, original: ${minKey ? item[minKey] : item.amount}, prorated: ${autofillAmount}`);
+          }
+          
+          newStates[key] = String(autofillAmount);
+        } else {
+          newStates[key] = '';
+        }
       }
     });
     setInputStates(newStates);
-  }, [items, manualOverrides, prefix, minKey, hasManualOverridesForPeriod]);
+  }, [items, manualOverrides, prefix, minKey, hasManualOverridesForPeriod, manualStartDate, manualEndDate]);
 
   if (!items.length) return <div className="text-muted-foreground">No items in this category for the selected period.</div>;
   return (
@@ -56,17 +227,47 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
       <tbody>
         {items.map((item: any) => {
           const key = `${prefix}-${item.id}`;
-          const defaultValue = minKey ? item[minKey] : item.amount;
+          let defaultValue = minKey ? item[minKey] : item.amount;
+          
+          // For savings goals, use budget forecast data for prorated estimated amount
+          if (prefix === 'goal' && manualStartDate && manualEndDate) {
+            // Get the budgeted amount from the forecast for the specific month
+            const monthDate = new Date(manualStartDate.getFullYear(), manualStartDate.getMonth(), 1);
+            const budgetForecast = generateBudgetForecastForMonth(monthDate, [item]);
+            const goalContribution = budgetForecast.goalContributions.find(gc => gc.id === item.id);
+            
+            if (goalContribution && goalContribution.monthSpecificContribution > 0) {
+              // Calculate days in selected timeframe
+              const timeDiff = manualEndDate.getTime() - manualStartDate.getTime();
+              const daysInTimeframe = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
+              
+              // Calculate total days in the month (using start date's month)
+              const year = manualStartDate.getFullYear();
+              const month = manualStartDate.getMonth();
+              const daysInMonth = new Date(year, month + 1, 0).getDate();
+              
+              // Prorate the budgeted amount
+              const proratedAmount = (daysInTimeframe / daysInMonth) * goalContribution.monthSpecificContribution;
+              defaultValue = Math.round(proratedAmount);
+              
+              console.log(`🔍 GOAL BUDGET FORECAST DEBUG: ${item.name} - budgeted: ${goalContribution.monthSpecificContribution}, timeframe: ${daysInTimeframe} days, month: ${daysInMonth} days, prorated: ${defaultValue}`);
+            } else {
+              defaultValue = 0; // No budgeted amount for this goal
+              console.log(`🔍 GOAL BUDGET FORECAST DEBUG: ${item.name} - no budgeted amount found`);
+            }
+          }
+          
           let value = inputStates[key] ?? '';
           // If override is 0, show 0
           if (manualOverrides[key] === 0 && value === '') value = '0';
           return (
             <tr key={item.id}>
               <td className="py-1">{item.name}</td>
-              <td className="py-1 text-right flex items-center gap-2 justify-end">
+              <td className="py-1 text-right">
+                <div className="flex items-center gap-2 justify-end">
                 <Input
                   type="text"
-                  className="w-24"
+                    className="w-24 text-left"
                   value={value}
                   onChange={e => {
                     const val = e.target.value;
@@ -83,11 +284,14 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
                       handleManualChange(key, Number(val));
                     }
                   }}
-                  placeholder={showDefaults ? 'Enter amount' : undefined}
-                />
-                {showDefaults && (
-                  <span className="text-xs italic text-gray-400">{defaultValue}</span>
-                )}
+                    placeholder={prefix === 'goal' ? 'Enter amount' : (showDefaults ? 'Enter amount' : undefined)}
+                  />
+                  {(showDefaults || prefix === 'goal') && (
+                    <span className="text-xs italic text-gray-400 w-12 text-left">
+                      {defaultValue}
+                    </span>
+                  )}
+                </div>
               </td>
             </tr>
           );
@@ -97,8 +301,213 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
   );
 }
 
-// Helper to calculate total for a category
-function getManualTabTotal(items: any[], prefix: string, manualOverrides: Record<string, number>, minKey?: string, manualOnly?: boolean, hasManualOverridesForPeriod?: boolean) {
+// Use the EXACT same logic as RecurringCalendarView to generate occurrences for a date range
+function generateOccurrencesForPeriod(items: any[], startDate: Date, endDate: Date, itemType: 'recurring' | 'debt' = 'recurring') {
+  const occurrences: Array<{ item: any, amount: number, date: Date }> = [];
+  
+  items.forEach(item => {
+    if (itemType === 'debt') {
+      // Use the EXACT same debt logic as RecurringCalendarView
+      const referenceDate = new Date(item.nextOccurrenceDate);
+      let allDebtDates: Date[] = [];
+      
+      if (item.paymentFrequency === 'monthly') {
+        let tempDate = new Date(referenceDate);
+        while (tempDate >= startDate) {
+          if (tempDate >= startDate && tempDate <= endDate) {
+            allDebtDates.push(new Date(tempDate));
+          }
+          tempDate = addMonths(tempDate, -1);
+        }
+        tempDate = addMonths(referenceDate, 1);
+        while (tempDate <= endDate) {
+          if (tempDate >= startDate) {
+            allDebtDates.push(new Date(tempDate));
+          }
+          tempDate = addMonths(tempDate, 1);
+        }
+      } else {
+        // For other frequencies, just use reference date if in range
+        if (referenceDate >= startDate && referenceDate <= endDate) {
+          allDebtDates.push(referenceDate);
+        }
+      }
+      
+      allDebtDates.forEach(date => {
+        occurrences.push({
+          item: item,
+          amount: item.minimumPayment,
+          date: date
+        });
+      });
+      
+    } else {
+      // Use the EXACT same recurring logic as RecurringCalendarView
+      if (item.status === "Ended") return;
+      
+      let allOccurrences: Date[] = [];
+      
+      // Handle semi-monthly frequency
+      if (item.frequency === 'semi-monthly') {
+        if (item.semiMonthlyFirstPayDate && item.semiMonthlySecondPayDate) {
+          const firstPayDay = getDate(new Date(item.semiMonthlyFirstPayDate));
+          const secondPayDay = getDate(new Date(item.semiMonthlySecondPayDate));
+          
+          const startYear = startDate.getFullYear();
+          const endYear = endDate.getFullYear();
+          
+          for (let year = startYear; year <= endYear; year++) {
+            for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+              const currentMonthStart = new Date(year, monthIndex, 1);
+              const currentMonthEnd = endOfMonth(currentMonthStart);
+              
+              const firstPayDate = new Date(currentMonthStart);
+              firstPayDate.setDate(Math.min(firstPayDay, getDate(currentMonthEnd)));
+              
+              const secondPayDate = new Date(currentMonthStart);
+              secondPayDate.setDate(Math.min(secondPayDay, getDate(currentMonthEnd)));
+              
+              const adjustedFirstPayDate = item.type === 'income' 
+                ? adjustToPreviousBusinessDay(firstPayDate) 
+                : firstPayDate;
+              const adjustedSecondPayDate = item.type === 'income' 
+                ? adjustToPreviousBusinessDay(secondPayDate) 
+                : secondPayDate;
+              
+              if (adjustedFirstPayDate >= startDate && adjustedFirstPayDate <= endDate) {
+                if (!item.endDate || adjustedFirstPayDate <= startOfDay(new Date(item.endDate))) {
+                  allOccurrences.push(adjustedFirstPayDate);
+                }
+              }
+              if (adjustedSecondPayDate >= startDate && adjustedSecondPayDate <= endDate) {
+                if (!item.endDate || adjustedSecondPayDate <= startOfDay(new Date(item.endDate))) {
+                  allOccurrences.push(adjustedSecondPayDate);
+                }
+              }
+            }
+          }
+        }
+      } else {
+        // Handle regular frequencies - use EXACT same logic as calendar
+        let originalStartDate: Date = new Date();
+        
+        if (item.type === 'subscription' && item.lastRenewalDate) {
+          originalStartDate = startOfDay(new Date(item.lastRenewalDate));
+          switch (item.frequency) {
+            case "daily": originalStartDate = addDays(originalStartDate, 1); break;
+            case "weekly": originalStartDate = addWeeks(originalStartDate, 1); break;
+            case "bi-weekly": originalStartDate = addWeeks(originalStartDate, 2); break;
+            case "monthly": originalStartDate = addMonths(originalStartDate, 1); break;
+            case "quarterly": originalStartDate = addQuarters(originalStartDate, 1); break;
+            case "yearly": originalStartDate = addYears(originalStartDate, 1); break;
+            default: originalStartDate = addDays(originalStartDate, 1); break;
+          }
+        } else if (item.startDate) {
+          originalStartDate = startOfDay(new Date(item.startDate));
+        } else {
+          // Use nextOccurrenceDate but remove business day adjustment to get original date
+          const nextDate = new Date(item.nextOccurrenceDate || startDate);
+          if (item.type === 'income') {
+            let foundOriginal = false;
+            let testDate = new Date(nextDate);
+            for (let i = 0; i <= 4; i++) {
+              const candidateDate = addDays(testDate, i);
+              if (adjustToPreviousBusinessDay(candidateDate).getTime() === nextDate.getTime()) {
+                originalStartDate = candidateDate;
+                foundOriginal = true;
+                break;
+              }
+            }
+            if (!foundOriginal) {
+              originalStartDate = nextDate;
+            }
+          } else {
+            originalStartDate = nextDate;
+          }
+        }
+        
+        // Generate occurrences based on frequency (EXACT same logic as calendar)
+        if (item.frequency === 'monthly') {
+          let tempDate = new Date(originalStartDate);
+          
+          while (tempDate >= startDate) {
+            if (tempDate >= startDate && tempDate <= endDate && (!item.endDate || tempDate <= startOfDay(new Date(item.endDate)))) {
+              allOccurrences.push(new Date(tempDate));
+            }
+            tempDate = addMonths(tempDate, -1);
+          }
+          
+          tempDate = addMonths(originalStartDate, 1);
+          while (tempDate <= endDate) {
+            if (tempDate >= startDate && (!item.endDate || tempDate <= startOfDay(new Date(item.endDate)))) {
+              allOccurrences.push(new Date(tempDate));
+            }
+            tempDate = addMonths(tempDate, 1);
+          }
+        } else if (item.frequency === 'weekly') {
+          let tempDate = new Date(originalStartDate);
+          
+          while (tempDate >= startDate) {
+            if (tempDate >= startDate && tempDate <= endDate && (!item.endDate || tempDate <= startOfDay(new Date(item.endDate)))) {
+              allOccurrences.push(new Date(tempDate));
+            }
+            tempDate = addWeeks(tempDate, -1);
+          }
+          
+          tempDate = addWeeks(originalStartDate, 1);
+          while (tempDate <= endDate) {
+            if (tempDate >= startDate && (!item.endDate || tempDate <= startOfDay(new Date(item.endDate)))) {
+              allOccurrences.push(new Date(tempDate));
+            }
+            tempDate = addWeeks(tempDate, 1);
+          }
+        } else if (item.frequency === 'bi-weekly') {
+          let tempDate = new Date(originalStartDate);
+          
+          while (tempDate >= startDate) {
+            if (tempDate >= startDate && tempDate <= endDate && (!item.endDate || tempDate <= startOfDay(new Date(item.endDate)))) {
+              allOccurrences.push(new Date(tempDate));
+            }
+            tempDate = addWeeks(tempDate, -2);
+          }
+          
+          tempDate = addWeeks(originalStartDate, 2);
+          while (tempDate <= endDate) {
+            if (tempDate >= startDate && (!item.endDate || tempDate <= startOfDay(new Date(item.endDate)))) {
+              allOccurrences.push(new Date(tempDate));
+            }
+            tempDate = addWeeks(tempDate, 2);
+          }
+        } else if (item.frequency === 'yearly') {
+          if (originalStartDate >= startDate && originalStartDate <= endDate) {
+            if (!item.endDate || originalStartDate <= startOfDay(new Date(item.endDate))) {
+              allOccurrences.push(originalStartDate);
+            }
+          }
+        }
+      }
+      
+      allOccurrences.forEach(occurrenceDate => {
+        const adjustedDate = item.type === 'income' 
+          ? adjustToPreviousBusinessDay(occurrenceDate) 
+          : occurrenceDate;
+          
+        if (adjustedDate >= startDate && adjustedDate <= endDate) {
+          occurrences.push({
+            item: item,
+            amount: item.amount,
+            date: adjustedDate
+          });
+        }
+      });
+    }
+  });
+  
+  return occurrences;
+}
+
+// Helper to calculate total for a category using the same logic as the recurring calendar
+function getManualTabTotal(items: any[], prefix: string, manualOverrides: Record<string, number>, minKey?: string, manualOnly?: boolean, hasManualOverridesForPeriod?: boolean, manualStartDate?: Date, manualEndDate?: Date) {
   // If in manual mode for this period, only sum manual overrides (or 0 if missing)
   if (manualOnly || hasManualOverridesForPeriod) {
     return items.reduce((acc, item) => {
@@ -106,8 +515,225 @@ function getManualTabTotal(items: any[], prefix: string, manualOverrides: Record
       return acc + (manualOverrides[key] !== undefined ? Number(manualOverrides[key]) : 0);
     }, 0);
   }
-  // Otherwise, use manual override if present, else projected/default
-  return items.reduce((acc, item) => acc + Number(manualOverrides[`${prefix}-${item.id}`] ?? (minKey ? item[minKey] : item.amount)), 0);
+  
+  // For recurring items, only include items that have actual occurrences in the period
+  if (manualStartDate && manualEndDate && (prefix === 'fixed' || prefix === 'subscription' || prefix === 'debt' || prefix === 'income')) {
+    return items.reduce((acc, item) => {
+      const overrideKey = `${prefix}-${item.id}`;
+      if (manualOverrides[overrideKey] !== undefined) {
+        return acc + Number(manualOverrides[overrideKey]);
+      }
+      
+      let hasOccurrences = false;
+      let occurrenceCount = 0;
+      
+      if (prefix === 'debt') {
+        // For debt items, treat them as recurring payments and use the same calculation logic
+        if (item.nextOccurrenceDate) {
+          const unifiedItem = {
+            ...item,
+            itemDisplayType: 'debt',
+            frequency: item.paymentFrequency || 'monthly', // Most debt is monthly
+            nextOccurrenceDate: item.nextOccurrenceDate,
+            source: 'debt' as const,
+            status: 'Upcoming' as const,
+            isDebt: true,
+            categoryId: item.categoryId
+          };
+          
+          // Calculate all occurrences within the period
+          const occurrences = calculateRecurringOccurrences(unifiedItem, manualStartDate, manualEndDate);
+          
+          // Filter occurrences to only include those within the manual date range
+          const occurrencesInRange = occurrences.filter(date => 
+            date >= manualStartDate && date <= manualEndDate
+          );
+          
+          hasOccurrences = occurrencesInRange.length > 0;
+          occurrenceCount = occurrencesInRange.length;
+        }
+      } else {
+        // For recurring items (fixed, subscription, and income), use the same logic as calendar
+        // Use startDate as fallback to avoid hydration issues with new Date()
+        const unifiedItem = {
+          ...item,
+          itemDisplayType: item.type || prefix === 'income' ? 'income' : 'fixed-expense',
+          nextOccurrenceDate: item.nextOccurrenceDate || item.startDate,
+          source: 'recurring' as const,
+          status: 'Upcoming' as const,
+          isDebt: false,
+          categoryId: item.categoryId
+        };
+        
+        // For subscriptions with lastRenewalDate but no other dates, calculate the next occurrence
+        if (prefix === 'subscription' && !unifiedItem.nextOccurrenceDate && !unifiedItem.startDate && item.lastRenewalDate) {
+          let nextOccurrence = new Date(item.lastRenewalDate);
+          switch (item.frequency) {
+            case "daily": nextOccurrence = addDays(nextOccurrence, 1); break;
+            case "weekly": nextOccurrence = addWeeks(nextOccurrence, 1); break;
+            case "bi-weekly": nextOccurrence = addWeeks(nextOccurrence, 2); break;
+            case "monthly": nextOccurrence = addMonths(nextOccurrence, 1); break;
+            case "quarterly": nextOccurrence = addQuarters(nextOccurrence, 1); break;
+            case "yearly": nextOccurrence = addYears(nextOccurrence, 1); break;
+            default: nextOccurrence = addDays(nextOccurrence, 1); break;
+          }
+          unifiedItem.nextOccurrenceDate = nextOccurrence;
+        }
+        
+        // Only calculate occurrences if we have valid date information
+        if (unifiedItem.nextOccurrenceDate || unifiedItem.startDate) {
+        const occurrences = calculateRecurringOccurrences(unifiedItem, manualStartDate, manualEndDate);
+          // Filter occurrences to only include those within the manual date range
+          const occurrencesInRange = occurrences.filter(date => 
+            date >= manualStartDate && date <= manualEndDate
+          );
+          hasOccurrences = occurrencesInRange.length > 0;
+          occurrenceCount = occurrencesInRange.length;
+        } else {
+          hasOccurrences = false;
+          occurrenceCount = 0;
+        }
+        
+
+      }
+      
+      if (hasOccurrences) {
+        // For debt, use minKey (minimumPayment) if available, otherwise use amount
+        const itemAmount = prefix === 'debt' ? (item[minKey || 'amount'] || item.amount) : item.amount;
+        const itemTotal = occurrenceCount * itemAmount;
+        return acc + itemTotal;
+      }
+      // If no occurrences in period, don't add anything (defaults to $0)
+      return acc;
+    }, 0);
+  }
+  
+  // For non-recurring items (goals, variable expenses), use simple amount
+  return items.reduce((acc, item) => {
+    const overrideKey = `${prefix}-${item.id}`;
+    if (manualOverrides[overrideKey] !== undefined) {
+      return acc + Number(manualOverrides[overrideKey]);
+    }
+    
+    // For savings goals, use budget forecast data for proration but only count manual overrides for totals
+    if (prefix === 'goal') {
+      return acc; // Don't add anything if no manual override - goals are manual input only
+    }
+    
+    let itemAmount = minKey ? item[minKey] : item.amount;
+    
+    // For variable expenses, prorate based on the timeframe
+    if (prefix === 'variable' && manualStartDate && manualEndDate) {
+      // Calculate days in selected timeframe
+      const timeDiff = manualEndDate.getTime() - manualStartDate.getTime();
+      const daysInTimeframe = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
+      
+      // Calculate total days in the month (using start date's month)
+      const year = manualStartDate.getFullYear();
+      const month = manualStartDate.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      
+      // Prorate the amount
+      const proratedAmount = (daysInTimeframe / daysInMonth) * itemAmount;
+      itemAmount = Math.round(proratedAmount);
+    }
+    
+    return acc + itemAmount;
+  }, 0);
+}
+
+// Add function to generate budget forecast data for a specific month
+function generateBudgetForecastForMonth(
+  monthDate: Date,
+  goals: FinancialGoal[]
+): { goalContributions: { id: string; name: string; monthSpecificContribution: number; }[] } {
+  const monthStart = startOfMonth(monthDate);
+  const monthEnd = endOfMonth(monthDate);
+  const monthLabel = format(monthDate, 'MMMM yyyy');
+  
+  // Calculate goals with contributions (same logic as budget manager)
+  const goalsWithContributions = goals.map(goal => {
+    // Calculate based on the original timeframe between creation and target date
+    const creationDate = startOfDay(new Date(goal.createdAt));
+    const targetDate = startOfDay(new Date(goal.targetDate));
+    const selectedMonthDate = startOfDay(monthDate);
+    
+    // Calculate total months in the goal's timeframe (from creation to target)
+    const totalMonthsInGoal = Math.max(1, differenceInCalendarMonths(targetDate, creationDate));
+    
+    // Calculate months remaining from the selected month
+    let monthsRemaining = Math.max(0, differenceInCalendarMonths(targetDate, selectedMonthDate));
+    
+    // Calculate the original target amount (when the goal was created)
+    const originalTargetAmount = goal.targetAmount;
+    
+    // Calculate the consistent monthly contribution based on original timeframe
+    let monthlyContribution = 0;
+    const amountNeeded = goal.targetAmount - goal.currentAmount;
+    
+    console.log(`🔍 BUDGET FORECAST DEBUG: ${goal.name}`, {
+      creationDate: creationDate.toISOString().split('T')[0],
+      targetDate: targetDate.toISOString().split('T')[0],
+      selectedMonthDate: selectedMonthDate.toISOString().split('T')[0],
+      totalMonthsInGoal,
+      monthsRemaining,
+      originalTargetAmount,
+      currentAmount: goal.currentAmount,
+      amountNeeded,
+    });
+    
+    if (amountNeeded <= 0) {
+      // Goal already achieved or overfunded - no further contributions needed
+      monthsRemaining = 0;
+      monthlyContribution = 0;
+    } else if (isPast(targetDate)) {
+      // Past due - show full remaining amount (but ensure it's positive)
+      monthsRemaining = 0;
+      monthlyContribution = Math.max(0, amountNeeded);
+    } else {
+      // Calculate the consistent monthly contribution based on original timeframe
+      monthlyContribution = originalTargetAmount / totalMonthsInGoal;
+      
+      // Adjust if the remaining amount is less than the calculated contribution
+      // But ensure we never go negative
+      if (amountNeeded < monthlyContribution) {
+        monthlyContribution = Math.max(0, amountNeeded);
+      }
+    }
+    
+    console.log(`🔍 BUDGET FORECAST DEBUG: ${goal.name} - calculated monthlyContribution: ${monthlyContribution}`);
+    
+    return {
+      ...goal,
+      monthsRemaining: monthsRemaining,
+      monthlyContribution: monthlyContribution > 0 ? monthlyContribution : 0,
+    };
+  });
+
+  // Generate forecast goal contributions (same logic as budget manager)
+  const forecastGoalContributions = goalsWithContributions
+    .filter(goal => goal.currentAmount < goal.targetAmount) // Only active goals
+    .map(goal => {
+      const targetDate = startOfDay(new Date(goal.targetDate));
+      
+      // Use the consistent monthly contribution calculated earlier
+      let contribution = goal.monthlyContribution;
+      
+      // Only include contributions for months before or equal to the target date
+      if (isAfter(monthStart, targetDate)) {
+        contribution = 0;
+      }
+      
+      return {
+        id: goal.id,
+        name: goal.name,
+        monthSpecificContribution: contribution > 0 ? parseFloat(contribution.toFixed(2)) : 0,
+      };
+    }).filter(gc => gc.monthSpecificContribution > 0); // Only include if there's a contribution
+
+  return {
+    goalContributions: forecastGoalContributions
+  };
 }
 
 export function PaycheckPulseManager() {
@@ -160,6 +786,10 @@ export function PaycheckPulseManager() {
   };
 
   // For convenience, get the current plan's state
+  // Add debugging to see what's happening with plan switching
+  console.log(`🔍 RENDER: selectedPlan = ${selectedPlan}`);
+  console.log(`🔍 RENDER: planStates[${selectedPlan}] = `, planStates[selectedPlan]);
+  
   const {
     manualOverrides,
     manualStartDate,
@@ -168,6 +798,9 @@ export function PaycheckPulseManager() {
     hasManualOverridesForPeriod,
     shouldLoadMostRecentManual,
   } = planStates[selectedPlan];
+  
+  console.log(`🔍 RENDER: destructured manualStartDate = `, manualStartDate);
+  console.log(`🔍 RENDER: destructured manualEndDate = `, manualEndDate);
 
   // All hooks at the very top, before any logic or early return
   const { toast } = useToast();
@@ -187,7 +820,9 @@ export function PaycheckPulseManager() {
     timingMode: 'current-period',
     includeBufferDays: 3,
     prioritizeSinkingFunds: false,
-    sinkingFundStrategy: 'frequency-based'
+    sinkingFundStrategy: 'frequency-based',
+    allocationMode: 'auto',
+    activeManualPlan: null
   });
   const [isPreferencesDialogOpen, setIsPreferencesDialogOpen] = useState(false);
   const [actualSpendingData, setActualSpendingData] = useState<{ categoryId: string; spent: number; budgeted: number }[]>([]);
@@ -214,6 +849,59 @@ export function PaycheckPulseManager() {
       };
     });
   }, [selectedPlan]);
+
+  // State to track current form values from all ManualExpenseTable components
+  const [currentFormValues, setCurrentFormValues] = useState<Record<string, Record<string, string>>>({
+    fixed: {},
+    subscription: {},
+    variable: {},
+    debt: {},
+    goal: {}
+  });
+
+  // Temporary flag to disable form state tracking if causing performance issues
+  const ENABLE_FORM_TRACKING = true;
+
+  // Callbacks to receive current values from each ManualExpenseTable
+  const handleFormValuesUpdate = useCallback((prefix: string, values: Record<string, string>) => {
+    if (!ENABLE_FORM_TRACKING) return; // Skip if tracking disabled
+    
+    setCurrentFormValues(prev => {
+      // Only update if values actually changed
+      const prevValues = prev[prefix] || {};
+      const hasChanged = JSON.stringify(prevValues) !== JSON.stringify(values);
+      
+      if (!hasChanged) {
+        return prev; // Return same reference to prevent unnecessary re-renders
+      }
+      
+      return {
+        ...prev,
+        [prefix]: values
+      };
+    });
+  }, [ENABLE_FORM_TRACKING]);
+
+  // Create stable callback functions for each prefix to prevent infinite re-renders
+  const handleFixedValuesUpdate = useCallback((values: Record<string, string>) => {
+    handleFormValuesUpdate('fixed', values);
+  }, [handleFormValuesUpdate]);
+
+  const handleSubscriptionValuesUpdate = useCallback((values: Record<string, string>) => {
+    handleFormValuesUpdate('subscription', values);
+  }, [handleFormValuesUpdate]);
+
+  const handleVariableValuesUpdate = useCallback((values: Record<string, string>) => {
+    handleFormValuesUpdate('variable', values);
+  }, [handleFormValuesUpdate]);
+
+  const handleDebtValuesUpdate = useCallback((values: Record<string, string>) => {
+    handleFormValuesUpdate('debt', values);
+  }, [handleFormValuesUpdate]);
+
+  const handleGoalValuesUpdate = useCallback((values: Record<string, string>) => {
+    handleFormValuesUpdate('goal', values);
+  }, [handleFormValuesUpdate]);
 
   // Helper to normalize type from DB to UI prefix
   function normalizeType(type: string): string {
@@ -309,44 +997,92 @@ export function PaycheckPulseManager() {
   // Plan-aware setters for date and tab
   const setManualStartDate = (date: Date | null) => {
     updatePlanState(selectedPlan, { manualStartDate: date });
-    // Persist to user preferences
-    if (user && user.id && date) {
-      const planKey = selectedPlan;
-      // Always use the latest end date from planStates, or '' if not set
-      const endDate = planStates[planKey].manualEndDate;
-      const newRanges = { ...(paycheckPreferences.manualPlanDateRanges || {}) };
-      newRanges[planKey] = {
-        start: date.toISOString(),
-        end: endDate ? endDate.toISOString() : ''
-      };
-      const updated = { ...paycheckPreferences, manualPlanDateRanges: newRanges };
-      updateUserPreferences(user.id, { paycheckPreferences: updated });
-      setPaycheckPreferences(updated);
+    if (date && manualEndDate) {
+      updatePlanState(selectedPlan, { shouldLoadMostRecentManual: true });
+      // Save date range to user preferences for dashboard access
+      saveDateRangeToPreferences(selectedPlan, date, manualEndDate);
     }
   };
   const setManualEndDate = (date: Date | null) => {
     updatePlanState(selectedPlan, { manualEndDate: date });
-    // Persist to user preferences
-    if (user && user.id && date) {
-      const planKey = selectedPlan;
-      // Always use the latest start date from planStates, or '' if not set
-      const startDate = planStates[planKey].manualStartDate;
-      const newRanges = { ...(paycheckPreferences.manualPlanDateRanges || {}) };
-      newRanges[planKey] = {
-        start: startDate ? startDate.toISOString() : '',
-        end: date.toISOString()
-      };
-      const updated = { ...paycheckPreferences, manualPlanDateRanges: newRanges };
-      updateUserPreferences(user.id, { paycheckPreferences: updated });
-      setPaycheckPreferences(updated);
+    if (manualStartDate && date) {
+      updatePlanState(selectedPlan, { shouldLoadMostRecentManual: true });
+      // Save date range to user preferences for dashboard access
+      saveDateRangeToPreferences(selectedPlan, manualStartDate, date);
     }
   };
   const setManualTab = (tab: string) => updatePlanState(selectedPlan, { manualTab: tab });
 
-  // Save overrides to backend (plan-aware)
+  // Save manual date range to user preferences for dashboard access
+  const saveDateRangeToPreferences = async (plan: PlanKey, startDate: Date, endDate: Date) => {
+    if (!user?.id) return;
+    
+    try {
+      const { preferences } = await getUserPreferences(user.id);
+      const currentDateRanges = preferences?.paycheckPreferences?.manualPlanDateRanges || {};
+      
+      const updatedPreferences = {
+        ...preferences,
+        paycheckPreferences: {
+          ...paycheckPreferences,
+          manualPlanDateRanges: {
+            ...currentDateRanges,
+            [plan]: {
+              start: startDate.toISOString(),
+              end: endDate.toISOString()
+            }
+          }
+        }
+      };
+      
+      await updateUserPreferences(user.id, updatedPreferences);
+      console.log(`📅 DASHBOARD SYNC: Saved ${plan} date range to preferences:`, {
+        start: startDate.toISOString().split('T')[0],
+        end: endDate.toISOString().split('T')[0],
+        isActiveManualPlan: paycheckPreferences.activeManualPlan === plan,
+        allocationMode: paycheckPreferences.allocationMode
+      });
+      
+      // Debug: Show the complete updated preferences
+      console.log('📅 DASHBOARD SYNC: Complete updated preferences:', {
+        allocationMode: updatedPreferences.paycheckPreferences?.allocationMode,
+        activeManualPlan: updatedPreferences.paycheckPreferences?.activeManualPlan,
+        manualPlanDateRanges: updatedPreferences.paycheckPreferences?.manualPlanDateRanges
+      });
+      
+      // Update local paycheck preferences to keep in sync
+      setPaycheckPreferences(prev => ({
+        ...prev,
+        manualPlanDateRanges: {
+          ...currentDateRanges,
+          [plan]: {
+            start: startDate.toISOString(),
+            end: endDate.toISOString()
+          }
+        }
+      }));
+      
+      // Trigger dashboard refresh if it's mounted
+      if (typeof window !== 'undefined') {
+        console.log('📅 DASHBOARD SYNC: Triggering dashboard refresh...');
+        window.dispatchEvent(new Event('refreshDashboard'));
+      }
+      
+    } catch (error) {
+      console.error('Error saving date range to preferences:', error);
+      toast({
+        title: "Error saving date range",
+        description: "Failed to save date range for dashboard sync",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Save overrides to backend (plan-aware) - NEW IMPLEMENTATION
   const saveManualOverrides = async () => {
     if (!user?.id || !manualStartDate || !manualEndDate) return;
     if (isNaN(manualStartDate.getTime()) || isNaN(manualEndDate.getTime())) return;
+    
     const paycheckId = `${user.id}-${manualStartDate.toISOString()}-${manualEndDate.toISOString()}-${selectedPlan}`;
 
     // First, delete all existing overrides for this plan to ensure only one set per plan
@@ -361,70 +1097,118 @@ export function PaycheckPulseManager() {
       return;
     }
 
-    // Build a complete set of overrides for all visible items in each section, using the current input if present, otherwise the default/projected value
+    // Build a complete set of overrides for ALL predetermined expense items
     const allOverrideRows: any[] = [];
+    
+    // Helper to get current form value for an item
+    const getCurrentFormValue = (prefix: string, itemId: string, item: any, minKey?: string): number => {
+      const key = `${prefix}-${itemId}`;
+      
+      // If form tracking is enabled, try to get the current form value
+      if (ENABLE_FORM_TRACKING) {
+        const formValue = currentFormValues[prefix]?.[key];
+        
+        // If there's a current form value, use it (even if it's empty string, convert to 0)
+        if (formValue !== undefined) {
+          return formValue === '' ? 0 : Number(formValue);
+        }
+      }
+      
+      // If form tracking is disabled or no current form value, check manual overrides first
+      const manualOverrideKey = `${prefix}-${itemId}`;
+      if (manualOverrides.hasOwnProperty(manualOverrideKey)) {
+        return manualOverrides[manualOverrideKey];
+      }
+      
+      // If no current form value, calculate the default value that would be shown
+      if (prefix === 'goal') {
+        // For goals, default to 0 unless manually set
+        return 0;
+      } else if (prefix === 'variable') {
+        // For variable expenses, use prorated amount
+        const timeDiff = manualEndDate!.getTime() - manualStartDate!.getTime();
+        const daysInTimeframe = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+        const year = manualStartDate!.getFullYear();
+        const month = manualStartDate!.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const proratedAmount = (daysInTimeframe / daysInMonth) * Number(item.amount);
+        return Math.round(proratedAmount);
+      } else if (prefix === 'income' || prefix === 'fixed' || prefix === 'subscription') {
+        // For recurring items, check if they have occurrences in the period
+        const occurrences = generateOccurrencesForPeriod([item], manualStartDate!, manualEndDate!, 'recurring');
+        if (occurrences.length > 0) {
+          // Has occurrences, use the item amount
+          return Number(item.amount || 0);
+        } else {
+          // No occurrences in period, save as 0
+          return 0;
+        }
+      } else if (prefix === 'debt') {
+        // For debt items, check if they have occurrences in the period
+        const occurrences = generateOccurrencesForPeriod([item], manualStartDate!, manualEndDate!, 'debt');
+        if (occurrences.length > 0) {
+          // Has occurrences, use the minimum payment amount
+          return Number(item[minKey || 'amount'] || 0);
+        } else {
+          // No occurrences in period, save as 0
+          return 0;
+        }
+      } else {
+        // Fallback to 0
+        return 0;
+      }
+    };
+
     // Helper to add overrides for a section
     const addOverrides = (items: any[], prefix: string, minKey?: string) => {
+      // Save ALL items regardless of whether they have occurrences in the period
+      // Items without occurrences will be saved as 0 or their manual override value
+      
+      // Add ALL items to the save list (no filtering)
       items.forEach(item => {
-        const key = `${prefix}-${item.id}`;
-        // Use manual override if present (including 0), otherwise use default/projected value
-        let value: number | undefined;
-        if (manualOverrides.hasOwnProperty(key)) {
-          value = manualOverrides[key];
-        } else if (minKey && item[minKey] !== undefined) {
-          value = Number(item[minKey]);
-        } else if (item.amount !== undefined) {
-          value = Number(item.amount);
-        } else {
-          // fallback: skip if no value can be determined
-          return;
-        }
-        const dashIndex = key.indexOf('-');
-        const type = key.substring(0, dashIndex);
-        const itemId = key.substring(dashIndex + 1);
+        const value = getCurrentFormValue(prefix, item.id, item, minKey);
+        
+        // Get item name and type for database
         let name = '';
-        let itemType = type;
-        if (type === 'income') {
-          const found = recurringItems.find(i => i.id === itemId);
-          name = found?.name || '';
-        } else if (type === 'fixed') {
-          const found = recurringItems.find(i => i.id === itemId);
-          name = found?.name || '';
-          itemType = 'fixed';
-        } else if (type === 'subscription') {
-          const found = recurringItems.find(i => i.id === itemId);
-          name = found?.name || '';
+        let itemType = prefix;
+        if (prefix === 'income') {
+          name = item.name || '';
+          itemType = 'income';
+        } else if (prefix === 'fixed') {
+          name = item.name || '';
+          itemType = 'fixed-expense';
+        } else if (prefix === 'subscription') {
+          name = item.name || '';
           itemType = 'subscription';
-        } else if (type === 'variable') {
-          const found = variableExpenses.find(i => i.id === itemId);
-          name = found?.name || '';
-          itemType = 'variable';
-        } else if (type === 'debt') {
-          const found = debtAccounts.find(i => i.id === itemId);
-          name = found?.name || '';
+        } else if (prefix === 'variable') {
+          name = item.name || '';
+          itemType = 'variable-expense';
+        } else if (prefix === 'debt') {
+          name = item.name || '';
           itemType = 'debt';
-        } else if (type === 'goal') {
-          const found = goals.find(i => i.id === itemId);
-          name = found?.name || '';
+        } else if (prefix === 'goal') {
+          name = item.name || '';
           itemType = 'goal';
         }
+        
         allOverrideRows.push({
           paycheck_id: paycheckId,
           user_id: user.id,
           type: itemType,
-          item_id: itemId,
+          item_id: item.id,
           name,
           amount: value,
         });
       });
     };
-    // Add overrides for all visible items in each section
+    
+    // Add overrides for ALL predetermined expense items
     addOverrides(
-      recurringItems.filter(item => item.type === 'income' && item.startDate && item.startDate >= manualStartDate && item.startDate <= manualEndDate),
+      recurringItems.filter(item => item.type === 'income'),
       'income'
     );
     addOverrides(
-      recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))),
+      recurringItems.filter(item => item.type === 'fixed-expense' && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))),
       'fixed'
     );
     addOverrides(
@@ -436,31 +1220,48 @@ export function PaycheckPulseManager() {
       'variable'
     );
     addOverrides(
-      debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate),
+      debtAccounts,
       'debt',
       'minimumPayment'
     );
-    // For goals, only save if a manual override is present (do not autofill with targetAmount)
-    goals.filter(item => item.createdAt && item.createdAt <= manualEndDate).forEach(item => {
-      const key = `goal-${item.id}`;
-      if (manualOverrides.hasOwnProperty(key)) {
-        const value = manualOverrides[key];
-        allOverrideRows.push({
-          paycheck_id: paycheckId,
-          user_id: user.id,
-          type: 'goal',
-          item_id: item.id,
-          name: item.name || '',
-          amount: value,
-        });
-      }
-    });
+    addOverrides(
+      goals,
+      'goal'
+    );
+
+    console.log(`💾 SAVE DEBUG: Saving ${allOverrideRows.length} items for ${selectedPlan}`);
+    console.log('Items being saved:', allOverrideRows.map(row => ({ name: row.name, type: row.type, amount: row.amount })));
+    
+    // Debug: Log counts by category
+    const incomeItems = recurringItems.filter(item => item.type === 'income');
+    const fixedItems = recurringItems.filter(item => item.type === 'fixed-expense' && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder')));
+    const subscriptionItems = recurringItems.filter(item => item.type === 'subscription');
+    
+    console.log(`💾 SAVE DEBUG: Item counts - Income: ${incomeItems.length}, Fixed: ${fixedItems.length}, Subscription: ${subscriptionItems.length}, Variable: ${variableExpenses.length}, Debt: ${debtAccounts.length}, Goals: ${goals.length}`);
+    console.log(`💾 SAVE DEBUG: Total items available: ${incomeItems.length + fixedItems.length + subscriptionItems.length + variableExpenses.length + debtAccounts.length + goals.length}`);
+    
+    // Debug: Log what's being saved by category
+    const savedByCategory = allOverrideRows.reduce((acc, row) => {
+      acc[row.type] = (acc[row.type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    console.log('💾 SAVE DEBUG: Saved by category:', savedByCategory);
 
     const { error } = await supabase.from('paycheckoverrides').upsert(allOverrideRows, { onConflict: 'paycheck_id,user_id,item_id' });
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
-      toast({ title: 'Manual overrides saved!' });
+      // Also save the current date range to preferences when saving overrides
+      if (manualStartDate && manualEndDate) {
+        console.log('🚀 SAVE: About to save date range for plan:', selectedPlan);
+        console.log('🚀 SAVE: Start date:', manualStartDate.toISOString().split('T')[0]);
+        console.log('🚀 SAVE: End date:', manualEndDate.toISOString().split('T')[0]);
+        console.log('🚀 SAVE: Active manual plan:', paycheckPreferences.activeManualPlan);
+        console.log('🚀 SAVE: Allocation mode:', paycheckPreferences.allocationMode);
+        await saveDateRangeToPreferences(selectedPlan, manualStartDate, manualEndDate);
+      }
+      
+      toast({ title: `Manual overrides saved! (${allOverrideRows.length} items)` });
       fetchManualOverrides();
     }
   };
@@ -485,6 +1286,39 @@ export function PaycheckPulseManager() {
         if (preferences) setUserPreferences(preferences);
         if (preferences?.paycheckPreferences) {
           setPaycheckPreferences(preferences.paycheckPreferences);
+          
+          // Load saved manual date ranges into planStates
+          const savedDateRanges = preferences.paycheckPreferences.manualPlanDateRanges;
+          if (savedDateRanges) {
+            console.log('📅 Loading saved date ranges from preferences:', savedDateRanges);
+            
+            setPlanStates(prev => {
+              const newStates = { ...prev };
+              
+              PLAN_KEYS.forEach(plan => {
+                const savedRange = savedDateRanges[plan];
+                if (savedRange) {
+                  const startDate = new Date(savedRange.start);
+                  const endDate = new Date(savedRange.end);
+                  
+                  // Only update if dates are valid
+                  if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                    newStates[plan] = {
+                      ...newStates[plan],
+                      manualStartDate: startDate,
+                      manualEndDate: endDate
+                    };
+                    console.log(`📅 Restored ${plan} date range:`, {
+                      start: startDate.toISOString().split('T')[0],
+                      end: endDate.toISOString().split('T')[0]
+                    });
+                  }
+                }
+              });
+              
+              return newStates;
+            });
+          }
         }
 
         // Fetch recurring items
@@ -547,6 +1381,7 @@ export function PaycheckPulseManager() {
           categoryId: item.category_id,
           startDate: item.start_date ? new Date(item.start_date) : undefined,
           endDate: item.end_date ? new Date(item.end_date) : undefined,
+          lastRenewalDate: item.last_renewal_date ? new Date(item.last_renewal_date) : undefined,
           userId: item.user_id,
           createdAt: new Date(item.created_at!),
           updatedAt: item.updated_at ? new Date(item.updated_at) : undefined
@@ -561,6 +1396,7 @@ export function PaycheckPulseManager() {
           minimumPayment: Number(debt.minimum_payment),
           paymentDayOfMonth: debt.payment_day_of_month,
           nextDueDate: debt.next_due_date ? new Date(debt.next_due_date) : new Date(),
+          nextOccurrenceDate: debt.next_due_date ? new Date(debt.next_due_date) : new Date(),
           paymentFrequency: debt.payment_frequency,
           userId: debt.user_id,
           createdAt: new Date(debt.created_at!)
@@ -662,6 +1498,24 @@ export function PaycheckPulseManager() {
         : undefined;
       const periods = generatePaycheckPeriods(recurringItems, trackingStart);
       
+      // Prepare current plan date ranges for immediate calculation
+      const currentPlanDateRanges = {
+        plan1: {
+          start: planStates.plan1.manualStartDate,
+          end: planStates.plan1.manualEndDate
+        },
+        plan2: {
+          start: planStates.plan2.manualStartDate,
+          end: planStates.plan2.manualEndDate
+        },
+        plan3: {
+          start: planStates.plan3.manualStartDate,
+          end: planStates.plan3.manualEndDate
+        }
+      };
+      
+
+      
       // Use the enhanced calculation with sinking funds integration and actual spending data
       const breakdowns = generatePaycheckBreakdownWithSinkingFunds(
         periods,
@@ -671,17 +1525,28 @@ export function PaycheckPulseManager() {
         goals,
         sinkingFunds,
         paycheckPreferences,
-        actualSpendingData // Pass actual spending data
+        actualSpendingData, // Pass actual spending data
+        currentPlanDateRanges // Pass current date ranges for immediate calculation
       );
       
       setPaycheckBreakdowns(breakdowns);
     }
-  }, [recurringItems, debtAccounts, variableExpenses, goals, sinkingFunds, paycheckPreferences, actualSpendingData, userPreferences]);
+  }, [recurringItems, debtAccounts, variableExpenses, goals, sinkingFunds, paycheckPreferences, actualSpendingData, userPreferences, planStates]);
 
   const handlePreferencesChanged = async (newPreferences: PaycheckPreferences) => {
     if (!user?.id) return;
 
     try {
+      // If switching to manual mode with an active plan, save current date range
+      if (newPreferences.allocationMode === 'manual' && newPreferences.activeManualPlan) {
+        const activePlan = newPreferences.activeManualPlan as PlanKey;
+        const activePlanState = planStates[activePlan];
+        
+        if (activePlanState.manualStartDate && activePlanState.manualEndDate) {
+          await saveDateRangeToPreferences(activePlan, activePlanState.manualStartDate, activePlanState.manualEndDate);
+        }
+      }
+
       await updateUserPreferences(user.id, { paycheckPreferences: newPreferences });
       setPaycheckPreferences(newPreferences);
       
@@ -770,6 +1635,12 @@ export function PaycheckPulseManager() {
     }
   }, [paycheckPreferences]);
 
+  // Filter items that have occurrences within the selected period
+  const getFilteredItemsForPeriod = (items: any[], itemType: 'recurring' | 'debt' = 'recurring') => {
+    // Return ALL items - the ManualExpenseTable component handles conditional autofill based on date range
+    return items;
+  };
+
   // Early return logic moved to before main return
   if (isLoading) {
     return (
@@ -793,26 +1664,6 @@ export function PaycheckPulseManager() {
       </div>
     );
   }
-
-  // Filter and autofill items for manual mode
-  const filteredIncome = manualStartDate && manualEndDate
-    ? recurringItems.filter(item => item.type === 'income' && item.startDate && item.startDate >= manualStartDate && item.startDate <= manualEndDate)
-    : [];
-  const filteredFixed = manualStartDate && manualEndDate
-    ? recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate))
-    : [];
-  const filteredSubscriptions = manualStartDate && manualEndDate
-    ? recurringItems.filter(item => item.type === 'subscription' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate))
-    : [];
-  const filteredVariable = manualStartDate && manualEndDate
-    ? variableExpenses.filter(item => item.createdAt && item.createdAt <= manualEndDate && (!item.updatedAt || item.updatedAt >= manualStartDate))
-    : [];
-  const filteredDebt = manualStartDate && manualEndDate
-    ? debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate)
-    : [];
-  const filteredGoals = manualStartDate && manualEndDate
-    ? goals.filter(item => item.createdAt && item.createdAt <= manualEndDate)
-    : [];
 
   return (
     <div className="space-y-10">
@@ -844,7 +1695,9 @@ export function PaycheckPulseManager() {
             variant={paycheckPreferences.allocationMode === 'auto' ? 'default' : 'outline'}
             onClick={() => {
               setPaycheckPreferences(prev => ({ ...prev, allocationMode: 'auto', activeManualPlan: null }));
-              updateUserPreferences(user?.id, { paycheckPreferences: { ...paycheckPreferences, allocationMode: 'auto', activeManualPlan: null } });
+              if (user?.id) {
+                updateUserPreferences(user.id, { paycheckPreferences: { ...paycheckPreferences, allocationMode: 'auto', activeManualPlan: null } });
+              }
             }}
             aria-pressed={paycheckPreferences.allocationMode === 'auto'}
             className={isMobile ? 'w-full' : ''}
@@ -856,7 +1709,9 @@ export function PaycheckPulseManager() {
             variant={paycheckPreferences.allocationMode === 'manual' ? 'default' : 'outline'}
             onClick={() => {
               setPaycheckPreferences(prev => ({ ...prev, allocationMode: 'manual', activeManualPlan: selectedPlan }));
-              updateUserPreferences(user?.id, { paycheckPreferences: { ...paycheckPreferences, allocationMode: 'manual', activeManualPlan: selectedPlan } });
+              if (user?.id) {
+                updateUserPreferences(user.id, { paycheckPreferences: { ...paycheckPreferences, allocationMode: 'manual', activeManualPlan: selectedPlan } });
+              }
             }}
             aria-pressed={paycheckPreferences.allocationMode === 'manual'}
             className={isMobile ? 'w-full' : ''}
@@ -895,7 +1750,6 @@ export function PaycheckPulseManager() {
                     ) || current[0].obligatedExpenses
                   }} 
                   isHighlighted={true}
-                  isMobile={isMobile}
                 />
               </div>
             )}
@@ -917,7 +1771,6 @@ export function PaycheckPulseManager() {
                     ) || bd.obligatedExpenses
                   }))} 
                   title="Past Paychecks"
-                  isMobile={isMobile}
                 />
               </TabsContent>
 
@@ -932,7 +1785,6 @@ export function PaycheckPulseManager() {
                       ) || bd.obligatedExpenses
                     }))} 
                     title="Most Recent Paycheck"
-                    isMobile={isMobile}
                   />
                 ) : (
                   <div className="text-center py-8">
@@ -953,7 +1805,6 @@ export function PaycheckPulseManager() {
                     ) || bd.obligatedExpenses
                   }))} 
                   title="Upcoming Paychecks"
-                  isMobile={isMobile}
                 />
               </TabsContent>
             </Tabs>
@@ -964,18 +1815,40 @@ export function PaycheckPulseManager() {
         <>
           {/* --- Active Manual Plan Selector --- */}
           {paycheckPreferences.allocationMode === 'manual' && (
-            <div className={`flex ${isMobile ? 'flex-col gap-3' : 'items-center gap-2'} mb-4`}>
-              <span className={`${isMobile ? 'text-sm text-center' : 'text-sm'} font-medium text-gray-700`}>Active Manual Plan:</span>
+            <div className="mb-4">
+              <div className={`flex ${isMobile ? 'flex-col gap-2' : 'items-center justify-between'} mb-2`}>
+                <span className={`${isMobile ? 'text-sm text-center' : 'text-sm'} font-medium text-gray-700`}>🎯 Active Plan (affects whole app):</span>
+                <span className="text-xs text-gray-500">This plan's data appears on your dashboard</span>
+              </div>
               <div className={`flex ${isMobile ? 'flex-col gap-2' : 'gap-2'}`}>
                 {PLAN_KEYS.map(plan => (
                   <Button
                     key={plan}
                     variant={paycheckPreferences.activeManualPlan === plan ? 'default' : 'outline'}
-                    onClick={() => {
+                    onClick={async () => {
+                      // Save current plan's date range before switching
+                      const currentPlanState = planStates[selectedPlan];
+                      if (currentPlanState.manualStartDate && currentPlanState.manualEndDate) {
+                        await saveDateRangeToPreferences(selectedPlan, currentPlanState.manualStartDate, currentPlanState.manualEndDate);
+                      }
+                      
                       setSelectedPlan(plan);
                       setPaycheckPreferences(prev => ({ ...prev, activeManualPlan: plan }));
                       if (user && user.id) {
-                        updateUserPreferences(user.id, { paycheckPreferences: { ...paycheckPreferences, activeManualPlan: plan } });
+                        const newPlanState = planStates[plan];
+                        const updatedPreferences = { 
+                          paycheckPreferences: { 
+                            ...paycheckPreferences, 
+                            activeManualPlan: plan 
+                          } 
+                        };
+                        
+                        // Also save the new plan's date range if it exists
+                        if (newPlanState.manualStartDate && newPlanState.manualEndDate) {
+                          await saveDateRangeToPreferences(plan, newPlanState.manualStartDate, newPlanState.manualEndDate);
+                        }
+                        
+                        await updateUserPreferences(user.id, updatedPreferences);
                       }
                     }}
                     className={`${paycheckPreferences.activeManualPlan === plan ? 'font-bold' : ''} ${isMobile ? 'w-full' : ''}`}
@@ -992,18 +1865,62 @@ export function PaycheckPulseManager() {
             </div>
           )}
           {/* --- Plan Tabs Row --- */}
-          <div className={`flex ${isMobile ? 'flex-col gap-2' : 'gap-2'} mb-4`}>
-            {PLAN_KEYS.map(plan => (
-              <Button
-                key={plan}
-                variant={selectedPlan === plan ? 'default' : 'outline'}
-                onClick={() => setSelectedPlan(plan)}
-                className={`${selectedPlan === plan ? 'font-bold' : ''} ${isMobile ? 'w-full' : ''}`}
-                size={isMobile ? 'default' : 'sm'}
-              >
-                {plan === 'plan1' ? 'Plan 1' : plan === 'plan2' ? 'Plan 2' : 'Plan 3'}
-              </Button>
-            ))}
+          <div className="mb-4">
+            <div className={`flex items-center justify-between ${isMobile ? 'flex-col gap-2' : 'gap-4'} mb-2`}>
+              <span className="text-sm font-medium text-gray-700">
+                📝 Editing Plan: {selectedPlan === 'plan1' ? 'Plan 1' : selectedPlan === 'plan2' ? 'Plan 2' : 'Plan 3'}
+                {selectedPlan !== paycheckPreferences.activeManualPlan && (
+                  <span className="ml-2 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Not Active</span>
+                )}
+                <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono">
+                  DEBUG: {selectedPlan}
+                </span>
+              </span>
+              <span className="text-xs text-gray-500">
+                You can edit any plan, even if it's not active
+                <br />
+                ⚠️ <strong>Switching plans does NOT save data</strong> - click "Save" to save changes
+              </span>
+            </div>
+            <div className={`flex ${isMobile ? 'flex-col gap-2' : 'gap-2'}`}>
+              {PLAN_KEYS.map(plan => (
+                <Button
+                  key={plan}
+                  variant={selectedPlan === plan ? 'default' : 'outline'}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log(`🔄 PLAN SWITCH: Button clicked! Switching from ${selectedPlan} to ${plan}`);
+                    console.log(`🔄 PLAN SWITCH: Current planStates:`, planStates);
+                    console.log(`🔄 PLAN SWITCH: Current selectedPlan:`, selectedPlan);
+                    
+                    try {
+                      // NO AUTO-SAVING! Only switch the plan view
+                      console.log(`🔄 PLAN SWITCH: Setting selected plan to ${plan} (NO AUTO-SAVE)`);
+                      setSelectedPlan(plan);
+                      
+                      // Force re-render by updating state immediately
+                      setTimeout(() => {
+                        console.log(`🔄 PLAN SWITCH: Post-switch selectedPlan should be ${plan}`);
+                        console.log(`🔄 PLAN SWITCH: Post-switch planStates:`, planStates);
+                      }, 100);
+                      
+                      console.log(`🔄 PLAN SWITCH: Successfully switched to ${plan}`);
+                    } catch (error) {
+                      console.error('🔄 PLAN SWITCH: Error switching plans:', error);
+                    }
+                  }}
+                  className={`${selectedPlan === plan ? 'font-bold' : ''} ${isMobile ? 'w-full' : ''} transition-all duration-200 hover:scale-105 cursor-pointer`}
+                  size={isMobile ? 'default' : 'sm'}
+                  disabled={false}
+                >
+                  {plan === 'plan1' ? 'Plan 1' : plan === 'plan2' ? 'Plan 2' : 'Plan 3'}
+                  {selectedPlan === plan && (
+                    <span className="ml-1 text-xs">📝</span>
+                  )}
+                </Button>
+              ))}
+            </div>
           </div>
           {/* --- Manual Paycheck Budget Section (plan-aware) --- */}
           <section className={`bg-white rounded-xl ${isMobile ? 'p-4' : 'p-6'} shadow space-y-6 border border-gray-200`}>
@@ -1038,15 +1955,13 @@ export function PaycheckPulseManager() {
                   <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold flex items-center gap-2`}>
                     {/* Calculate total income for the selected period and render the result directly */}
                     {(() => {
-                      // Calculate total income for the selected period
-                      const filteredIncome = recurringItems.filter(item => item.type === 'income' && item.startDate && item.startDate >= manualStartDate && item.startDate <= manualEndDate);
-                      const totalIncome = getManualTabTotal(filteredIncome, 'income', manualOverrides);
-                      // Calculate totals for each section
-                      const totalFixed = getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides);
-                      const totalVariable = getManualTabTotal(variableExpenses, 'variable', manualOverrides);
-                      const totalSubscriptions = getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides);
-                      const totalDebt = getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment');
-                      const totalSavings = getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true);
+                      // Calculate totals for each section using the same logic as the category chips
+                      const totalIncome = getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'income'), 'recurring'), 'income', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate);
+                      const totalFixed = getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'fixed-expense' && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'recurring'), 'fixed', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate);
+                      const totalVariable = getManualTabTotal(getFilteredItemsForPeriod(variableExpenses, 'recurring'), 'variable', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate);
+                      const totalSubscriptions = getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'subscription'), 'recurring'), 'subscription', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate);
+                      const totalDebt = getManualTabTotal(getFilteredItemsForPeriod(debtAccounts, 'debt'), 'debt', manualOverrides, 'minimumPayment', undefined, undefined, manualStartDate, manualEndDate);
+                      const totalSavings = getManualTabTotal(goals, 'goal', manualOverrides, 'targetAmount', true, undefined, manualStartDate, manualEndDate);
                       const totalAllocated = totalFixed + totalVariable + totalSubscriptions + totalDebt + totalSavings;
                       const leftToBudget = totalIncome - totalAllocated;
                       if (leftToBudget === 0) {
@@ -1060,12 +1975,12 @@ export function PaycheckPulseManager() {
                   </div>
                   {/* Category Chips */}
                   <div className={`flex flex-wrap gap-2 mt-2 ${isMobile ? 'justify-center' : ''}`}>
-                    <span className={`px-2 py-1 rounded bg-green-100 text-green-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Income: ${getManualTabTotal(recurringItems.filter(item => item.type === 'income' && item.startDate && item.startDate >= manualStartDate && item.startDate <= manualEndDate), 'income', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className={`px-2 py-1 rounded bg-blue-100 text-blue-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Fixed: ${getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className={`px-2 py-1 rounded bg-purple-100 text-purple-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Variable: ${getManualTabTotal(variableExpenses, 'variable', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className={`px-2 py-1 rounded bg-indigo-100 text-indigo-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Subscriptions: ${getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className={`px-2 py-1 rounded bg-red-100 text-red-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Debt: ${getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment').toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className={`px-2 py-1 rounded bg-yellow-100 text-yellow-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Savings: ${getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-green-100 text-green-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Income: ${getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'income'), 'recurring'), 'income', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-blue-100 text-blue-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Fixed: ${getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'fixed-expense' && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'recurring'), 'fixed', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-purple-100 text-purple-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Variable: ${getManualTabTotal(getFilteredItemsForPeriod(variableExpenses, 'recurring'), 'variable', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-indigo-100 text-indigo-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Subscriptions: ${getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'subscription'), 'recurring'), 'subscription', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-red-100 text-red-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Debt: ${getManualTabTotal(getFilteredItemsForPeriod(debtAccounts, 'debt'), 'debt', manualOverrides, 'minimumPayment', undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className={`px-2 py-1 rounded bg-yellow-100 text-yellow-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Savings: ${getManualTabTotal(goals, 'goal', manualOverrides, 'targetAmount', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                   </div>
                 </div>
               )}
@@ -1079,34 +1994,34 @@ export function PaycheckPulseManager() {
                       <>
                         <TabsTrigger value="fixed">
                           Fixed Expenses
-                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'fixed-expense' && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'recurring'), 'fixed', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </TabsTrigger>
                         <TabsTrigger value="subscription">
                           Subscriptions
-                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'subscription'), 'recurring'), 'subscription', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </TabsTrigger>
                         <TabsTrigger value="variable">
                           Variable Expenses
-                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(variableExpenses, 'variable', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(getFilteredItemsForPeriod(variableExpenses, 'recurring'), 'variable', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </TabsTrigger>
                         <TabsTrigger value="debt">
                           Debt
-                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment').toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(getFilteredItemsForPeriod(debtAccounts, 'debt'), 'debt', manualOverrides, 'minimumPayment', undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </TabsTrigger>
                         <TabsTrigger value="goal">
                           Savings Goals
-                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(goals, 'goal', manualOverrides, 'targetAmount', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </TabsTrigger>
                       </>
                     ) : (
                       <>
                         <TabsTrigger value="fixed" className="text-xs">
                           Fixed
-                          <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'fixed-expense' && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'recurring'), 'fixed', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                         </TabsTrigger>
                         <TabsTrigger value="subscription" className="text-xs">
                           Subs
-                          <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'subscription'), 'recurring'), 'subscription', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                         </TabsTrigger>
                       </>
                     )}
@@ -1115,15 +2030,15 @@ export function PaycheckPulseManager() {
                     <TabsList className="grid grid-cols-3 mb-4">
                       <TabsTrigger value="variable" className="text-xs">
                         Variable
-                        <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(variableExpenses, 'variable', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(getFilteredItemsForPeriod(variableExpenses, 'recurring'), 'variable', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                       </TabsTrigger>
                       <TabsTrigger value="debt" className="text-xs">
                         Debt
-                        <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment').toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(getFilteredItemsForPeriod(debtAccounts, 'debt'), 'debt', manualOverrides, 'minimumPayment', undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                       </TabsTrigger>
                       <TabsTrigger value="goal" className="text-xs">
                         Goals
-                        <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(goals, 'goal', manualOverrides, 'targetAmount', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                       </TabsTrigger>
                     </TabsList>
                   )}
@@ -1131,21 +2046,25 @@ export function PaycheckPulseManager() {
                     <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-semibold text-blue-700 text-lg">Fixed Expenses</span>
-                        <span className="font-bold text-blue-700">${getManualTabTotal(recurringItems.filter(item => item.type === 'fixed-expense' && item.startDate && item.startDate <= manualEndDate && (!item.endDate || item.endDate >= manualStartDate) && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'fixed', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        <span className="font-bold text-blue-700">${getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'fixed-expense' && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))), 'recurring'), 'fixed', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                       </div>
                       <ManualExpenseTable
-                        items={recurringItems.filter(
+                        items={getFilteredItemsForPeriod(
+                          recurringItems.filter(
                           item =>
                             item.type === 'fixed-expense' &&
-                            item.startDate && item.startDate <= manualEndDate &&
-                            (!item.endDate || item.endDate >= manualStartDate) &&
                             !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder'))
+                          ),
+                          'recurring'
                         )}
                         prefix="fixed"
                         manualOverrides={manualOverrides}
                         handleManualChange={handleManualChange}
                         showDefaults={true}
                         hasManualOverridesForPeriod={hasManualOverridesForPeriod}
+                        manualStartDate={manualStartDate}
+                        manualEndDate={manualEndDate}
+                        onGetCurrentValues={ENABLE_FORM_TRACKING ? handleFixedValuesUpdate : undefined}
                       />
                     </div>
                   </TabsContent>
@@ -1153,15 +2072,21 @@ export function PaycheckPulseManager() {
                     <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-semibold text-indigo-700 text-lg">Subscriptions</span>
-                        <span className="font-bold text-indigo-700">${getManualTabTotal(recurringItems.filter(item => item.type === 'subscription'), 'subscription', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        <span className="font-bold text-indigo-700">${getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'subscription'), 'recurring'), 'subscription', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                       </div>
                       <ManualExpenseTable
-                        items={recurringItems.filter(item => item.type === 'subscription')}
+                        items={getFilteredItemsForPeriod(
+                          recurringItems.filter(item => item.type === 'subscription'),
+                          'recurring'
+                        )}
                         prefix="subscription"
                         manualOverrides={manualOverrides}
                         handleManualChange={handleManualChange}
                         showDefaults={true}
                         hasManualOverridesForPeriod={hasManualOverridesForPeriod}
+                        manualStartDate={manualStartDate}
+                        manualEndDate={manualEndDate}
+                        onGetCurrentValues={ENABLE_FORM_TRACKING ? handleSubscriptionValuesUpdate : undefined}
                       />
                     </div>
                   </TabsContent>
@@ -1169,15 +2094,18 @@ export function PaycheckPulseManager() {
                     <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-semibold text-purple-700 text-lg">Variable Expenses</span>
-                        <span className="font-bold text-purple-700">${getManualTabTotal(variableExpenses, 'variable', manualOverrides).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        <span className="font-bold text-purple-700">${getManualTabTotal(getFilteredItemsForPeriod(variableExpenses, 'recurring'), 'variable', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                       </div>
                       <ManualExpenseTable
-                        items={variableExpenses}
+                        items={getFilteredItemsForPeriod(variableExpenses, 'recurring')}
                         prefix="variable"
                         manualOverrides={manualOverrides}
                         handleManualChange={handleManualChange}
                         showDefaults={true}
                         hasManualOverridesForPeriod={hasManualOverridesForPeriod}
+                        manualStartDate={manualStartDate}
+                        manualEndDate={manualEndDate}
+                        onGetCurrentValues={ENABLE_FORM_TRACKING ? handleVariableValuesUpdate : undefined}
                       />
                     </div>
                   </TabsContent>
@@ -1185,16 +2113,19 @@ export function PaycheckPulseManager() {
                     <div className="bg-red-50 border border-red-100 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-semibold text-red-700 text-lg">Debt</span>
-                        <span className="font-bold text-red-700">${getManualTabTotal(debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'debt', manualOverrides, 'minimumPayment').toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        <span className="font-bold text-red-700">${getManualTabTotal(getFilteredItemsForPeriod(debtAccounts, 'debt'), 'debt', manualOverrides, 'minimumPayment', undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                       </div>
                       <ManualExpenseTable
-                        items={debtAccounts.filter(item => item.createdAt && item.createdAt <= manualEndDate)}
+                        items={getFilteredItemsForPeriod(debtAccounts, 'debt')}
                         prefix="debt"
                         manualOverrides={manualOverrides}
                         handleManualChange={handleManualChange}
                         minKey="minimumPayment"
                         showDefaults={true}
                         hasManualOverridesForPeriod={hasManualOverridesForPeriod}
+                        manualStartDate={manualStartDate}
+                        manualEndDate={manualEndDate}
+                        onGetCurrentValues={ENABLE_FORM_TRACKING ? handleDebtValuesUpdate : undefined}
                       />
                     </div>
                   </TabsContent>
@@ -1202,10 +2133,10 @@ export function PaycheckPulseManager() {
                     <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-semibold text-yellow-700 text-lg">Savings Goals</span>
-                        <span className="font-bold text-yellow-700">${getManualTabTotal(goals.filter(item => item.createdAt && item.createdAt <= manualEndDate), 'goal', manualOverrides, 'targetAmount', true).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        <span className="font-bold text-yellow-700">${getManualTabTotal(goals, 'goal', manualOverrides, 'targetAmount', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                       </div>
                       <ManualExpenseTable
-                        items={goals.filter(item => item.createdAt && item.createdAt <= manualEndDate)}
+                        items={goals}
                         prefix="goal"
                         manualOverrides={manualOverrides}
                         handleManualChange={handleManualChange}
@@ -1213,6 +2144,9 @@ export function PaycheckPulseManager() {
                         manualOnly={true}
                         showDefaults={true}
                         hasManualOverridesForPeriod={hasManualOverridesForPeriod}
+                        manualStartDate={manualStartDate}
+                        manualEndDate={manualEndDate}
+                        onGetCurrentValues={ENABLE_FORM_TRACKING ? handleGoalValuesUpdate : undefined}
                       />
                     </div>
                   </TabsContent>
@@ -1220,8 +2154,20 @@ export function PaycheckPulseManager() {
               </>
             )}
             <div className={`flex ${isMobile ? 'flex-col gap-3 mt-6' : 'gap-4 mt-6'}`}>
-              <Button variant="default" onClick={saveManualOverrides} className={isMobile ? 'w-full' : ''} size={isMobile ? 'default' : 'sm'}>Save Manual Overrides</Button>
-              <Button variant="outline" onClick={revertManualOverrides} className={isMobile ? 'w-full' : ''} size={isMobile ? 'default' : 'sm'}>Revert to Auto</Button>
+              <Button 
+                variant="default" 
+                onClick={saveManualOverrides} 
+                className={`${isMobile ? 'w-full' : ''} bg-green-600 hover:bg-green-700`} 
+                size={isMobile ? 'default' : 'sm'}
+              >
+                💾 Save {selectedPlan === 'plan1' ? 'Plan 1' : selectedPlan === 'plan2' ? 'Plan 2' : 'Plan 3'} Overrides
+                {selectedPlan !== paycheckPreferences.activeManualPlan && (
+                  <span className="ml-1 text-xs opacity-80">(Not Active)</span>
+                )}
+              </Button>
+              <Button variant="outline" onClick={revertManualOverrides} className={isMobile ? 'w-full' : ''} size={isMobile ? 'default' : 'sm'}>
+                🔄 Revert {selectedPlan === 'plan1' ? 'Plan 1' : selectedPlan === 'plan2' ? 'Plan 2' : 'Plan 3'} to Auto
+              </Button>
             </div>
           </section>
         </>

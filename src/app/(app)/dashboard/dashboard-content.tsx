@@ -90,6 +90,7 @@ export function DashboardContent() {
       try {
         // Fetch user preferences first to get timezone
         const { preferences } = await getUserPreferences(user.id);
+        console.log("[Dashboard] Fetched user preferences:", preferences);
         setUserPreferences(preferences);
 
         // ... existing data fetching code ...
@@ -295,6 +296,17 @@ export function DashboardContent() {
 
     fetchData();
   }, [user, goalRefreshTrigger]);
+
+  // Add refresh function for external use
+  useEffect(() => {
+    const handleRefreshDashboard = () => {
+      console.log("[Dashboard] Refresh triggered, re-fetching user preferences");
+      fetchData();
+    };
+    
+    window.addEventListener('refreshDashboard', handleRefreshDashboard);
+    return () => window.removeEventListener('refreshDashboard', handleRefreshDashboard);
+  }, []);
 
   // Get category spending breakdown
   const getCategorySpending = () => {
@@ -1163,7 +1175,10 @@ export function DashboardContent() {
 
   useEffect(() => {
     async function fetchPayPeriodSummary() {
-      if (!user?.id || !userPreferences) return;
+      if (!user?.id || !userPreferences) {
+        console.log("[Dashboard] Early return - user or preferences not loaded:", { user: !!user?.id, userPreferences: !!userPreferences });
+        return;
+      }
       // Fetch all needed data for breakdown
       const { sinkingFunds: sf } = await getSinkingFunds(user.id);
       setSinkingFunds(sf || []);
@@ -1171,16 +1186,53 @@ export function DashboardContent() {
       const prefs = userPreferences.paycheckPreferences as PaycheckPreferences;
       console.log("[Dashboard] User Preferences:", userPreferences);
       console.log("[Dashboard] Paycheck Preferences:", prefs);
-      console.log("[Dashboard] Manual Plan Date Ranges:", prefs.manualPlanDateRanges);
-      console.log("[Dashboard] Active Manual Plan:", prefs.activeManualPlan);
+      console.log("[Dashboard] Manual Plan Date Ranges:", prefs?.manualPlanDateRanges);
+      console.log("[Dashboard] Active Manual Plan:", prefs?.activeManualPlan);
+      console.log("[Dashboard] Allocation Mode:", prefs?.allocationMode);
+      
+      // CRITICAL DEBUG: Check if prefs exists at all
+      if (!prefs) {
+        console.log("[Dashboard] 🚨 ERROR: No paycheck preferences found!");
+        return;
+      }
+      
+      // CRITICAL DEBUG: Check each condition individually
+      console.log("[Dashboard] 🔍 Manual mode check:");
+      console.log("  - allocationMode === 'manual':", prefs?.allocationMode === 'manual');
+      console.log("  - activeManualPlan exists:", !!prefs?.activeManualPlan);
+      console.log("  - manualPlanDateRanges exists:", !!prefs?.manualPlanDateRanges);
+      if (prefs?.activeManualPlan && prefs?.manualPlanDateRanges) {
+        console.log("  - date range for active plan exists:", !!prefs.manualPlanDateRanges[prefs.activeManualPlan]);
+        console.log("  - actual date range:", prefs.manualPlanDateRanges[prefs.activeManualPlan]);
+      }
+      
+      // Debug the specific plan date range
+      if (prefs?.manualPlanDateRanges && prefs?.activeManualPlan) {
+        const activePlanRange = prefs.manualPlanDateRanges[prefs.activeManualPlan];
+        console.log(`[Dashboard] Date range for active plan '${prefs.activeManualPlan}':`, activePlanRange);
+        if (activePlanRange) {
+          console.log(`[Dashboard] Start date: ${activePlanRange.start}`);
+          console.log(`[Dashboard] End date: ${activePlanRange.end}`);
+        }
+      }
       
       let periods;
-      if (
-        prefs.allocationMode === 'manual' &&
+      
+      // DECISION LOGIC: Determine if we should use Auto or Manual mode
+      const shouldUseManualMode = (
+        prefs?.allocationMode === 'manual' &&
+        prefs?.activeManualPlan &&
+        prefs?.manualPlanDateRanges &&
         prefs.activeManualPlan &&
-        prefs.manualPlanDateRanges &&
         prefs.manualPlanDateRanges[prefs.activeManualPlan]
-      ) {
+      );
+      
+      console.log('[Dashboard] DECISION: Should use manual mode?', shouldUseManualMode);
+      console.log('[Dashboard] DECISION: Allocation mode:', prefs?.allocationMode);
+      console.log('[Dashboard] DECISION: Active manual plan:', prefs?.activeManualPlan);
+      console.log('[Dashboard] DECISION: Manual plan date ranges exist:', !!prefs?.manualPlanDateRanges);
+      
+      if (shouldUseManualMode && prefs?.activeManualPlan && prefs?.manualPlanDateRanges) {
         // Use the stored manual plan date range
         const { start, end } = prefs.manualPlanDateRanges[prefs.activeManualPlan]!;
         // Extract the date parts and create local dates to avoid timezone conversion
@@ -1221,12 +1273,7 @@ export function DashboardContent() {
       // For manual mode, we need to respect the user's manual allocations
       // instead of running automatic allocation algorithms
       let breakdowns;
-      if (
-        prefs.allocationMode === 'manual' &&
-        prefs.activeManualPlan &&
-        prefs.manualPlanDateRanges &&
-        prefs.manualPlanDateRanges[prefs.activeManualPlan]
-      ) {
+      if (shouldUseManualMode && prefs?.activeManualPlan && prefs?.manualPlanDateRanges) {
         // Fetch actual allocations from paycheckoverrides table
         const period = periods[0];
         let totalFixed = 0;
@@ -1246,14 +1293,18 @@ export function DashboardContent() {
           if (error) {
             console.error('[Dashboard] Error fetching paycheck overrides:', error);
           } else if (overrides && overrides.length > 0) {
+            console.log('[Dashboard] 🔍 Raw overrides from database:', overrides);
+            console.log('[Dashboard] 🔍 Query was:', `user_id = ${user.id} AND paycheck_id LIKE %-${prefs.activeManualPlan}`);
+            
             // Sum amounts by type
             overrides.forEach(override => {
               const amount = Number(override.amount) || 0;
+              console.log(`[Dashboard] 🔍 Processing override: type="${override.type}", amount=${amount}`);
               switch (override.type) {
-                case 'fixed':
+                case 'fixed-expense':
                   totalFixed += amount;
                   break;
-                case 'variable':
+                case 'variable-expense':
                   totalVariable += amount;
                   break;
                 case 'subscription':
@@ -1264,6 +1315,9 @@ export function DashboardContent() {
                   break;
                 case 'goal':
                   totalSavings += amount;
+                  break;
+                default:
+                  console.log(`[Dashboard] ⚠️ Unknown override type: "${override.type}" with amount: ${amount}`);
                   break;
               }
             });
@@ -1326,12 +1380,7 @@ export function DashboardContent() {
       
             // Find the current period based on active allocation mode
       let current: PaycheckBreakdown | null = null;
-      if (
-        prefs.allocationMode === 'manual' &&
-        prefs.activeManualPlan &&
-        prefs.manualPlanDateRanges &&
-        prefs.manualPlanDateRanges[prefs.activeManualPlan]
-      ) {
+      if (shouldUseManualMode && prefs?.activeManualPlan) {
         // For manual mode, find the breakdown matching the active plan
         console.log("[Dashboard] Looking for manual breakdown with planKey:", prefs.activeManualPlan);
         
