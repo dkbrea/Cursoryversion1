@@ -207,7 +207,7 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
               Past Due Items
             </CardTitle>
             <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-red-600`}>
-              {pastDueItems.length} overdue payment{pastDueItems.length !== 1 ? 's' : ''} • ${totalPastDue.toFixed(0)} total
+              {pastDueItems.length} overdue payment{pastDueItems.length !== 1 ? 's' : ''} • ${totalPastDue.toLocaleString(undefined, { minimumFractionDigits: 0 })} total
             </p>
           </div>
         </div>
