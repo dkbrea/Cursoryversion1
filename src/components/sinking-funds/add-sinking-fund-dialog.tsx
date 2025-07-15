@@ -582,7 +582,14 @@ export function AddSinkingFundDialog({ isOpen, onOpenChange, onSinkingFundAdded,
                   {formData.nextExpenseDate ? format(formData.nextExpenseDate, "PPP") : "Select expected date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
+              <PopoverContent 
+                className="w-auto p-0" 
+                align="start" 
+                side="bottom" 
+                sideOffset={4} 
+                avoidCollisions={false}
+                sticky="always"
+              >
                 <Calendar
                   mode="single"
                   selected={formData.nextExpenseDate}

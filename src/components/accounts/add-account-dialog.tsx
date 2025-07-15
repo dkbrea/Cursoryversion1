@@ -32,6 +32,7 @@ import {
 import type { Account, AccountType } from "@/types";
 import { useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const accountTypes: AccountType[] = ["checking", "savings", "credit card", "other"];
 
@@ -58,6 +59,7 @@ interface AddAccountDialogProps {
 
 export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdded }: AddAccountDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const isMobile = useIsMobile();
 
   const form = useForm<AddAccountFormValues>({
     resolver: zodResolver(formSchema),
@@ -120,7 +122,7 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
       onOpenChange(open);
     }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Add New Account</DialogTitle>
           <DialogDescription>
@@ -128,7 +130,8 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+          <div className="flex-1 overflow-y-auto pr-2">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <FormField
               control={form.control}
               name="name"
@@ -209,27 +212,32 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
                 </FormItem>
               )}
             />
-            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-                Cancel
+            </form>
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+              Cancel
+            </Button>
+            <div className="flex gap-2">
+              <Button 
+                type="button" 
+                variant="secondary" 
+                disabled={isLoading}
+                onClick={() => form.handleSubmit(values => onSubmit(values, true))()}
+              >
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Save & Add Another
               </Button>
-              <div className="flex gap-2">
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  disabled={isLoading}
-                  onClick={() => form.handleSubmit(values => onSubmit(values, true))()}
-                >
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Save & Add Another
-                </Button>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Save
-                </Button>
-              </div>
-            </DialogFooter>
-          </form>
+              <Button 
+                type="submit" 
+                disabled={isLoading}
+                onClick={form.handleSubmit(onSubmit)}
+              >
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Save
+              </Button>
+            </div>
+          </DialogFooter>
         </Form>
       </DialogContent>
     </Dialog>

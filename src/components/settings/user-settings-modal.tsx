@@ -286,7 +286,14 @@ export function UserSettingsModal({ isOpen, onOpenChange }: UserSettingsModalPro
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent 
+                      className="w-auto p-0" 
+                      align="start" 
+                      side="bottom" 
+                      sideOffset={4} 
+                      avoidCollisions={false}
+                      sticky="always"
+                    >
                       <Calendar
                         mode="single"
                         selected={field.value}

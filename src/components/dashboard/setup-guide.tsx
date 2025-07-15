@@ -978,7 +978,14 @@ export function SetupGuide() {
                       {selectedTrackingDate ? format(selectedTrackingDate, "PPP") : <span>Pick a date (optional)</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
+                  <PopoverContent 
+                    className="w-auto p-0" 
+                    align="start" 
+                    side="bottom" 
+                    sideOffset={4} 
+                    avoidCollisions={false}
+                    sticky="always"
+                  >
                     <Calendar
                       mode="single"
                       selected={selectedTrackingDate}
