@@ -39,6 +39,7 @@ import { useState, type ReactNode, useEffect } from "react";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, startOfDay } from "date-fns";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const formSchemaBase = z.object({
   name: z.string().min(2, "Name must be at least 2 characters.").max(50, "Name cannot exceed 50 characters."),
@@ -113,6 +114,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
   const [isSemiMonthlySecondDatePickerOpen, setIsSemiMonthlySecondDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
   const [formResetKey, setFormResetKey] = useState(0); // Add a key to force re-render
+  const isMobile = useIsMobile();
 
   // Define default values outside to reuse them
   const defaultValues = {
@@ -419,7 +421,14 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContent 
+                        className="w-auto p-0" 
+                        align="start" 
+                        side="bottom" 
+                        sideOffset={4} 
+                        avoidCollisions={false}
+                        sticky="always"
+                      >
                         <Calendar
                           mode="single"
                           selected={field.value ? new Date(field.value) : undefined}
@@ -454,7 +463,14 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContent 
+                        className="w-auto p-0" 
+                        align="start" 
+                        side="bottom" 
+                        sideOffset={4} 
+                        avoidCollisions={false}
+                        sticky="always"
+                      >
                         <Calendar
                           mode="single"
                           selected={field.value ? new Date(field.value) : undefined}
@@ -490,7 +506,14 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent 
+                          className="w-auto p-0" 
+                          align="start" 
+                          side="bottom" 
+                          sideOffset={4} 
+                          avoidCollisions={false}
+                          sticky="always"
+                        >
                           <Calendar
                             mode="single"
                             selected={field.value ? new Date(field.value) : undefined}
@@ -522,7 +545,14 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent 
+                          className="w-auto p-0" 
+                          align="start" 
+                          side="bottom" 
+                          sideOffset={4} 
+                          avoidCollisions={false}
+                          sticky="always"
+                        >
                           <Calendar
                             mode="single"
                             selected={field.value ? new Date(field.value) : undefined}
@@ -557,7 +587,14 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContent 
+                        className="w-auto p-0" 
+                        align="start" 
+                        side="bottom" 
+                        sideOffset={4} 
+                        avoidCollisions={false}
+                        sticky="always"
+                      >
                         <Calendar
                           mode="single"
                           selected={field.value ? new Date(field.value) : undefined}

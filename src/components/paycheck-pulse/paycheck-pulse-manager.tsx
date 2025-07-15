@@ -256,6 +256,24 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
               console.log(`🔍 GOAL BUDGET FORECAST DEBUG: ${item.name} - no budgeted amount found`);
             }
           }
+
+          // For sinking funds, show the monthly contribution as the budgeted amount
+          if (prefix === 'sinking-funds' && item.monthlyContribution && manualStartDate && manualEndDate) {
+            // Calculate days in selected timeframe
+            const timeDiff = manualEndDate.getTime() - manualStartDate.getTime();
+            const daysInTimeframe = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
+            
+            // Calculate total days in the month (using start date's month)
+            const year = manualStartDate.getFullYear();
+            const month = manualStartDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            // Prorate the monthly contribution based on the timeframe
+            const proratedAmount = (daysInTimeframe / daysInMonth) * item.monthlyContribution;
+            defaultValue = Math.round(proratedAmount);
+            
+            console.log(`🔍 SINKING FUND BUDGET DEBUG: ${item.name} - monthlyContribution: ${item.monthlyContribution}, timeframe: ${daysInTimeframe} days, month: ${daysInMonth} days, prorated: ${defaultValue}`);
+          }
           
           let value = inputStates[key] ?? '';
           // If override is 0, show 0
@@ -284,9 +302,9 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
                       handleManualChange(key, Number(val));
                     }
                   }}
-                    placeholder={prefix === 'goal' ? 'Enter amount' : (showDefaults ? 'Enter amount' : undefined)}
+                    placeholder={(prefix === 'goal' || prefix === 'sinking-funds') ? 'Enter amount' : (showDefaults ? 'Enter amount' : undefined)}
                   />
-                  {(showDefaults || prefix === 'goal') && (
+                  {(showDefaults || prefix === 'goal' || prefix === 'sinking-funds') && (
                     <span className="text-xs italic text-gray-400 w-12 text-left">
                       {defaultValue}
                     </span>
@@ -620,6 +638,11 @@ function getManualTabTotal(items: any[], prefix: string, manualOverrides: Record
       return acc; // Don't add anything if no manual override - goals are manual input only
     }
     
+    // For sinking funds, only count manual overrides like goals
+    if (prefix === 'sinking-funds') {
+      return acc; // Don't add anything if no manual override - sinking funds are manual input only
+    }
+    
     let itemAmount = minKey ? item[minKey] : item.amount;
     
     // For variable expenses, prorate based on the timeframe
@@ -856,7 +879,8 @@ export function PaycheckPulseManager() {
     subscription: {},
     variable: {},
     debt: {},
-    goal: {}
+    goal: {},
+    'sinking-funds': {}
   });
 
   // Temporary flag to disable form state tracking if causing performance issues
@@ -901,6 +925,10 @@ export function PaycheckPulseManager() {
 
   const handleGoalValuesUpdate = useCallback((values: Record<string, string>) => {
     handleFormValuesUpdate('goal', values);
+  }, [handleFormValuesUpdate]);
+
+  const handleSinkingFundsValuesUpdate = useCallback((values: Record<string, string>) => {
+    handleFormValuesUpdate('sinking-funds', values);
   }, [handleFormValuesUpdate]);
 
   // Helper to normalize type from DB to UI prefix
@@ -1189,6 +1217,9 @@ export function PaycheckPulseManager() {
         } else if (prefix === 'goal') {
           name = item.name || '';
           itemType = 'goal';
+        } else if (prefix === 'sinking-funds') {
+          name = item.name || '';
+          itemType = 'sinking-funds';
         }
         
         allOverrideRows.push({
@@ -1227,6 +1258,10 @@ export function PaycheckPulseManager() {
     addOverrides(
       goals,
       'goal'
+    );
+    addOverrides(
+      sinkingFunds,
+      'sinking-funds'
     );
 
     console.log(`💾 SAVE DEBUG: Saving ${allOverrideRows.length} items for ${selectedPlan}`);
@@ -1962,7 +1997,8 @@ export function PaycheckPulseManager() {
                       const totalSubscriptions = getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'subscription'), 'recurring'), 'subscription', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate);
                       const totalDebt = getManualTabTotal(getFilteredItemsForPeriod(debtAccounts, 'debt'), 'debt', manualOverrides, 'minimumPayment', undefined, undefined, manualStartDate, manualEndDate);
                       const totalSavings = getManualTabTotal(goals, 'goal', manualOverrides, 'targetAmount', true, undefined, manualStartDate, manualEndDate);
-                      const totalAllocated = totalFixed + totalVariable + totalSubscriptions + totalDebt + totalSavings;
+                      const totalSinkingFunds = getManualTabTotal(sinkingFunds, 'sinking-funds', manualOverrides, 'monthlyContribution', true, undefined, manualStartDate, manualEndDate);
+                      const totalAllocated = totalFixed + totalVariable + totalSubscriptions + totalDebt + totalSavings + totalSinkingFunds;
                       const leftToBudget = totalIncome - totalAllocated;
                       if (leftToBudget === 0) {
                         return <span className="text-green-600">All Allocated <span className="inline-block w-3 h-3 rounded-full bg-green-400 align-middle"></span></span>;
@@ -1981,6 +2017,9 @@ export function PaycheckPulseManager() {
                     <span className={`px-2 py-1 rounded bg-indigo-100 text-indigo-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Subscriptions: ${getManualTabTotal(getFilteredItemsForPeriod(recurringItems.filter(item => item.type === 'subscription'), 'recurring'), 'subscription', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                     <span className={`px-2 py-1 rounded bg-red-100 text-red-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Debt: ${getManualTabTotal(getFilteredItemsForPeriod(debtAccounts, 'debt'), 'debt', manualOverrides, 'minimumPayment', undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                     <span className={`px-2 py-1 rounded bg-yellow-100 text-yellow-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Savings: ${getManualTabTotal(goals, 'goal', manualOverrides, 'targetAmount', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    {sinkingFunds.length > 0 && (
+                      <span className={`px-2 py-1 rounded bg-teal-100 text-teal-700 ${isMobile ? 'text-xs' : 'text-xs'} font-semibold`}>Sinking Funds: ${getManualTabTotal(sinkingFunds, 'sinking-funds', manualOverrides, 'monthlyContribution', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    )}
                   </div>
                 </div>
               )}
@@ -1989,7 +2028,7 @@ export function PaycheckPulseManager() {
             {manualStartDate && manualEndDate && (
               <>
                 <Tabs value={manualTab} onValueChange={setManualTab} className="w-full mb-4">
-                  <TabsList className={`${isMobile ? 'grid grid-cols-2 mb-4' : 'grid grid-cols-5 mb-4'}`}>
+                  <TabsList className={`${isMobile ? 'grid grid-cols-2 mb-4' : `grid ${sinkingFunds.length > 0 ? 'grid-cols-6' : 'grid-cols-5'} mb-4`}`}>
                     {!isMobile ? (
                       <>
                         <TabsTrigger value="fixed">
@@ -2012,6 +2051,12 @@ export function PaycheckPulseManager() {
                           Savings Goals
                           <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(goals, 'goal', manualOverrides, 'targetAmount', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </TabsTrigger>
+                        {sinkingFunds.length > 0 && (
+                          <TabsTrigger value="sinking-funds">
+                            Sinking Funds
+                            <span className="block text-xs text-muted-foreground font-normal">{getManualTabTotal(sinkingFunds, 'sinking-funds', manualOverrides, 'monthlyContribution', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </TabsTrigger>
+                        )}
                       </>
                     ) : (
                       <>
@@ -2027,7 +2072,7 @@ export function PaycheckPulseManager() {
                     )}
                   </TabsList>
                   {isMobile && (
-                    <TabsList className="grid grid-cols-3 mb-4">
+                    <TabsList className={`grid ${sinkingFunds.length > 0 ? 'grid-cols-4' : 'grid-cols-3'} mb-4`}>
                       <TabsTrigger value="variable" className="text-xs">
                         Variable
                         <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(getFilteredItemsForPeriod(variableExpenses, 'recurring'), 'variable', manualOverrides, undefined, undefined, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
@@ -2040,6 +2085,12 @@ export function PaycheckPulseManager() {
                         Goals
                         <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(goals, 'goal', manualOverrides, 'targetAmount', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
                       </TabsTrigger>
+                      {sinkingFunds.length > 0 && (
+                        <TabsTrigger value="sinking-funds" className="text-xs">
+                          Sinking
+                          <span className="block text-xs text-muted-foreground font-normal">${getManualTabTotal(sinkingFunds, 'sinking-funds', manualOverrides, 'monthlyContribution', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        </TabsTrigger>
+                      )}
                     </TabsList>
                   )}
                   <TabsContent value="fixed">
@@ -2150,6 +2201,29 @@ export function PaycheckPulseManager() {
                       />
                     </div>
                   </TabsContent>
+                  {sinkingFunds.length > 0 && (
+                    <TabsContent value="sinking-funds">
+                      <div className="bg-teal-50 border border-teal-100 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-teal-700 text-lg">Sinking Funds</span>
+                          <span className="font-bold text-teal-700">${getManualTabTotal(sinkingFunds, 'sinking-funds', manualOverrides, 'monthlyContribution', true, undefined, manualStartDate, manualEndDate).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                        </div>
+                        <ManualExpenseTable
+                          items={sinkingFunds}
+                          prefix="sinking-funds"
+                          manualOverrides={manualOverrides}
+                          handleManualChange={handleManualChange}
+                          minKey={undefined} // Do not autofill with monthlyContribution
+                          manualOnly={true}
+                          showDefaults={true}
+                          hasManualOverridesForPeriod={hasManualOverridesForPeriod}
+                          manualStartDate={manualStartDate}
+                          manualEndDate={manualEndDate}
+                          onGetCurrentValues={ENABLE_FORM_TRACKING ? handleSinkingFundsValuesUpdate : undefined}
+                        />
+                      </div>
+                    </TabsContent>
+                  )}
                 </Tabs>
               </>
             )}

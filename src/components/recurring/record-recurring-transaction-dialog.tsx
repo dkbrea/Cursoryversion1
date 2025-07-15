@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { format, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { markPeriodComplete } from "@/lib/api/recurring-completions";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
@@ -80,6 +81,7 @@ export function RecordRecurringTransactionDialog({
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Find the primary account as default
   const primaryAccount = accounts.find(acc => acc.isPrimary) || accounts[0];
@@ -399,7 +401,14 @@ export function RecordRecurringTransactionDialog({
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent 
+                      className="w-auto p-0" 
+                      align="start" 
+                      side="bottom" 
+                      sideOffset={4} 
+                      avoidCollisions={false}
+                      sticky="always"
+                    >
                       <Calendar
                         mode="single"
                         selected={field.value}
