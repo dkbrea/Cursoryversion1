@@ -426,8 +426,8 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                         align="start" 
                         side="bottom" 
                         sideOffset={4} 
-                        avoidCollisions={false}
-                        sticky="always"
+                        avoidCollisions={true}
+                        collisionPadding={16}
                       >
                         <Calendar
                           mode="single"
@@ -468,8 +468,8 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                         align="start" 
                         side="bottom" 
                         sideOffset={4} 
-                        avoidCollisions={false}
-                        sticky="always"
+                        avoidCollisions={true}
+                        collisionPadding={16}
                       >
                         <Calendar
                           mode="single"
@@ -592,8 +592,8 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                         align="start" 
                         side="bottom" 
                         sideOffset={4} 
-                        avoidCollisions={false}
-                        sticky="always"
+                        avoidCollisions={true}
+                        collisionPadding={16}
                       >
                         <Calendar
                           mode="single"

@@ -165,7 +165,7 @@ export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded, ini
       onOpenChange(open);
     }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-auto flex flex-col">
+      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Financial Goal' : 'Add New Financial Goal'}</DialogTitle>
           <DialogDescription>
@@ -234,12 +234,12 @@ export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded, ini
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent 
-                        className="w-auto p-0 max-h-[300px] overflow-y-auto" 
+                        className="w-auto p-0" 
                         align="start" 
                         side="bottom" 
                         sideOffset={4} 
-                        avoidCollisions={false}
-                        sticky="always"
+                        avoidCollisions={true}
+                        collisionPadding={16}
                       >
                         <Calendar
                           mode="single"
