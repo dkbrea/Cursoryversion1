@@ -289,7 +289,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
             Set up your regular income, subscriptions, or fixed expenses.
           </DialogDescription>
           <div className="bg-blue-100 p-2 rounded text-xs">
-            DEBUG: Type={selectedType || 'none'}, Freq={selectedFrequency || 'none'}, ShowPrimary={showPrimaryDateField.toString()}
+            DEBUG: Type={selectedType || 'none'}, Freq={selectedFrequency || 'none'}, ShowPrimary={showPrimaryDateField.toString()}, PopoverOpen={isStartDatePickerOpen.toString()}
           </div>
         </DialogHeader>
         <Form {...form}>
@@ -449,48 +449,42 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
 
             {showPrimaryDateField && (
               <div className="bg-green-100 p-2 rounded border">{/* DEBUG: Primary date field is visible */}
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>{getPrimaryDateLabel()}</FormLabel>
-                    <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                            onClick={() => {
-                              alert('Button clicked! Opening date picker...');
-                              setIsStartDatePickerOpen(true);
-                            }}
-                          >
-                            {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent 
-                        className="w-auto p-0" 
-                        align="start" 
-                        side="bottom" 
-                        sideOffset={4} 
-                        avoidCollisions={true}
-                        collisionPadding={16}
+                <div className="flex flex-col space-y-2">
+                  <label className="text-sm font-medium">{getPrimaryDateLabel()}</label>
+                  <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full pl-3 text-left font-normal"
+                        onClick={() => {
+                          alert('NON-FORM Button clicked! Opening date picker...');
+                          setIsStartDatePickerOpen(true);
+                        }}
                       >
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => { field.onChange(date); setIsStartDatePickerOpen(false); }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                        <span>Pick a date (NON-FORM TEST)</span>
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent 
+                      className="w-auto p-0" 
+                      align="start" 
+                      side="bottom" 
+                      sideOffset={4} 
+                      avoidCollisions={true}
+                      collisionPadding={16}
+                    >
+                      <Calendar
+                        mode="single"
+                        selected={undefined}
+                        onSelect={(date) => { 
+                          alert(`Date selected: ${date}`);
+                          setIsStartDatePickerOpen(false); 
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             )}
 
