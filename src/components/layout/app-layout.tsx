@@ -38,6 +38,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const [isNavigating, setIsNavigating] = React.useState(false);
+  
+  // Handle navigation with proper sidebar closing
+  const handleNavigation = React.useCallback((href: string) => {
+    if (pathname === href) return;
+    
+    setIsNavigating(true);
+    setMobileNavOpen(false);
+    
+    // Wait for sidebar to close before navigating
+    setTimeout(() => {
+      router.push(href);
+      setIsNavigating(false);
+    }, 300); // Match the sidebar close animation duration
+  }, [pathname, router]);
 
   React.useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -53,7 +68,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const SidebarNavContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
+  const SidebarNavContent = ({ onNavigation }: { onNavigation?: (href: string) => void }) => {
     const [showAccountBalances, setShowAccountBalances] = React.useState(false);
     
     // Defer rendering heavy components until after animation
@@ -79,25 +94,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               onClick={(e) => {
-                if (onLinkClick && pathname !== item.href) {
-                  // Prevent default navigation first
+                if (onNavigation && pathname !== item.href) {
                   e.preventDefault();
-                  
-                  // Add visual feedback
-                  e.currentTarget.style.opacity = '0.7';
-                  
-                  // Close sidebar immediately
-                  onLinkClick();
-                  
-                  // Navigate after sidebar starts closing
-                  setTimeout(() => {
-                    router.push(item.href);
-                  }, 150);
+                  onNavigation(item.href);
                 }
               }}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                pathname === item.href ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium" : ""
+                pathname === item.href ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium" : "",
+                isNavigating ? "opacity-50 pointer-events-none" : ""
               )}
             >
               <item.icon className="h-5 w-5" />
@@ -123,7 +128,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Desktop Sidebar - Fixed position with its own scrolling */}
       <aside className="hidden lg:flex lg:flex-col w-[280px] border-r border-sidebar-border flex-shrink-0 h-screen">
         <div className="h-full overflow-hidden flex flex-col">
-          <SidebarNavContent />
+          <SidebarNavContent onNavigation={handleNavigation} />
         </div>
       </aside>
       
@@ -138,7 +143,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0">
-            <SidebarNavContent onLinkClick={() => setMobileNavOpen(false)} key={mobileNavOpen ? 'open' : 'closed'} />
+            <SidebarNavContent onNavigation={handleNavigation} />
           </SheetContent>
         </Sheet>
         
