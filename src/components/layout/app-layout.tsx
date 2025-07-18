@@ -78,8 +78,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
-              onClick={() => {
-                  if (onLinkClick) onLinkClick();
+              onClick={(e) => {
+                if (onLinkClick && pathname !== item.href) {
+                  // Prevent default navigation first
+                  e.preventDefault();
+                  
+                  // Add visual feedback
+                  e.currentTarget.style.opacity = '0.7';
+                  
+                  // Close sidebar immediately
+                  onLinkClick();
+                  
+                  // Navigate after sidebar starts closing
+                  setTimeout(() => {
+                    router.push(item.href);
+                  }, 150);
+                }
               }}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
