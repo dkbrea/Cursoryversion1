@@ -451,22 +451,23 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
               <div className="bg-green-100 p-2 rounded border">{/* DEBUG: Primary date field is visible */}
                 <div className="flex flex-col space-y-2">
                   <label className="text-sm font-medium">{getPrimaryDateLabel()}</label>
-                  <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
-                    <PopoverTrigger asChild>
+                  <Popover 
+                    open={isStartDatePickerOpen} 
+                    onOpenChange={setIsStartDatePickerOpen}
+                    modal={false}
+                  >
+                    <PopoverTrigger>
                       <Button
                         variant="outline"
                         className="w-full pl-3 text-left font-normal"
-                        onClick={() => {
-                          alert('NON-FORM Button clicked! Opening date picker...');
-                          setIsStartDatePickerOpen(true);
-                        }}
+                        onClick={() => alert('NON-FORM Button clicked! Opening date picker...')}
                       >
                         <span>Pick a date (NON-FORM TEST)</span>
                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent 
-                      className="w-auto p-0" 
+                      className="w-auto p-0 z-[9999] bg-white border shadow-lg" 
                       align="start" 
                       side="bottom" 
                       sideOffset={4} 
