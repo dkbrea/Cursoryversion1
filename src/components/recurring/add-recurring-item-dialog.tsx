@@ -282,16 +282,15 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
       onOpenChange(open);
     }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{initialValues ? 'Edit Recurring Item' : 'Add New Recurring Item'}</DialogTitle>
           <DialogDescription>
             Set up your regular income, subscriptions, or fixed expenses.
           </DialogDescription>
         </DialogHeader>
-        <Form {...form} key={`recurring-form-${formResetKey}`}>
-          <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="flex flex-col flex-1">
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4 py-2">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
             <FormField
               control={form.control}
               name="name"
@@ -622,8 +621,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                 </FormItem>
               )}
             />
-            </div>
-            <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2 sm:gap-0 border-t">
+            <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => { onOpenChange(false); resetFormFields();}} disabled={isLoading}>
                 Cancel
               </Button>
