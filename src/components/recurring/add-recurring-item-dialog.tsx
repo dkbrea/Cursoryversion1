@@ -271,14 +271,6 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
   const showLastRenewalDateField = selectedType === 'subscription';
   const showSemiMonthlyDateFields = selectedType !== 'subscription' && selectedFrequency === 'semi-monthly';
   
-  // Debug logging for mobile issue
-  console.log('DEBUG: Field visibility', { 
-    selectedType, 
-    selectedFrequency, 
-    showPrimaryDateField, 
-    showLastRenewalDateField, 
-    showSemiMonthlyDateFields 
-  });
   
   const showCategoryField = selectedType === 'subscription' || selectedType === 'fixed-expense';
   const showEndDateField = selectedType === 'subscription';
@@ -459,22 +451,13 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>{getPrimaryDateLabel()}</FormLabel>
-                    <Popover 
-                      open={isStartDatePickerOpen} 
-                      onOpenChange={(open) => {
-                        console.log('DEBUG: Popover state changing to:', open);
-                        setIsStartDatePickerOpen(open);
-                      }}
-                    >
+                    <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant={"outline"}
                             className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                            onClick={() => {
-                              console.log('DEBUG: Primary date button clicked, opening picker');
-                              setIsStartDatePickerOpen(true);
-                            }}
+                            onClick={() => setIsStartDatePickerOpen(true)}
                           >
                             {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -529,8 +512,8 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           align="start" 
                           side="bottom" 
                           sideOffset={4} 
-                          avoidCollisions={false}
-                          sticky="always"
+                          avoidCollisions={true}
+                          collisionPadding={16}
                         >
                           <Calendar
                             mode="single"
@@ -568,8 +551,8 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           align="start" 
                           side="bottom" 
                           sideOffset={4} 
-                          avoidCollisions={false}
-                          sticky="always"
+                          avoidCollisions={true}
+                          collisionPadding={16}
                         >
                           <Calendar
                             mode="single"
