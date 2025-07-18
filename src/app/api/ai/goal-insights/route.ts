@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateGoalInsights } from '@/ai/flows/goal-insights';
+import { logger } from '@/lib/utils/logger';
 
 // Use service role key for server-side operations
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     // Check if AI is configured and enabled
     if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) {
-      console.log('Goal AI analysis disabled - no API key configured');
+      logger.log('Goal AI analysis disabled - no API key configured');
       return NextResponse.json({ 
         insights: [],
         generatedAt: new Date().toISOString(),
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (process.env.ENABLE_AI_FEATURES === 'false') {
-      console.log('Goal AI analysis disabled - ENABLE_AI_FEATURES=false');
+      logger.log('Goal AI analysis disabled - ENABLE_AI_FEATURES=false');
       return NextResponse.json({ 
         insights: [],
         generatedAt: new Date().toISOString(),

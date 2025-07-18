@@ -17,6 +17,7 @@ import { Icons } from "@/components/icons";
 import { useState } from "react";
 import { Check, X, Edit3, Loader2 } from "lucide-react";
 import { UserSettingsModal } from "@/components/settings/user-settings-modal";
+import { logger } from "@/lib/utils/logger";
 
 export function UserNav() {
   const { user, logout, updateProfile } = useAuth();
@@ -73,10 +74,10 @@ export function UserNav() {
 
   const handleSignOut = async () => {
     try {
-      console.log('Sign out button clicked');
+      logger.log('Sign out button clicked');
       setIsSigningOut(true);
       const result = await logout();
-      console.log('Logout result:', result);
+      logger.log('Logout result:', result);
       
       if (!result.success && result.error) {
         console.error('Logout failed:', result.error);

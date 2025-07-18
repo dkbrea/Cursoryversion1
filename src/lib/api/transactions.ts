@@ -1,5 +1,6 @@
 import { supabase, handleSupabaseError } from '../supabase';
 import type { Transaction, TransactionType, TransactionDetailedType } from '@/types';
+import { logger } from '@/lib/utils/logger';
 
 // Helper function to update account balance
 const updateAccountBalance = async (accountId: string, amount: number, operation: 'add' | 'subtract') => {
@@ -242,15 +243,15 @@ export const createTransaction = async (
         
         // If this is a debt payment, also reduce the debt account balance
         if (transaction.detailedType === 'debt-payment' && transaction.sourceId && transaction.accountId) {
-          console.log('Processing debt payment - reducing debt balance');
-          console.log('Debt account ID:', transaction.sourceId, 'Payment amount:', transaction.amount);
+          logger.log('Processing debt payment - reducing debt balance');
+          logger.log('Debt account ID:', transaction.sourceId, 'Payment amount:', transaction.amount);
           
           // Use absolute value since expense amounts might be negative
           const paymentAmount = Math.abs(transaction.amount);
-          console.log('Absolute payment amount:', paymentAmount);
+          logger.log('Absolute payment amount:', paymentAmount);
           
           await updateDebtAccountBalance(transaction.sourceId, paymentAmount, 'subtract');
-          console.log('Debt balance updated successfully');
+          logger.log('Debt balance updated successfully');
         }
       } else if (transaction.type === 'transfer' && transaction.toAccountId && transaction.accountId) {
         // Transfer: Subtract from source account, add to destination account (use absolute values)
@@ -298,14 +299,14 @@ export const updateTransaction = async (
       
       // If the original transaction was a debt payment, reverse the debt balance effect
       if (originalTx.detailedType === 'debt-payment' && originalTx.sourceId) {
-        console.log('Reversing original debt payment effect');
+        logger.log('Reversing original debt payment effect');
         
         // Use absolute value for consistency
         const originalPaymentAmount = Math.abs(originalTx.amount);
-        console.log('Original payment amount (abs):', originalPaymentAmount);
+        logger.log('Original payment amount (abs):', originalPaymentAmount);
         
         await updateDebtAccountBalance(originalTx.sourceId, originalPaymentAmount, 'add');
-        console.log('Original debt payment effect reversed');
+        logger.log('Original debt payment effect reversed');
       }
     } else if (originalTx.type === 'transfer' && originalTx.toAccountId && originalTx.accountId) {
       await updateAccountBalance(originalTx.accountId, Math.abs(originalTx.amount), 'add');
@@ -389,14 +390,14 @@ export const updateTransaction = async (
       
       // If the updated transaction is a debt payment, apply the debt balance effect
       if (updatedTx.detailedType === 'debt-payment' && updatedTx.sourceId) {
-        console.log('Applying new debt payment effect');
+        logger.log('Applying new debt payment effect');
         
         // Use absolute value since expense amounts might be negative
         const newPaymentAmount = Math.abs(updatedTx.amount);
-        console.log('New payment amount (abs):', newPaymentAmount);
+        logger.log('New payment amount (abs):', newPaymentAmount);
         
         await updateDebtAccountBalance(updatedTx.sourceId, newPaymentAmount, 'subtract');
-        console.log('New debt payment effect applied');
+        logger.log('New debt payment effect applied');
       }
     } else if (updatedTx.type === 'transfer' && updatedTx.toAccountId && updatedTx.accountId) {
       await updateAccountBalance(updatedTx.accountId, Math.abs(updatedTx.amount), 'subtract');
@@ -434,14 +435,14 @@ export const deleteTransaction = async (transactionId: string): Promise<{ succes
       
       // If the deleted transaction was a debt payment, reverse the debt balance effect
       if (transaction.detailedType === 'debt-payment' && transaction.sourceId) {
-        console.log('Reversing debt payment effect from deleted transaction');
+        logger.log('Reversing debt payment effect from deleted transaction');
         
         // Use absolute value for consistency
         const deletedPaymentAmount = Math.abs(transaction.amount);
-        console.log('Deleted payment amount (abs):', deletedPaymentAmount);
+        logger.log('Deleted payment amount (abs):', deletedPaymentAmount);
         
         await updateDebtAccountBalance(transaction.sourceId, deletedPaymentAmount, 'add');
-        console.log('Debt payment effect reversed from deleted transaction');
+        logger.log('Debt payment effect reversed from deleted transaction');
       }
     } else if (transaction.type === 'transfer' && transaction.toAccountId && transaction.accountId) {
       await updateAccountBalance(transaction.accountId, Math.abs(transaction.amount), 'add');

@@ -23,6 +23,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/utils/logger";
 
 export type SetupStep = {
   id: string;
@@ -561,9 +562,9 @@ export function SetupGuide() {
         onOpenChange={setShowAccountDialog}
         onAccountAdded={async (accountData, keepOpen) => {
           try {
-            console.log('=== Setup Guide: Account Creation Started ===');
-            console.log('accountData:', JSON.stringify(accountData, null, 2));
-            console.log('user:', user);
+            logger.log('=== Setup Guide: Account Creation Started ===');
+            logger.log('accountData:', JSON.stringify(accountData, null, 2));
+            logger.log('user:', user);
             
             setIsSaving(true);
             
@@ -572,7 +573,7 @@ export function SetupGuide() {
               throw new Error('You must be logged in to create an account');
             }
             
-            console.log('Creating account with userId:', user.id);
+            logger.log('Creating account with userId:', user.id);
             // Create the account
             const result = await createAccount({
               ...accountData,
@@ -580,7 +581,7 @@ export function SetupGuide() {
               isPrimary: true // First account is primary by default
             });
             
-            console.log('Account creation result:', result);
+            logger.log('Account creation result:', result);
             
             if (result.error) {
               console.error('Account creation failed:', result.error);
@@ -592,7 +593,7 @@ export function SetupGuide() {
               throw new Error('Failed to create account. Please try again.');
             }
             
-            console.log('Account created successfully:', result.account);
+            logger.log('Account created successfully:', result.account);
             // Mark the account step as completed
             const updatedSteps = [...setupSteps];
             const accountStep = updatedSteps.find(step => step.id === 'accounts');
@@ -1023,7 +1024,7 @@ export function SetupGuide() {
                               if (autoCompleteError) {
                                 console.warn('Failed to auto-complete periods:', autoCompleteError);
                               } else if (success && autoCompletedCount > 0) {
-                                console.log(`Auto-completed ${autoCompletedCount} periods before tracking start date`);
+                                logger.log(`Auto-completed ${autoCompletedCount} periods before tracking start date`);
                               }
                             } catch (autoCompleteErr) {
                               console.warn('Error during auto-completion:', autoCompleteErr);

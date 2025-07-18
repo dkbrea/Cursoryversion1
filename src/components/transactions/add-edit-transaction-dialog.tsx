@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { format, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { logger } from "@/lib/utils/logger";
 import { getAvailablePeriodsForItem, markPeriodComplete, type RecurringPeriod } from "@/lib/api/recurring-completions";
 
 
@@ -318,7 +319,7 @@ export function AddEditTransactionDialog({
           }));
         }
 
-        console.log('Dialog: Loading periods for item:', {
+        logger.log('Dialog: Loading periods for item:', {
           itemId,
           itemType,
           allItemsCount: allItems.length,
@@ -337,7 +338,7 @@ export function AddEditTransactionDialog({
           setAvailablePeriods([]);
         } else {
           const periodsArray = periods || [];
-          console.log('Dialog: Loaded periods:', periodsArray.length, periodsArray);
+          logger.log('Dialog: Loaded periods:', periodsArray.length, periodsArray);
           setAvailablePeriods(periodsArray);
 
           // Auto-select the most recently due period (prioritizing actual due dates over just overdue status)
@@ -363,7 +364,7 @@ export function AddEditTransactionDialog({
             // Set the auto-selected period
             if (selectedPeriod) {
               const periodKey = `${selectedPeriod.itemId}-${format(selectedPeriod.periodDate, 'yyyy-MM-dd')}`;
-              console.log('Dialog: Auto-selecting period:', {
+              logger.log('Dialog: Auto-selecting period:', {
                 selectedPeriod,
                 periodKey,
                 isOverdue: selectedPeriod.isOverdue,
@@ -373,7 +374,7 @@ export function AddEditTransactionDialog({
               });
               form.setValue('recurringPeriodId', periodKey, {shouldValidate: true});
             } else {
-              console.log('Dialog: No period auto-selected - no suitable periods found');
+              logger.log('Dialog: No period auto-selected - no suitable periods found');
             }
           }
         }
@@ -449,7 +450,7 @@ export function AddEditTransactionDialog({
     
     // Period completion is now handled by the dashboard's handleSaveTransaction function
     // This ensures the completion is created before the calendar refresh happens
-    console.log('Dialog: Transaction saved, period completion will be handled by parent component');
+    logger.log('Dialog: Transaction saved, period completion will be handled by parent component');
     
     setIsLoading(false);
     onOpenChange(false); 

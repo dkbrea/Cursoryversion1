@@ -1,10 +1,11 @@
 import { supabase } from './supabase';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * Initialize the database by creating necessary tables if they don't exist
  */
 export async function initDatabase() {
-  console.log('Initializing database...');
+  logger.log('Initializing database...');
   
   try {
     // Create user_preferences table if it doesn't exist
@@ -67,10 +68,10 @@ export async function initDatabase() {
       if (directSqlError) {
         console.error('Error creating user_preferences table with direct SQL:', directSqlError);
       } else {
-        console.log('Successfully created user_preferences table with direct SQL');
+        logger.log('Successfully created user_preferences table with direct SQL');
       }
     } else {
-      console.log('Successfully created user_preferences table with RPC');
+      logger.log('Successfully created user_preferences table with RPC');
     }
     
     return { success: true };

@@ -1,5 +1,6 @@
 import { supabase, handleSupabaseError } from '../supabase';
 import type { DebtAccount, DebtAccountType, PaymentFrequency, DebtPayoffStrategy } from '@/types';
+import { logger } from '@/lib/utils/logger';
 
 export const getDebtAccounts = async (userId: string): Promise<{ accounts: DebtAccount[] | null; error?: string }> => {
   try {
@@ -69,8 +70,8 @@ export const getDebtAccount = async (accountId: string): Promise<{ account: Debt
 
 export const createDebtAccount = async (account: Omit<DebtAccount, 'id' | 'createdAt'>): Promise<{ account: DebtAccount | null; error?: string }> => {
   try {
-    console.log('=== createDebtAccount called ===');
-    console.log('account data:', JSON.stringify(account, null, 2));
+    logger.log('=== createDebtAccount called ===');
+    logger.log('account data:', JSON.stringify(account, null, 2));
     
     // Transform from application format to database format, only using fields that exist
     const insertData = {
@@ -85,7 +86,7 @@ export const createDebtAccount = async (account: Omit<DebtAccount, 'id' | 'creat
       user_id: account.userId
     };
     
-    console.log('transformed insertData:', JSON.stringify(insertData, null, 2));
+    logger.log('transformed insertData:', JSON.stringify(insertData, null, 2));
     
     const { data, error } = await supabase
       .from('debt_accounts')
@@ -93,7 +94,7 @@ export const createDebtAccount = async (account: Omit<DebtAccount, 'id' | 'creat
       .select()
       .single();
 
-    console.log('supabase response:', { data, error });
+    logger.log('supabase response:', { data, error });
 
     if (error) {
       console.error('Supabase error:', error);
@@ -120,8 +121,8 @@ export const createDebtAccount = async (account: Omit<DebtAccount, 'id' | 'creat
       createdAt: new Date(data.created_at)
     };
 
-    console.log('transformed result:', JSON.stringify(newAccount, null, 2));
-    console.log('=== createDebtAccount success ===');
+    logger.log('transformed result:', JSON.stringify(newAccount, null, 2));
+    logger.log('=== createDebtAccount success ===');
     return { account: newAccount };
   } catch (error: any) {
     console.error('createDebtAccount caught exception:', error);
@@ -134,9 +135,9 @@ export const updateDebtAccount = async (
   updates: Partial<Omit<DebtAccount, 'id' | 'userId' | 'createdAt'>>
 ): Promise<{ account: DebtAccount | null; error?: string }> => {
   try {
-    console.log('=== updateDebtAccount called ===');
-    console.log('accountId:', accountId);
-    console.log('updates:', JSON.stringify(updates, null, 2));
+    logger.log('=== updateDebtAccount called ===');
+    logger.log('accountId:', accountId);
+    logger.log('updates:', JSON.stringify(updates, null, 2));
     
     // Transform from application format to database format
     const updateData: any = {};
@@ -149,7 +150,7 @@ export const updateDebtAccount = async (
     if (updates.nextDueDate !== undefined) updateData.next_due_date = updates.nextDueDate;
     if (updates.paymentFrequency !== undefined) updateData.payment_frequency = updates.paymentFrequency;
     
-    console.log('transformed updateData:', JSON.stringify(updateData, null, 2));
+    logger.log('transformed updateData:', JSON.stringify(updateData, null, 2));
     
     const { data, error } = await supabase
       .from('debt_accounts')
@@ -158,7 +159,7 @@ export const updateDebtAccount = async (
       .select()
       .single();
 
-    console.log('supabase response:', { data, error });
+    logger.log('supabase response:', { data, error });
 
     if (error) {
       console.error('Supabase error:', error);
@@ -185,8 +186,8 @@ export const updateDebtAccount = async (
       createdAt: new Date(data.created_at)
     };
 
-    console.log('transformed result:', JSON.stringify(updatedAccount, null, 2));
-    console.log('=== updateDebtAccount success ===');
+    logger.log('transformed result:', JSON.stringify(updatedAccount, null, 2));
+    logger.log('=== updateDebtAccount success ===');
     return { account: updatedAccount };
   } catch (error: any) {
     console.error('updateDebtAccount caught exception:', error);
@@ -304,7 +305,7 @@ export const makeDebtPayment = async (
     });
 
     if (error) {
-      console.log('RPC make_debt_payment failed, using fallback logic:', error.message);
+      logger.log('RPC make_debt_payment failed, using fallback logic:', error.message);
       
       // If the RPC function doesn't exist, fall back to manual updates
       // Get the debt account to update its balance
@@ -315,8 +316,8 @@ export const makeDebtPayment = async (
         return { success: false, error: fetchError || 'Debt account not found' };
       }
       
-      console.log('Current debt balance:', account.balance, 'Payment amount:', amount);
-      console.log('New debt balance will be:', account.balance - amount);
+      logger.log('Current debt balance:', account.balance, 'Payment amount:', amount);
+      logger.log('New debt balance will be:', account.balance - amount);
       
       // Update the debt account balance
       const { error: updateError } = await supabase
@@ -329,7 +330,7 @@ export const makeDebtPayment = async (
         return { success: false, error: updateError.message };
       }
       
-      console.log('Debt balance updated successfully');
+      logger.log('Debt balance updated successfully');
       
       // Create a transaction record for this payment using the correct API
       const { createTransaction } = await import('./transactions');
@@ -340,7 +341,7 @@ export const makeDebtPayment = async (
         return { success: false, error: 'Source account ID is required for debt payments' };
       }
       
-      console.log('Creating transaction - fromAccountId:', fromAccountId, 'amount:', amount);
+      logger.log('Creating transaction - fromAccountId:', fromAccountId, 'amount:', amount);
       
       // Find or create a "Debt Payment" category
       let categoryId: string | undefined;
@@ -360,7 +361,7 @@ export const makeDebtPayment = async (
         }
         
         categoryId = debtCategory?.id;
-        console.log('Using category ID:', categoryId);
+        logger.log('Using category ID:', categoryId);
       } catch (error) {
         console.warn('Could not create/find debt payment category:', error);
         // Continue without category if creation fails
@@ -379,7 +380,7 @@ export const makeDebtPayment = async (
         tags: ['debt-payment']
       };
       
-      console.log('Transaction data:', transactionData);
+      logger.log('Transaction data:', transactionData);
       
       const { transaction, error: txError } = await createTransaction(transactionData);
         
@@ -388,9 +389,9 @@ export const makeDebtPayment = async (
         return { success: false, error: `Failed to create transaction: ${txError}` };
       }
       
-      console.log('Transaction created successfully:', transaction?.id);
+      logger.log('Transaction created successfully:', transaction?.id);
     } else {
-      console.log('RPC make_debt_payment succeeded');
+      logger.log('RPC make_debt_payment succeeded');
     }
 
     return { success: true };

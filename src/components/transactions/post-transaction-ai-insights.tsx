@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Loader2, TrendingUp, AlertTriangle, Info, Gem, HelpCircle, X } from 'lucide-react';
 import { cn, formatNumber } from '@/lib/utils';
+import { logger } from '@/lib/utils/logger';
 import type { Transaction, Account, Category } from '@/types';
 
 interface FinancialInsight {
@@ -79,24 +80,24 @@ export function PostTransactionJadeInsights({
         };
 
         // Debug logging to see what data we're sending
-        console.log('PostTransactionJadeInsights - Raw transaction:', transaction);
-        console.log('PostTransactionJadeInsights - Processed data:', transactionData);
+        logger.log('PostTransactionJadeInsights - Raw transaction:', transaction);
+        logger.log('PostTransactionJadeInsights - Processed data:', transactionData);
 
         // Validate that we have the minimum required data
         if (!transactionData.amount || transactionData.amount <= 0) {
-          console.log('Invalid amount:', transactionData.amount);
+          logger.log('Invalid amount:', transactionData.amount);
           setTimeout(() => onClose(), 1000);
           return;
         }
 
         if (!transactionData.description || transactionData.description.trim() === '') {
-          console.log('Missing description');
+          logger.log('Missing description');
           setTimeout(() => onClose(), 1000);
           return;
         }
 
         if (!transactionData.date || isNaN(transactionData.date.getTime())) {
-          console.log('Invalid date:', transactionData.date);
+          logger.log('Invalid date:', transactionData.date);
           setTimeout(() => onClose(), 1000);
           return;
         }

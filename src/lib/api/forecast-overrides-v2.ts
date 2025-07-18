@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { logger } from '@/lib/utils/logger';
 
 export interface ForecastOverride {
   itemId: string;
@@ -62,7 +63,7 @@ const getUserPreferences = async (userId: string): Promise<ForecastOverrides> =>
     const columnExists = await checkDatabaseColumnExists();
     
     if (!columnExists) {
-      console.log('Database column not available, using localStorage fallback');
+      logger.log('Database column not available, using localStorage fallback');
       return getLocalStorageOverrides(userId);
     }
 
@@ -102,7 +103,7 @@ const saveUserPreferences = async (userId: string, overrides: ForecastOverrides)
     const columnExists = await checkDatabaseColumnExists();
     
     if (!columnExists) {
-      console.log('Database column not available, saving to localStorage');
+      logger.log('Database column not available, saving to localStorage');
       saveLocalStorageOverrides(userId, overrides);
       return;
     }

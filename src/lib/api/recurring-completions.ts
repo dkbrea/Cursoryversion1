@@ -7,6 +7,7 @@ import {
   isBefore, isAfter, subMonths, addWeeks as addWeeksDate, min
 } from "date-fns";
 import { adjustToPreviousBusinessDay } from '@/lib/utils/date-calculations';
+import { logger } from '@/lib/utils/logger';
 
 export interface RecurringCompletion {
   id: string;
@@ -42,7 +43,7 @@ export const calculateRecurringOccurrences = (
 ): Date[] => {
   const occurrences: Date[] = [];
   
-  console.log('DEBUG calculateRecurringOccurrences:', {
+  logger.log('DEBUG calculateRecurringOccurrences:', {
     itemName: item.name,
     searchStartDate: startDate.toISOString().split('T')[0],
     searchEndDate: endDate.toISOString().split('T')[0],
@@ -130,7 +131,7 @@ export const calculateRecurringOccurrences = (
       } else {
         // For other frequencies (weekly, bi-weekly, etc.), implement aged billing
         // Generate periods from search start using the item's due day pattern
-        console.log('DEBUG: Implementing aged billing for non-monthly frequency:', {
+        logger.log('DEBUG: Implementing aged billing for non-monthly frequency:', {
           itemName: item.name,
           frequency: item.frequency,
           dueDayOfMonth,
@@ -178,7 +179,7 @@ export const calculateRecurringOccurrences = (
       
       // Debug logging for business day adjustments
       if (item.itemDisplayType === 'income' && finalDate.getTime() !== currentDate.getTime()) {
-        console.log('DEBUG: Applied business day adjustment for income item:', {
+        logger.log('DEBUG: Applied business day adjustment for income item:', {
           itemName: item.name,
           originalDate: currentDate.toISOString().split('T')[0],
           adjustedDate: finalDate.toISOString().split('T')[0]
@@ -225,7 +226,7 @@ export const calculateRecurringOccurrences = (
     }
   }
 
-  console.log('DEBUG calculateRecurringOccurrences result:', {
+  logger.log('DEBUG calculateRecurringOccurrences result:', {
     itemName: item.name,
     occurrencesCount: occurrences.length,
     occurrences: occurrences.map(d => d.toISOString().split('T')[0])
@@ -325,7 +326,7 @@ export const getRecurringPeriods = async (
   recurringItems: UnifiedRecurringListItem[]
 ): Promise<{ periods: RecurringPeriod[] | null; error?: string }> => {
   try {
-    console.log('DEBUG getRecurringPeriods called with:', {
+    logger.log('DEBUG getRecurringPeriods called with:', {
       userId,
       startDate: startDate.toISOString().split('T')[0],
       endDate: endDate.toISOString().split('T')[0],
@@ -349,7 +350,7 @@ export const getRecurringPeriods = async (
       
       if (!prefsError && userPrefs?.financial_tracking_start_date) {
         userTrackingStartDate = startOfDay(new Date(userPrefs.financial_tracking_start_date));
-        console.log('DEBUG: User tracking start date:', userTrackingStartDate.toISOString().split('T')[0]);
+        logger.log('DEBUG: User tracking start date:', userTrackingStartDate.toISOString().split('T')[0]);
       }
     } catch (error) {
       console.warn('Could not fetch user tracking start date:', error);
@@ -388,21 +389,21 @@ export const getRecurringPeriods = async (
     const periods: RecurringPeriod[] = [];
     const today = startOfDay(new Date());
 
-    console.log('DEBUG: Processing recurring items. Total completions found:', completions?.length || 0);
-    console.log('DEBUG: Today:', today.toISOString().split('T')[0]);
-    console.log('DEBUG: User tracking start date for auto-completion:', userTrackingStartDate?.toISOString().split('T')[0] || 'none');
+    logger.log('DEBUG: Processing recurring items. Total completions found:', completions?.length || 0);
+    logger.log('DEBUG: Today:', today.toISOString().split('T')[0]);
+    logger.log('DEBUG: User tracking start date for auto-completion:', userTrackingStartDate?.toISOString().split('T')[0] || 'none');
     
     // Debug: Log debt-specific completion records from database
     const debtCompletionsFromDB = completions?.filter(c => c.debt_account_id) || [];
     if (debtCompletionsFromDB.length > 0) {
-      console.log('🟨🟨🟨 DEBT COMPLETIONS FROM DATABASE 🟨🟨🟨');
-      console.log('🟨 Count:', debtCompletionsFromDB.length);
+      logger.log('🟨🟨🟨 DEBT COMPLETIONS FROM DATABASE 🟨🟨🟨');
+      logger.log('🟨 Count:', debtCompletionsFromDB.length);
       debtCompletionsFromDB.forEach(c => {
-        console.log(`🟨 DebtID: ${c.debt_account_id} - Date: ${c.period_date} - TxnID: ${c.transaction_id}`);
+        logger.log(`🟨 DebtID: ${c.debt_account_id} - Date: ${c.period_date} - TxnID: ${c.transaction_id}`);
       });
-      console.log('🟨🟨🟨 END DB DEBT COMPLETIONS 🟨🟨🟨');
+      logger.log('🟨🟨🟨 END DB DEBT COMPLETIONS 🟨🟨🟨');
     } else {
-      console.log('🚨 NO DEBT COMPLETIONS FOUND IN DATABASE');
+      logger.log('🚨 NO DEBT COMPLETIONS FOUND IN DATABASE');
     }
 
     // Process each recurring item
@@ -438,7 +439,7 @@ export const getRecurringPeriods = async (
 
       // Debug logging for income items specifically
       if (item.itemDisplayType === 'income') {
-        console.log('DEBUG: Income item processing:', {
+        logger.log('DEBUG: Income item processing:', {
           itemName: item.name,
           itemDisplayType: item.itemDisplayType,
           occurrencesGenerated: occurrences.length,
@@ -469,7 +470,7 @@ export const getRecurringPeriods = async (
         
         // Debug logging for completion status
         if (isBeforeTrackingStart) {
-          console.log('DEBUG: Auto-completing period before tracking start:', {
+          logger.log('DEBUG: Auto-completing period before tracking start:', {
             itemName: item.name,
             itemDisplayType: item.itemDisplayType,
             periodDate: occurrenceDate.toISOString().split('T')[0],
@@ -482,7 +483,7 @@ export const getRecurringPeriods = async (
         
         // Extra logging for income items to debug Jan-Mar issue
         if (item.itemDisplayType === 'income') {
-          console.log('DEBUG: Income item period processing:', {
+          logger.log('DEBUG: Income item period processing:', {
             itemName: item.name,
             periodDate: occurrenceDate.toISOString().split('T')[0],
             isBeforeTrackingStart,
@@ -563,7 +564,7 @@ const ensureDebtRecurringItemPlaceholder = async (
       return { recurringItemId: null, error: createError.message };
     }
 
-    console.log('🔧 Created placeholder recurring item for debt account:', debtAccountId);
+    logger.log('🔧 Created placeholder recurring item for debt account:', debtAccountId);
     return { recurringItemId: newItem.id };
   } catch (error: any) {
     return { recurringItemId: null, error: error.message };
@@ -575,11 +576,11 @@ export const markPeriodComplete = async (
 ): Promise<{ completion: RecurringCompletion | null; error?: string }> => {
   try {
     if (completion.debtAccountId) {
-      console.log('💿💿💿 MARKING DEBT PERIOD COMPLETE 💿💿💿');
-      console.log('💿 Debt Account ID:', completion.debtAccountId);
-      console.log('💿 Period Date:', completion.periodDate.toISOString().split('T')[0]);
-      console.log('💿 Transaction ID:', completion.transactionId);
-      console.log('💿 User ID:', completion.userId);
+      logger.log('💿💿💿 MARKING DEBT PERIOD COMPLETE 💿💿💿');
+      logger.log('💿 Debt Account ID:', completion.debtAccountId);
+      logger.log('💿 Period Date:', completion.periodDate.toISOString().split('T')[0]);
+      logger.log('💿 Transaction ID:', completion.transactionId);
+      logger.log('💿 User ID:', completion.userId);
     }
     // Check if a completion already exists for this period
     const whereClause = completion.recurringItemId 
@@ -643,7 +644,7 @@ export const markPeriodComplete = async (
         }
         
         finalRecurringItemId = recurringItemId || undefined;
-        console.log('🔧 Using placeholder recurring item ID for debt:', finalRecurringItemId);
+        logger.log('🔧 Using placeholder recurring item ID for debt:', finalRecurringItemId);
       }
       
       // Create new completion
@@ -657,12 +658,12 @@ export const markPeriodComplete = async (
       };
       
       if (completion.debtAccountId) {
-        console.log('🗄️🗄️🗄️ DATABASE INSERT DATA FOR DEBT 🗄️🗄️🗄️');
-        console.log('🗄️ recurring_item_id:', insertData.recurring_item_id);
-        console.log('🗄️ debt_account_id:', insertData.debt_account_id);
-        console.log('🗄️ period_date:', insertData.period_date);
-        console.log('🗄️ transaction_id:', insertData.transaction_id);
-        console.log('🗄️ user_id:', insertData.user_id);
+        logger.log('🗄️🗄️🗄️ DATABASE INSERT DATA FOR DEBT 🗄️🗄️🗄️');
+        logger.log('🗄️ recurring_item_id:', insertData.recurring_item_id);
+        logger.log('🗄️ debt_account_id:', insertData.debt_account_id);
+        logger.log('🗄️ period_date:', insertData.period_date);
+        logger.log('🗄️ transaction_id:', insertData.transaction_id);
+        logger.log('🗄️ user_id:', insertData.user_id);
       }
       
       const { data, error } = await supabase
@@ -688,11 +689,11 @@ export const markPeriodComplete = async (
       };
 
       if (result.debtAccountId) {
-        console.log('✅✅✅ DEBT COMPLETION RECORD SAVED SUCCESSFULLY ✅✅✅');
-        console.log('✅ Completion ID:', result.id);
-        console.log('✅ Debt Account ID:', result.debtAccountId);
-        console.log('✅ Period Date:', result.periodDate.toISOString().split('T')[0]);
-        console.log('✅ Transaction ID:', result.transactionId);
+        logger.log('✅✅✅ DEBT COMPLETION RECORD SAVED SUCCESSFULLY ✅✅✅');
+        logger.log('✅ Completion ID:', result.id);
+        logger.log('✅ Debt Account ID:', result.debtAccountId);
+        logger.log('✅ Period Date:', result.periodDate.toISOString().split('T')[0]);
+        logger.log('✅ Transaction ID:', result.transactionId);
       }
 
       return { completion: result };
@@ -737,7 +738,7 @@ export const removeCompletionByTransactionId = async (
   userId: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    console.log('Removing completion for transaction ID:', transactionId);
+    logger.log('Removing completion for transaction ID:', transactionId);
     
     const { error } = await supabase
       .from('recurring_completions')
@@ -750,7 +751,7 @@ export const removeCompletionByTransactionId = async (
       return { success: false, error: error.message };
     }
 
-    console.log('Successfully removed completion for transaction ID:', transactionId);
+    logger.log('Successfully removed completion for transaction ID:', transactionId);
     return { success: true };
   } catch (error: any) {
     console.error('Exception removing completion:', error.message);
@@ -798,7 +799,7 @@ export const autoCompletePeriodsBeforeTrackingStart = async (
   trackingStartDate: Date
 ): Promise<{ success: boolean; autoCompletedCount: number; error?: string }> => {
   try {
-    console.log('DEBUG: Auto-completing periods before tracking start date:', trackingStartDate.toISOString().split('T')[0]);
+    logger.log('DEBUG: Auto-completing periods before tracking start date:', trackingStartDate.toISOString().split('T')[0]);
 
     // Get all recurring items for the user
     const { data: recurringItems, error: recurringError } = await supabase
@@ -896,7 +897,7 @@ export const autoCompletePeriodsBeforeTrackingStart = async (
       }
     }
 
-    console.log('DEBUG: Found', periodsToAutoComplete.length, 'periods to auto-complete');
+    logger.log('DEBUG: Found', periodsToAutoComplete.length, 'periods to auto-complete');
 
     // Check existing completions to avoid duplicates
     const { data: existingCompletions, error: existingError } = await supabase
@@ -919,7 +920,7 @@ export const autoCompletePeriodsBeforeTrackingStart = async (
       return !existing;
     });
 
-    console.log('DEBUG: Inserting', periodsToInsert.length, 'new auto-completions');
+    logger.log('DEBUG: Inserting', periodsToInsert.length, 'new auto-completions');
 
     // Batch insert the auto-completions
     if (periodsToInsert.length > 0) {
@@ -971,15 +972,15 @@ export const getAvailablePeriodsForItem = async (
 
     if (!prefsError && userPrefs?.financial_tracking_start_date) {
       trackingStartDate = startOfDay(new Date(userPrefs.financial_tracking_start_date));
-      console.log('DEBUG: Using user-defined tracking start date:', trackingStartDate.toISOString().split('T')[0]);
+      logger.log('DEBUG: Using user-defined tracking start date:', trackingStartDate.toISOString().split('T')[0]);
     } else {
-      console.log('DEBUG: Using default tracking start date (6 months ago):', trackingStartDate.toISOString().split('T')[0]);
+      logger.log('DEBUG: Using default tracking start date (6 months ago):', trackingStartDate.toISOString().split('T')[0]);
     }
   } catch (error) {
     console.warn('Could not fetch user preferences for tracking start date, using default:', error);
   }
 
-  console.log('DEBUG getAvailablePeriodsForItem:', {
+  logger.log('DEBUG getAvailablePeriodsForItem:', {
     today: today.toISOString().split('T')[0],
     trackingStartDate: trackingStartDate.toISOString().split('T')[0],
     threeMonthsForward: threeMonthsForward.toISOString().split('T')[0],
@@ -992,7 +993,7 @@ export const getAvailablePeriodsForItem = async (
     return { availablePeriods: null, error: 'Recurring item not found' };
   }
 
-  console.log('DEBUG found item:', {
+  logger.log('DEBUG found item:', {
     id: item.id,
     name: item.name,
     startDate: item.startDate?.toISOString?.() || item.startDate,
@@ -1004,11 +1005,11 @@ export const getAvailablePeriodsForItem = async (
   const { periods, error } = await getRecurringPeriods(userId, trackingStartDate, threeMonthsForward, [item]);
 
   if (error || !periods) {
-    console.log('DEBUG periods error:', error);
+    logger.log('DEBUG periods error:', error);
     return { availablePeriods: null, error };
   }
 
-  console.log('DEBUG generated periods:', periods.map(p => ({
+  logger.log('DEBUG generated periods:', periods.map(p => ({
     date: p.periodDate.toISOString().split('T')[0],
     isOverdue: p.isOverdue,
     isCompleted: p.isCompleted,

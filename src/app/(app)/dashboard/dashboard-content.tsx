@@ -43,6 +43,7 @@ import { markPeriodComplete } from "@/lib/api/recurring-completions";
 import { PayPeriodSummary } from "@/components/dashboard/pay-period-summary";
 import { generatePaycheckPeriods, generatePaycheckBreakdownWithSinkingFunds } from "@/lib/utils/paycheck-calculations";
 import { getSinkingFunds } from "@/lib/api/sinking-funds";
+import { logger } from "@/lib/utils/logger";
 
 export function DashboardContent() {
   const { user } = useAuth();
@@ -76,21 +77,21 @@ export function DashboardContent() {
   const [sinkingFunds, setSinkingFunds] = useState<SinkingFund[]>([]);
 
   useEffect(() => {
-    console.log('Dashboard useEffect triggered, user:', user);
+    logger.log('Dashboard useEffect triggered, user:', user);
     
     async function fetchData() {
       if (!user?.id) {
-        console.log('No user found, skipping data fetch');
+        logger.log('No user found, skipping data fetch');
         setIsLoading(false);
         return;
       }
 
-      console.log('Starting to fetch dashboard data for user:', user.id);
+      logger.log('Starting to fetch dashboard data for user:', user.id);
 
       try {
         // Fetch user preferences first to get timezone
         const { preferences } = await getUserPreferences(user.id);
-        console.log("[Dashboard] Fetched user preferences:", preferences);
+        logger.log("[Dashboard] Fetched user preferences:", preferences);
         setUserPreferences(preferences);
 
         // ... existing data fetching code ...
@@ -112,7 +113,7 @@ export function DashboardContent() {
           getVariableExpenses(user.id)
         ]);
 
-        console.log('Data fetched:', { 
+        logger.log('Data fetched:', { 
           accounts: accountsResult?.accounts?.length, 
           transactions: transactionsResult?.transactions?.length,
           recurringItems: recurringResult?.items?.length,
@@ -251,7 +252,7 @@ export function DashboardContent() {
             .lte('period_date', endDate.toISOString());
           
           if (!completionsError && completionsData) {
-            console.log('🔄 Found', completionsData.length, 'completion records');
+            logger.log('🔄 Found', completionsData.length, 'completion records');
             const completedSet = new Set<string>();
             
             completionsData.forEach((completion: any) => {
@@ -261,19 +262,19 @@ export function DashboardContent() {
               if (completion.debt_account_id) {
                 const debtOccurrenceId = generateOccurrenceId(completion.debt_account_id, periodDate);
                 completedSet.add(debtOccurrenceId);
-                console.log('🔄 Initial load - Added DEBT completion:', debtOccurrenceId);
+                logger.log('🔄 Initial load - Added DEBT completion:', debtOccurrenceId);
               }
               
               // For recurring items, add the recurring item ID with the period date
               if (completion.recurring_item_id) {
                 const recurringOccurrenceId = generateOccurrenceId(completion.recurring_item_id, periodDate);
                 completedSet.add(recurringOccurrenceId);
-                console.log('🔄 Initial load - Added RECURRING completion:', recurringOccurrenceId);
+                logger.log('🔄 Initial load - Added RECURRING completion:', recurringOccurrenceId);
               }
             });
             
             setCompletedItems(completedSet);
-            console.log('🔄 Initial completion set loaded with', completedSet.size, 'items');
+            logger.log('🔄 Initial completion set loaded with', completedSet.size, 'items');
           }
         } catch (error) {
           console.error("Error fetching recurring completions for dashboard:", error);
@@ -300,7 +301,7 @@ export function DashboardContent() {
   // Add refresh function for external use
   useEffect(() => {
     const handleRefreshDashboard = () => {
-      console.log("[Dashboard] Refresh triggered, re-fetching user preferences");
+      logger.log("[Dashboard] Refresh triggered, re-fetching user preferences");
       fetchData();
     };
     
@@ -369,12 +370,12 @@ export function DashboardContent() {
 
   // Handler functions for recurring items
   const handleDeleteItem = (itemId: string, source: 'recurring' | 'debt') => {
-    console.log(`Delete item ${itemId} from ${source}`);
+    logger.log(`Delete item ${itemId} from ${source}`);
     // TODO: Implement delete functionality
   };
   
   const handleEditItem = (item: RecurringItem) => {
-    console.log(`Edit item ${item.id}`);
+    logger.log(`Edit item ${item.id}`);
     // TODO: Implement edit functionality
   };
 
@@ -393,7 +394,7 @@ export function DashboardContent() {
   };
 
   const handleCalendarItemClick = (item: UnifiedRecurringListItem, date: Date) => {
-    console.log('Dashboard: handleCalendarItemClick called with:', {
+    logger.log('Dashboard: handleCalendarItemClick called with:', {
       itemId: item.id,
       itemName: item.name,
       itemDisplayType: item.itemDisplayType,
@@ -408,7 +409,7 @@ export function DashboardContent() {
   const handleRecordTransaction = async (transactionData: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">) => {
     if (!user?.id || !selectedRecurringItem) return;
 
-    console.log('💰 handleRecordTransaction called with:', {
+    logger.log('💰 handleRecordTransaction called with:', {
       selectedRecurringItemId: selectedRecurringItem.id,
       selectedRecurringItemName: selectedRecurringItem.name,
       selectedRecurringItemSource: selectedRecurringItem.source,
@@ -458,7 +459,7 @@ export function DashboardContent() {
         throw new Error(error || "Failed to create transaction");
       }
 
-      console.log('💰 Transaction created successfully:', {
+      logger.log('💰 Transaction created successfully:', {
         transactionId: newTransaction.id,
         transactionAmount: newTransaction.amount,
         transactionDate: newTransaction.date.toISOString().split('T')[0]
@@ -467,12 +468,12 @@ export function DashboardContent() {
       setTransactions(prev => [newTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       
       const completionKey = generateOccurrenceId(selectedRecurringItem.id, selectedDate);
-      console.log('💰 Adding completion key to UI state:', completionKey);
+      logger.log('💰 Adding completion key to UI state:', completionKey);
       setCompletedItems(prev => new Set(prev).add(completionKey));
 
       // This is the database update that was missing.
       try {
-        console.log('💰 About to call markPeriodComplete with:', {
+        logger.log('💰 About to call markPeriodComplete with:', {
           recurringItemId: selectedRecurringItem.source === 'recurring' ? selectedRecurringItem.id : undefined,
           debtAccountId: selectedRecurringItem.source === 'debt' ? selectedRecurringItem.id : undefined,
           periodDate: selectedDate.toISOString().split('T')[0],
@@ -491,12 +492,12 @@ export function DashboardContent() {
             userId: user.id,
         });
 
-        console.log('💰 markPeriodComplete result:', markResult);
+        logger.log('💰 markPeriodComplete result:', markResult);
 
         if (markResult.error) {
           console.error('💰 ERROR in markPeriodComplete:', markResult.error);
         } else {
-          console.log('💰 SUCCESS in markPeriodComplete:', markResult.completion);
+          logger.log('💰 SUCCESS in markPeriodComplete:', markResult.completion);
         }
       } catch (completionError) {
           console.error("💰 Exception in markPeriodComplete:", completionError);
@@ -504,7 +505,7 @@ export function DashboardContent() {
 
       // Refresh completion data from database to ensure UI consistency
       try {
-        console.log('💰 Refreshing completion data after transaction recording...');
+        logger.log('💰 Refreshing completion data after transaction recording...');
         
         // Use the same date range logic as initial load
         const today = new Date();
@@ -532,7 +533,7 @@ export function DashboardContent() {
           .lte('period_date', endDate.toISOString());
 
         if (!completionsError && completionsData) {
-          console.log('💰 Found', completionsData.length, 'completion records');
+          logger.log('💰 Found', completionsData.length, 'completion records');
           const refreshedCompletedSet = new Set<string>();
           
           completionsData.forEach((completion: any) => {
@@ -544,19 +545,19 @@ export function DashboardContent() {
               // Add debt account ID based occurrence (what past due items look for)
               const debtOccurrenceId = generateOccurrenceId(completion.debt_account_id, periodDate);
               refreshedCompletedSet.add(debtOccurrenceId);
-              console.log('💰 Added DEBT completion to set:', debtOccurrenceId);
+              logger.log('💰 Added DEBT completion to set:', debtOccurrenceId);
             }
             
             if (completion.recurring_item_id) {
               // Also add recurring item ID based occurrence (for regular recurring items)
               const recurringOccurrenceId = generateOccurrenceId(completion.recurring_item_id, periodDate);
               refreshedCompletedSet.add(recurringOccurrenceId);
-              console.log('💰 Added RECURRING completion to set:', recurringOccurrenceId);
+              logger.log('💰 Added RECURRING completion to set:', recurringOccurrenceId);
             }
           });
           
           setCompletedItems(refreshedCompletedSet);
-          console.log('💰 Successfully refreshed completedItems set with', refreshedCompletedSet.size, 'items');
+          logger.log('💰 Successfully refreshed completedItems set with', refreshedCompletedSet.size, 'items');
         } else {
           console.error('💰 Error fetching completions:', completionsError);
         }
@@ -602,23 +603,23 @@ export function DashboardContent() {
 
     try {
       // Debug: Log completed items before deletion
-      console.log('Dashboard: completedItems BEFORE deletion:', Array.from(completedItems));
-      console.log('Dashboard: completedItems size BEFORE deletion:', completedItems.size);
+      logger.log('Dashboard: completedItems BEFORE deletion:', Array.from(completedItems));
+      logger.log('Dashboard: completedItems size BEFORE deletion:', completedItems.size);
 
       // IMPORTANT: Delete completion records BEFORE deleting the transaction
       // This is because the foreign key constraint will set transaction_id to NULL
       // if we delete the transaction first, making it impossible to find the completion
       try {
-        console.log('Dashboard: Attempting to remove completion BEFORE deleting transaction:', transactionToDelete.id);
+        logger.log('Dashboard: Attempting to remove completion BEFORE deleting transaction:', transactionToDelete.id);
         const { removeCompletionByTransactionId } = await import('@/lib/api/recurring-completions');
         
         const completionResult = await removeCompletionByTransactionId(transactionToDelete.id, user.id);
         
         if (completionResult.success) {
-          console.log('Dashboard: Successfully removed completion before transaction deletion');
-          console.log('Dashboard: Completion result:', completionResult);
+          logger.log('Dashboard: Successfully removed completion before transaction deletion');
+          logger.log('Dashboard: Completion result:', completionResult);
         } else {
-          console.log('Dashboard: No completion found for this transaction (this is normal for non-recurring transactions)');
+          logger.log('Dashboard: No completion found for this transaction (this is normal for non-recurring transactions)');
         }
       } catch (error) {
         console.warn('Dashboard: Error removing completion record:', error);
@@ -666,7 +667,7 @@ export function DashboardContent() {
           const startDate = subMonths(trackingStartDate, 3); // Go back a bit more to be safe
           const endDate = addMonths(startOfDay(new Date()), 6); // Go forward 6 months
 
-          console.log('Dashboard: Fetching completion data with date range:', {
+          logger.log('Dashboard: Fetching completion data with date range:', {
             startDate: startDate.toISOString().split('T')[0],
             endDate: endDate.toISOString().split('T')[0],
             trackingStartDate: trackingStartDate.toISOString().split('T')[0],
@@ -682,9 +683,9 @@ export function DashboardContent() {
           );
 
           if (!error && periods) {
-            console.log('Dashboard: Refreshing completion data after transaction deletion');
-            console.log('Dashboard: Periods received:', periods.length);
-            console.log('Dashboard: Completed periods:', periods.filter(p => p.isCompleted).length);
+            logger.log('Dashboard: Refreshing completion data after transaction deletion');
+            logger.log('Dashboard: Periods received:', periods.length);
+            logger.log('Dashboard: Completed periods:', periods.filter(p => p.isCompleted).length);
             
             // Debug: Log income-specific completion records
             const incomeCompletions = periods.filter(p => {
@@ -701,7 +702,7 @@ export function DashboardContent() {
               const item = allItems.find(item => item.id === p.itemId);
               return item?.source === 'debt';
             });
-            console.log('Dashboard: Income completion records:', incomeCompletions.map(p => ({
+            logger.log('Dashboard: Income completion records:', incomeCompletions.map(p => ({
               itemId: p.itemId,
               itemName: p.itemName,
               periodDate: p.periodDate,
@@ -718,8 +719,8 @@ export function DashboardContent() {
               }
             });
             
-            console.log('Dashboard: completedItems AFTER refresh:', Array.from(completedSet));
-            console.log('Dashboard: completedItems size AFTER refresh:', completedSet.size);
+            logger.log('Dashboard: completedItems AFTER refresh:', Array.from(completedSet));
+            logger.log('Dashboard: completedItems size AFTER refresh:', completedSet.size);
             
             // Debug: Show what income completion IDs are in the refreshed set
             const incomeOccurrenceIds = Array.from(completedSet).filter(id => {
@@ -729,22 +730,22 @@ export function DashboardContent() {
               );
               return !!matchingIncomeCompletion;
             });
-            console.log('Dashboard: Income occurrence IDs in refreshed completed set:', incomeOccurrenceIds);
-            console.log('Dashboard: All income completion details:', incomeCompletions.map(ic => ({
+            logger.log('Dashboard: Income occurrence IDs in refreshed completed set:', incomeOccurrenceIds);
+            logger.log('Dashboard: All income completion details:', incomeCompletions.map(ic => ({
               itemName: ic.itemName,
               periodDate: ic.periodDate.toISOString().split('T')[0],
               occurrenceId: generateOccurrenceId(ic.itemId, ic.periodDate)
             })));
             
             if (debtCompletions.length > 0) {
-              console.log('🟦🟦🟦 DEBT COMPLETION RECORDS AFTER REFRESH 🟦🟦🟦');
-              console.log('🟦 Count:', debtCompletions.length);
+              logger.log('🟦🟦🟦 DEBT COMPLETION RECORDS AFTER REFRESH 🟦🟦🟦');
+              logger.log('🟦 Count:', debtCompletions.length);
               debtCompletions.forEach(p => {
-                console.log(`🟦 ${p.itemName} - Date: ${p.periodDate.toISOString().split('T')[0]} - ID: ${generateOccurrenceId(p.itemId, p.periodDate)} - TxnID: ${p.transactionId}`);
+                logger.log(`🟦 ${p.itemName} - Date: ${p.periodDate.toISOString().split('T')[0]} - ID: ${generateOccurrenceId(p.itemId, p.periodDate)} - TxnID: ${p.transactionId}`);
               });
-              console.log('🟦🟦🟦 END DEBT COMPLETIONS 🟦🟦🟦');
+              logger.log('🟦🟦🟦 END DEBT COMPLETIONS 🟦🟦🟦');
             } else {
-              console.log('❌ No debt completion records found after refresh');
+              logger.log('❌ No debt completion records found after refresh');
             }
             setCompletedItems(completedSet);
           }
@@ -827,7 +828,7 @@ export function DashboardContent() {
   ) => {
     if (!user?.id) return;
     
-    console.log('Dashboard: handleSaveTransaction called with data:', data);
+    logger.log('Dashboard: handleSaveTransaction called with data:', data);
 
     let finalCategoryId = data.categoryId;
 
@@ -1144,7 +1145,7 @@ export function DashboardContent() {
                 transactionId: result.transaction.id,
                 userId: user.id,
               });
-              console.log('Dashboard: Successfully marked period as complete on backend');
+              logger.log('Dashboard: Successfully marked period as complete on backend');
 
             } catch (completionError) {
               console.warn('Dashboard: Failed to mark period as complete:', completionError);
@@ -1176,7 +1177,7 @@ export function DashboardContent() {
   useEffect(() => {
     async function fetchPayPeriodSummary() {
       if (!user?.id || !userPreferences) {
-        console.log("[Dashboard] Early return - user or preferences not loaded:", { user: !!user?.id, userPreferences: !!userPreferences });
+        logger.log("[Dashboard] Early return - user or preferences not loaded:", { user: !!user?.id, userPreferences: !!userPreferences });
         return;
       }
       // Fetch all needed data for breakdown
@@ -1184,35 +1185,35 @@ export function DashboardContent() {
       setSinkingFunds(sf || []);
       // Use allocation mode and plan from preferences
       const prefs = userPreferences.paycheckPreferences as PaycheckPreferences;
-      console.log("[Dashboard] User Preferences:", userPreferences);
-      console.log("[Dashboard] Paycheck Preferences:", prefs);
-      console.log("[Dashboard] Manual Plan Date Ranges:", prefs?.manualPlanDateRanges);
-      console.log("[Dashboard] Active Manual Plan:", prefs?.activeManualPlan);
-      console.log("[Dashboard] Allocation Mode:", prefs?.allocationMode);
+      logger.log("[Dashboard] User Preferences:", userPreferences);
+      logger.log("[Dashboard] Paycheck Preferences:", prefs);
+      logger.log("[Dashboard] Manual Plan Date Ranges:", prefs?.manualPlanDateRanges);
+      logger.log("[Dashboard] Active Manual Plan:", prefs?.activeManualPlan);
+      logger.log("[Dashboard] Allocation Mode:", prefs?.allocationMode);
       
       // CRITICAL DEBUG: Check if prefs exists at all
       if (!prefs) {
-        console.log("[Dashboard] 🚨 ERROR: No paycheck preferences found!");
+        logger.log("[Dashboard] 🚨 ERROR: No paycheck preferences found!");
         return;
       }
       
       // CRITICAL DEBUG: Check each condition individually
-      console.log("[Dashboard] 🔍 Manual mode check:");
-      console.log("  - allocationMode === 'manual':", prefs?.allocationMode === 'manual');
-      console.log("  - activeManualPlan exists:", !!prefs?.activeManualPlan);
-      console.log("  - manualPlanDateRanges exists:", !!prefs?.manualPlanDateRanges);
+      logger.log("[Dashboard] 🔍 Manual mode check:");
+      logger.log("  - allocationMode === 'manual':", prefs?.allocationMode === 'manual');
+      logger.log("  - activeManualPlan exists:", !!prefs?.activeManualPlan);
+      logger.log("  - manualPlanDateRanges exists:", !!prefs?.manualPlanDateRanges);
       if (prefs?.activeManualPlan && prefs?.manualPlanDateRanges) {
-        console.log("  - date range for active plan exists:", !!prefs.manualPlanDateRanges[prefs.activeManualPlan]);
-        console.log("  - actual date range:", prefs.manualPlanDateRanges[prefs.activeManualPlan]);
+        logger.log("  - date range for active plan exists:", !!prefs.manualPlanDateRanges[prefs.activeManualPlan]);
+        logger.log("  - actual date range:", prefs.manualPlanDateRanges[prefs.activeManualPlan]);
       }
       
       // Debug the specific plan date range
       if (prefs?.manualPlanDateRanges && prefs?.activeManualPlan) {
         const activePlanRange = prefs.manualPlanDateRanges[prefs.activeManualPlan];
-        console.log(`[Dashboard] Date range for active plan '${prefs.activeManualPlan}':`, activePlanRange);
+        logger.log(`[Dashboard] Date range for active plan '${prefs.activeManualPlan}':`, activePlanRange);
         if (activePlanRange) {
-          console.log(`[Dashboard] Start date: ${activePlanRange.start}`);
-          console.log(`[Dashboard] End date: ${activePlanRange.end}`);
+          logger.log(`[Dashboard] Start date: ${activePlanRange.start}`);
+          logger.log(`[Dashboard] End date: ${activePlanRange.end}`);
         }
       }
       
@@ -1227,10 +1228,10 @@ export function DashboardContent() {
         prefs.manualPlanDateRanges[prefs.activeManualPlan]
       );
       
-      console.log('[Dashboard] DECISION: Should use manual mode?', shouldUseManualMode);
-      console.log('[Dashboard] DECISION: Allocation mode:', prefs?.allocationMode);
-      console.log('[Dashboard] DECISION: Active manual plan:', prefs?.activeManualPlan);
-      console.log('[Dashboard] DECISION: Manual plan date ranges exist:', !!prefs?.manualPlanDateRanges);
+      logger.log('[Dashboard] DECISION: Should use manual mode?', shouldUseManualMode);
+      logger.log('[Dashboard] DECISION: Allocation mode:', prefs?.allocationMode);
+      logger.log('[Dashboard] DECISION: Active manual plan:', prefs?.activeManualPlan);
+      logger.log('[Dashboard] DECISION: Manual plan date ranges exist:', !!prefs?.manualPlanDateRanges);
       
       if (shouldUseManualMode && prefs?.activeManualPlan && prefs?.manualPlanDateRanges) {
         // Use the stored manual plan date range
@@ -1264,11 +1265,11 @@ export function DashboardContent() {
             planKey: prefs.activeManualPlan,
           },
         ];
-        console.log("[Dashboard] Using MANUAL mode custom period:", periods);
+        logger.log("[Dashboard] Using MANUAL mode custom period:", periods);
       } else {
         // Use the same logic as Paycheck Pulse for periods
         periods = generatePaycheckPeriods(recurringItems, userPreferences.financialTrackingStartDate);
-        console.log("[Dashboard] Using AUTO/DEFAULT periods:", periods);
+        logger.log("[Dashboard] Using AUTO/DEFAULT periods:", periods);
       }
       // For manual mode, we need to respect the user's manual allocations
       // instead of running automatic allocation algorithms
@@ -1293,13 +1294,13 @@ export function DashboardContent() {
           if (error) {
             console.error('[Dashboard] Error fetching paycheck overrides:', error);
           } else if (overrides && overrides.length > 0) {
-            console.log('[Dashboard] 🔍 Raw overrides from database:', overrides);
-            console.log('[Dashboard] 🔍 Query was:', `user_id = ${user.id} AND paycheck_id LIKE %-${prefs.activeManualPlan}`);
+            logger.log('[Dashboard] 🔍 Raw overrides from database:', overrides);
+            logger.log('[Dashboard] 🔍 Query was:', `user_id = ${user.id} AND paycheck_id LIKE %-${prefs.activeManualPlan}`);
             
             // Sum amounts by type
             overrides.forEach(override => {
               const amount = Number(override.amount) || 0;
-              console.log(`[Dashboard] 🔍 Processing override: type="${override.type}", amount=${amount}`);
+              logger.log(`[Dashboard] 🔍 Processing override: type="${override.type}", amount=${amount}`);
               switch (override.type) {
                 case 'fixed-expense':
                   totalFixed += amount;
@@ -1317,11 +1318,11 @@ export function DashboardContent() {
                   totalSavings += amount;
                   break;
                 default:
-                  console.log(`[Dashboard] ⚠️ Unknown override type: "${override.type}" with amount: ${amount}`);
+                  logger.log(`[Dashboard] ⚠️ Unknown override type: "${override.type}" with amount: ${amount}`);
                   break;
               }
             });
-            console.log('[Dashboard] Fetched manual overrides:', {
+            logger.log('[Dashboard] Fetched manual overrides:', {
               fixed: totalFixed,
               variable: totalVariable,
               subscription: totalSubscriptions,
@@ -1354,7 +1355,7 @@ export function DashboardContent() {
           deficitAmount: unallocatedAmount < 0 ? Math.abs(unallocatedAmount) : undefined
         } as PaycheckBreakdown];
         
-        console.log("[Dashboard] Using MANUAL mode with fetched overrides:", breakdowns);
+        logger.log("[Dashboard] Using MANUAL mode with fetched overrides:", breakdowns);
       } else {
         // Use automatic calculation for auto mode
         breakdowns = generatePaycheckBreakdownWithSinkingFunds(
@@ -1367,10 +1368,10 @@ export function DashboardContent() {
           prefs,
         );
       }
-      console.log("[Dashboard] Generated breakdowns:", breakdowns);
-      console.log("[Dashboard] Breakdown count:", breakdowns.length);
+      logger.log("[Dashboard] Generated breakdowns:", breakdowns);
+      logger.log("[Dashboard] Breakdown count:", breakdowns.length);
       breakdowns.forEach((bd, index) => {
-        console.log(`[Dashboard] Breakdown ${index}:`, {
+        logger.log(`[Dashboard] Breakdown ${index}:`, {
           planKey: bd.period?.planKey,
           periodStart: bd.period?.periodStart,
           periodEnd: bd.period?.periodEnd,
@@ -1382,14 +1383,14 @@ export function DashboardContent() {
       let current: PaycheckBreakdown | null = null;
       if (shouldUseManualMode && prefs?.activeManualPlan) {
         // For manual mode, find the breakdown matching the active plan
-        console.log("[Dashboard] Looking for manual breakdown with planKey:", prefs.activeManualPlan);
+        logger.log("[Dashboard] Looking for manual breakdown with planKey:", prefs.activeManualPlan);
         
         current = breakdowns.find(bd => bd.period?.planKey === prefs.activeManualPlan) || null;
-        console.log("[Dashboard] Selected current MANUAL breakdown:", current);
+        logger.log("[Dashboard] Selected current MANUAL breakdown:", current);
       } else {
         // For auto mode, find breakdown that covers today's date
         const today = new Date();
-        console.log("[Dashboard] Looking for auto breakdown covering today:", today.toISOString());
+        logger.log("[Dashboard] Looking for auto breakdown covering today:", today.toISOString());
         
         const currentPeriodBreakdowns = breakdowns.filter(bd => {
           const periodStart = new Date(bd.period.periodStart);
@@ -1400,33 +1401,33 @@ export function DashboardContent() {
         if (currentPeriodBreakdowns.length > 0) {
           current = currentPeriodBreakdowns[0];
         }
-        console.log("[Dashboard] Selected current AUTO breakdown:", current);
+        logger.log("[Dashboard] Selected current AUTO breakdown:", current);
       }
       
-      console.log("[Dashboard] Final selected breakdown:", current);
+      logger.log("[Dashboard] Final selected breakdown:", current);
       if (current) {
-        console.log("[Dashboard] Breakdown details:");
-        console.log("  - Period:", current.period);
-        console.log("  - Paycheck Amount:", current.period.paycheckAmount);
-        console.log("  - Total Obligated:", current.totalObligated);
-        console.log("  - Remaining After Obligated:", current.remainingAfterObligated);
-        console.log("  - Total Allocated:", current.totalAllocated);
-        console.log("  - Final Remaining (Available to Spend):", current.finalRemaining);
-        console.log("  - Allocation:", current.allocation);
+        logger.log("[Dashboard] Breakdown details:");
+        logger.log("  - Period:", current.period);
+        logger.log("  - Paycheck Amount:", current.period.paycheckAmount);
+        logger.log("  - Total Obligated:", current.totalObligated);
+        logger.log("  - Remaining After Obligated:", current.remainingAfterObligated);
+        logger.log("  - Total Allocated:", current.totalAllocated);
+        logger.log("  - Final Remaining (Available to Spend):", current.finalRemaining);
+        logger.log("  - Allocation:", current.allocation);
         
         // For auto mode, adjust finalRemaining to show variable expenses allocation
         if (prefs.allocationMode === 'auto' || !prefs.allocationMode) {
           const variableExpensesTotal = current.allocation.variableExpenses.reduce((sum, expense) => sum + expense.suggestedAmount, 0);
-          console.log("[Dashboard] Auto mode: Variable expenses total:", variableExpensesTotal);
+          logger.log("[Dashboard] Auto mode: Variable expenses total:", variableExpensesTotal);
           // Create a modified breakdown with variable expenses total as "Available to Spend"
           current = {
             ...current,
             finalRemaining: variableExpensesTotal
           };
-          console.log("[Dashboard] Auto mode: Updated finalRemaining to variable expenses total:", variableExpensesTotal);
+          logger.log("[Dashboard] Auto mode: Updated finalRemaining to variable expenses total:", variableExpensesTotal);
         }
       }
-      console.log("[Dashboard] Setting payPeriodBreakdown to:", current || null);
+      logger.log("[Dashboard] Setting payPeriodBreakdown to:", current || null);
       setPayPeriodBreakdown(current || null);
     }
     fetchPayPeriodSummary();

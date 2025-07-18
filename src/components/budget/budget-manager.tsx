@@ -24,6 +24,7 @@ import {
   differenceInCalendarMonths, isPast, format, getYear, getMonth, isSameDay
 } from "date-fns";
 import { adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
+import { logger } from "@/lib/utils/logger";
 import { saveForecastOverride, getForecastOverridesForMonth, getForecastOverrides, deleteForecastOverride } from "@/lib/api/forecast-overrides-v2";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -884,7 +885,7 @@ export function BudgetManager() {
       const monthTotalVariableExpenses = forecastVariableExpenses.reduce((sum, ve) => sum + ve.monthSpecificAmount, 0);
       
       if (monthLabel.includes('June 2025')) {
-        console.log('🗓️ DEBUG: Generating forecast for June 2025', { 
+        logger.log('🗓️ DEBUG: Generating forecast for June 2025', { 
           monthLabel,
           variableExpenses: variableExpenses.map(e => ({ id: e.id, name: e.name, amount: e.amount })),
           forecastVariableExpenses,
@@ -1064,7 +1065,7 @@ export function BudgetManager() {
 
   const totalBudgetedVariable = useMemo(() => {
     const total = variableExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-    console.log('💰 DEBUG: Calculated totalBudgetedVariable', { 
+    logger.log('💰 DEBUG: Calculated totalBudgetedVariable', { 
       total, 
       expenses: variableExpenses.map(e => ({ id: e.id, name: e.name, amount: e.amount }))
     });
@@ -1192,7 +1193,7 @@ export function BudgetManager() {
   };
 
   const handleUpdateVariableExpenseAmount = async (expenseId: string, newAmount: number) => {
-    console.log('🎯 DEBUG: handleUpdateVariableExpenseAmount called', { 
+    logger.log('🎯 DEBUG: handleUpdateVariableExpenseAmount called', { 
       expenseId, 
       newAmount, 
       currentShowUpdateScopeDialog: showUpdateScopeDialog 
@@ -1202,7 +1203,7 @@ export function BudgetManager() {
     setPendingAmountUpdate({ expenseId, newAmount });
     setShowUpdateScopeDialog(true);
     
-    console.log('🎯 DEBUG: Dialog state should be set', { 
+    logger.log('🎯 DEBUG: Dialog state should be set', { 
       pendingUpdate: { expenseId, newAmount },
       shouldShowDialog: true 
     });
@@ -1212,7 +1213,7 @@ export function BudgetManager() {
     if (!user?.id || !pendingAmountUpdate) return;
 
     const { expenseId, newAmount } = pendingAmountUpdate;
-    console.log('🔧 DEBUG: Starting update all months', { expenseId, newAmount });
+    logger.log('🔧 DEBUG: Starting update all months', { expenseId, newAmount });
 
     try {
       // Update the base variable expense amount in the database
@@ -1225,14 +1226,14 @@ export function BudgetManager() {
       if (error) {
         throw error;
       }
-      console.log('✅ DEBUG: Database updated successfully');
+      logger.log('✅ DEBUG: Database updated successfully');
 
       // Update the variable expense amount in the main state
       setVariableExpenses(prev => {
         const updated = prev.map(expense => 
           expense.id === expenseId ? { ...expense, amount: newAmount } : expense
         );
-        console.log('🔄 DEBUG: Updated variableExpenses state', { 
+        logger.log('🔄 DEBUG: Updated variableExpenses state', { 
           old: prev.find(e => e.id === expenseId)?.amount,
           new: newAmount,
           totalBefore: prev.reduce((sum, e) => sum + e.amount, 0),
@@ -1254,14 +1255,14 @@ export function BudgetManager() {
             override.itemId === expenseId && override.type === 'variable-expense'
           );
           
-          console.log('🗑️ DEBUG: Found overrides to clear', { count: expenseOverrides.length, overrides: expenseOverrides });
+          logger.log('🗑️ DEBUG: Found overrides to clear', { count: expenseOverrides.length, overrides: expenseOverrides });
           
           // Delete each override
           for (const override of expenseOverrides) {
             await deleteForecastOverride(user.id, expenseId, override.monthYear, 'variable-expense');
           }
           
-          console.log('✅ DEBUG: Cleared all overrides for expense');
+          logger.log('✅ DEBUG: Cleared all overrides for expense');
         } catch (error) {
           console.warn('Failed to clear existing overrides:', error);
         }
@@ -1401,7 +1402,7 @@ export function BudgetManager() {
         totalSinkingFundsContributions: currentMonthSummary.totalSinkingFundsContributions,
         totalVariableExpenses: currentTotalVariableExpenses,
       };
-      console.log('📊 DEBUG: Using fallback data (forecast not loaded)', { 
+      logger.log('📊 DEBUG: Using fallback data (forecast not loaded)', { 
         fallbackData, 
         currentTotalVariableExpenses, 
         variableExpensesCount: variableExpenses.length,
@@ -1418,7 +1419,7 @@ export function BudgetManager() {
     
     // If found, return that month's data
     if (selectedMonthData) {
-      console.log('📊 DEBUG: Using selected month data', { 
+      logger.log('📊 DEBUG: Using selected month data', { 
         selectedMonthStr, 
         totalVariableExpenses: selectedMonthData.totalVariableExpenses,
         variableExpenses: selectedMonthData.variableExpenses?.map(ve => ({ id: ve.id, name: ve.name, amount: ve.monthSpecificAmount }))
@@ -1434,7 +1435,7 @@ export function BudgetManager() {
       format(month.month, 'yyyy-MM') === currentYearMonthStr
     ) || forecastData[0];
     
-    console.log('📊 DEBUG: Using current month forecast', { 
+    logger.log('📊 DEBUG: Using current month forecast', { 
       selectedMonthStr, 
       currentYearMonthStr, 
       totalVariableExpenses: currentMonthForecast?.totalVariableExpenses 
@@ -1950,12 +1951,12 @@ export function BudgetManager() {
             isLoading={isLoading} // Remove the condition that prevents updates when expenses array is empty
             isMobile={isMobile}
           />
-          {console.log('🔍 DEBUG: VariableExpenseList rendered with', { 
+          {logger.log('🔍 DEBUG: VariableExpenseList rendered with', { 
             isLoading, 
             expensesCount: variableExpenses.length,
             hasUpdateHandler: !!handleUpdateVariableExpenseAmount,
             handlerName: handleUpdateVariableExpenseAmount.name
-          })}
+          }) && null}
         </TabsContent>
         <TabsContent value="forecast">
             <BudgetForecastView

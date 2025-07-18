@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { format, startOfDay, subMonths } from "date-fns";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/utils/logger";
 
 // Common currencies
 const CURRENCIES = [
@@ -167,7 +168,7 @@ export function UserSettingsModal({ isOpen, onOpenChange }: UserSettingsModalPro
           if (autoCompleteError) {
             console.warn('Failed to auto-complete periods:', autoCompleteError);
           } else if (success && autoCompletedCount > 0) {
-            console.log(`Auto-completed ${autoCompletedCount} periods before tracking start date`);
+            logger.log(`Auto-completed ${autoCompletedCount} periods before tracking start date`);
           }
         } catch (autoCompleteErr) {
           console.warn('Error during auto-completion:', autoCompleteErr);

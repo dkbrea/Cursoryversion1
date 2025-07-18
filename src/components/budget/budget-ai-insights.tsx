@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sparkles, TrendingUp, AlertTriangle, Target, Gem, RefreshCw } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
+import { logger } from '@/lib/utils/logger';
 
 interface BudgetInsight {
   type: 'budget_balance' | 'category_optimization' | 'spending_pattern' | 'zero_based_achievement' | 'reallocation_opportunity';
@@ -64,10 +65,10 @@ export function BudgetAIInsights({ userId, year, month, className, refreshTrigge
     setLoading(true);
     setError(null);
     
-    console.log('=== AI INSIGHTS FETCH DEBUG ===');
-    console.log('Fetching insights for:', { userId, year, month });
-    console.log('Budget data being sent:', budgetData);
-    console.log('=== END AI INSIGHTS FETCH DEBUG ===');
+    logger.log('=== AI INSIGHTS FETCH DEBUG ===');
+    logger.log('Fetching insights for:', { userId, year, month });
+    logger.log('Budget data being sent:', budgetData);
+    logger.log('=== END AI INSIGHTS FETCH DEBUG ===');
     
     try {
       const response = await fetch('/api/ai/budget-insights', {
@@ -88,9 +89,9 @@ export function BudgetAIInsights({ userId, year, month, className, refreshTrigge
       }
 
       const data = await response.json();
-      console.log('=== AI INSIGHTS API RESPONSE ===');
-      console.log('Response data:', data);
-      console.log('=== END AI INSIGHTS API RESPONSE ===');
+      logger.log('=== AI INSIGHTS API RESPONSE ===');
+      logger.log('Response data:', data);
+      logger.log('=== END AI INSIGHTS API RESPONSE ===');
       setInsights(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load insights');

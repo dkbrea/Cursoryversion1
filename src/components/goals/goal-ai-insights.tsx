@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Lightbulb, Loader2 } from 'lucide-react';
 import type { FinancialGoalWithContribution } from '@/types';
 import { formatNumber } from '@/lib/utils';
+import { logger } from '@/lib/utils/logger';
 
 interface GoalAIInsight {
   type: 'progress_analysis' | 'timeline_prediction' | 'savings_pattern' | 'goal_prioritization';
@@ -69,7 +70,7 @@ export function GoalAIInsights({
           completedGoalsCount: goals.filter(g => g.currentAmount >= g.targetAmount).length
         };
 
-        console.log('GoalAIInsights - Analyzing goals data:', goalsData);
+        logger.log('GoalAIInsights - Analyzing goals data:', goalsData);
 
         // Call the AI API for goal insights
         const response = await fetch('/api/ai/goal-insights', {

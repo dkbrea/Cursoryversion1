@@ -26,6 +26,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
+import { logger } from "@/lib/utils/logger";
 
 // --- ManualExpenseTable component (moved above main component for scope) ---
 function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange, minKey, showDefaults, hasManualOverridesForPeriod, manualStartDate, manualEndDate, onGetCurrentValues }: any) {
@@ -57,8 +58,8 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
         // For recurring items, check occurrences in period
         if (manualStartDate && manualEndDate && (prefix === 'fixed' || prefix === 'subscription' || prefix === 'debt')) {
           
-          console.log(`🔍 AUTOFILL DEBUG: ${item.name} (${prefix}) - checking period ${manualStartDate.toISOString().split('T')[0]} to ${manualEndDate.toISOString().split('T')[0]}`);
-          console.log(`🔍 AUTOFILL DEBUG: Item data:`, { 
+          logger.log(`🔍 AUTOFILL DEBUG: ${item.name} (${prefix}) - checking period ${manualStartDate.toISOString().split('T')[0]} to ${manualEndDate.toISOString().split('T')[0]}`);
+          logger.log(`🔍 AUTOFILL DEBUG: Item data:`, { 
             name: item.name, 
             type: item.type, 
             frequency: item.frequency,
@@ -84,7 +85,7 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
                 categoryId: item.categoryId
               };
               
-              console.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - unified item:`, {
+              logger.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - unified item:`, {
                 name: unifiedItem.name,
                 frequency: unifiedItem.frequency,
                 nextOccurrenceDate: unifiedItem.nextOccurrenceDate?.toISOString?.()?.split('T')[0]
@@ -100,12 +101,12 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
               
               shouldAutoFill = occurrencesInRange.length > 0;
               
-              console.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - total occurrences: ${occurrences.length}, occurrences in range: ${occurrencesInRange.length}, shouldAutoFill: ${shouldAutoFill}`);
+              logger.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - total occurrences: ${occurrences.length}, occurrences in range: ${occurrencesInRange.length}, shouldAutoFill: ${shouldAutoFill}`);
               if (occurrences.length > 0) {
-                console.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - all occurrence dates:`, occurrences.map(d => d.toISOString().split('T')[0]));
+                logger.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - all occurrence dates:`, occurrences.map(d => d.toISOString().split('T')[0]));
               }
               if (occurrencesInRange.length > 0) {
-                console.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - occurrences in range:`, occurrencesInRange.map(d => d.toISOString().split('T')[0]));
+                logger.log(`🔍 AUTOFILL DEBUG: DEBT ${item.name} - occurrences in range:`, occurrencesInRange.map(d => d.toISOString().split('T')[0]));
               }
             }
           } else {
@@ -121,7 +122,7 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
               categoryId: item.categoryId
             };
             
-            console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - unified item:`, {
+            logger.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - unified item:`, {
               name: unifiedItem.name,
               itemDisplayType: unifiedItem.itemDisplayType,
               frequency: unifiedItem.frequency,
@@ -147,7 +148,7 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
                   default: nextOccurrence = addDays(nextOccurrence, 1); break;
                 }
                 unifiedItem.nextOccurrenceDate = nextOccurrence;
-                console.log(`🔍 AUTOFILL DEBUG: SUBSCRIPTION ${item.name} - calculated nextOccurrence from lastRenewalDate: ${nextOccurrence.toISOString().split('T')[0]}`);
+                logger.log(`🔍 AUTOFILL DEBUG: SUBSCRIPTION ${item.name} - calculated nextOccurrence from lastRenewalDate: ${nextOccurrence.toISOString().split('T')[0]}`);
               }
             
             // Import and use the same calculation function as the calendar
@@ -160,17 +161,17 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
               
               shouldAutoFill = occurrencesInRange.length > 0;
               
-              console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - total occurrences: ${occurrences.length}, occurrences in range: ${occurrencesInRange.length}, shouldAutoFill: ${shouldAutoFill}`);
+              logger.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - total occurrences: ${occurrences.length}, occurrences in range: ${occurrencesInRange.length}, shouldAutoFill: ${shouldAutoFill}`);
               if (occurrences.length > 0) {
-                console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - all occurrence dates:`, occurrences.map(d => d.toISOString().split('T')[0]));
+                logger.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - all occurrence dates:`, occurrences.map(d => d.toISOString().split('T')[0]));
               }
               if (occurrencesInRange.length > 0) {
-                console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - occurrences in range:`, occurrencesInRange.map(d => d.toISOString().split('T')[0]));
+                logger.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - occurrences in range:`, occurrencesInRange.map(d => d.toISOString().split('T')[0]));
               }
             } else {
               // If no valid date information, don't autofill
               shouldAutoFill = false;
-              console.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - no valid date information, shouldAutoFill: false`);
+              logger.log(`🔍 AUTOFILL DEBUG: RECURRING ${item.name} - no valid date information, shouldAutoFill: false`);
             }
           }
           
@@ -203,7 +204,7 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
             const proratedAmount = (daysInTimeframe / daysInMonth) * autofillAmount;
             autofillAmount = Math.round(proratedAmount);
             
-            console.log(`🔍 VARIABLE PRORATION DEBUG: ${item.name} - timeframe: ${daysInTimeframe} days, month: ${daysInMonth} days, original: ${minKey ? item[minKey] : item.amount}, prorated: ${autofillAmount}`);
+            logger.log(`🔍 VARIABLE PRORATION DEBUG: ${item.name} - timeframe: ${daysInTimeframe} days, month: ${daysInMonth} days, original: ${minKey ? item[minKey] : item.amount}, prorated: ${autofillAmount}`);
           }
           
           newStates[key] = String(autofillAmount);
@@ -250,10 +251,10 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
               const proratedAmount = (daysInTimeframe / daysInMonth) * goalContribution.monthSpecificContribution;
               defaultValue = Math.round(proratedAmount);
               
-              console.log(`🔍 GOAL BUDGET FORECAST DEBUG: ${item.name} - budgeted: ${goalContribution.monthSpecificContribution}, timeframe: ${daysInTimeframe} days, month: ${daysInMonth} days, prorated: ${defaultValue}`);
+              logger.log(`🔍 GOAL BUDGET FORECAST DEBUG: ${item.name} - budgeted: ${goalContribution.monthSpecificContribution}, timeframe: ${daysInTimeframe} days, month: ${daysInMonth} days, prorated: ${defaultValue}`);
             } else {
               defaultValue = 0; // No budgeted amount for this goal
-              console.log(`🔍 GOAL BUDGET FORECAST DEBUG: ${item.name} - no budgeted amount found`);
+              logger.log(`🔍 GOAL BUDGET FORECAST DEBUG: ${item.name} - no budgeted amount found`);
             }
           }
 
@@ -272,7 +273,7 @@ function ManualExpenseTable({ items, prefix, manualOverrides, handleManualChange
             const proratedAmount = (daysInTimeframe / daysInMonth) * item.monthlyContribution;
             defaultValue = Math.round(proratedAmount);
             
-            console.log(`🔍 SINKING FUND BUDGET DEBUG: ${item.name} - monthlyContribution: ${item.monthlyContribution}, timeframe: ${daysInTimeframe} days, month: ${daysInMonth} days, prorated: ${defaultValue}`);
+            logger.log(`🔍 SINKING FUND BUDGET DEBUG: ${item.name} - monthlyContribution: ${item.monthlyContribution}, timeframe: ${daysInTimeframe} days, month: ${daysInMonth} days, prorated: ${defaultValue}`);
           }
           
           let value = inputStates[key] ?? '';
@@ -694,7 +695,7 @@ function generateBudgetForecastForMonth(
     let monthlyContribution = 0;
     const amountNeeded = goal.targetAmount - goal.currentAmount;
     
-    console.log(`🔍 BUDGET FORECAST DEBUG: ${goal.name}`, {
+    logger.log(`🔍 BUDGET FORECAST DEBUG: ${goal.name}`, {
       creationDate: creationDate.toISOString().split('T')[0],
       targetDate: targetDate.toISOString().split('T')[0],
       selectedMonthDate: selectedMonthDate.toISOString().split('T')[0],
@@ -724,7 +725,7 @@ function generateBudgetForecastForMonth(
       }
     }
     
-    console.log(`🔍 BUDGET FORECAST DEBUG: ${goal.name} - calculated monthlyContribution: ${monthlyContribution}`);
+    logger.log(`🔍 BUDGET FORECAST DEBUG: ${goal.name} - calculated monthlyContribution: ${monthlyContribution}`);
     
     return {
       ...goal,
@@ -810,8 +811,8 @@ export function PaycheckPulseManager() {
 
   // For convenience, get the current plan's state
   // Add debugging to see what's happening with plan switching
-  console.log(`🔍 RENDER: selectedPlan = ${selectedPlan}`);
-  console.log(`🔍 RENDER: planStates[${selectedPlan}] = `, planStates[selectedPlan]);
+  logger.log(`🔍 RENDER: selectedPlan = ${selectedPlan}`);
+  logger.log(`🔍 RENDER: planStates[${selectedPlan}] = `, planStates[selectedPlan]);
   
   const {
     manualOverrides,
@@ -822,8 +823,8 @@ export function PaycheckPulseManager() {
     shouldLoadMostRecentManual,
   } = planStates[selectedPlan];
   
-  console.log(`🔍 RENDER: destructured manualStartDate = `, manualStartDate);
-  console.log(`🔍 RENDER: destructured manualEndDate = `, manualEndDate);
+  logger.log(`🔍 RENDER: destructured manualStartDate = `, manualStartDate);
+  logger.log(`🔍 RENDER: destructured manualEndDate = `, manualEndDate);
 
   // All hooks at the very top, before any logic or early return
   const { toast } = useToast();
@@ -1064,7 +1065,7 @@ export function PaycheckPulseManager() {
       };
       
       await updateUserPreferences(user.id, updatedPreferences);
-      console.log(`📅 DASHBOARD SYNC: Saved ${plan} date range to preferences:`, {
+      logger.log(`📅 DASHBOARD SYNC: Saved ${plan} date range to preferences:`, {
         start: startDate.toISOString().split('T')[0],
         end: endDate.toISOString().split('T')[0],
         isActiveManualPlan: paycheckPreferences.activeManualPlan === plan,
@@ -1072,7 +1073,7 @@ export function PaycheckPulseManager() {
       });
       
       // Debug: Show the complete updated preferences
-      console.log('📅 DASHBOARD SYNC: Complete updated preferences:', {
+      logger.log('📅 DASHBOARD SYNC: Complete updated preferences:', {
         allocationMode: updatedPreferences.paycheckPreferences?.allocationMode,
         activeManualPlan: updatedPreferences.paycheckPreferences?.activeManualPlan,
         manualPlanDateRanges: updatedPreferences.paycheckPreferences?.manualPlanDateRanges
@@ -1092,7 +1093,7 @@ export function PaycheckPulseManager() {
       
       // Trigger dashboard refresh if it's mounted
       if (typeof window !== 'undefined') {
-        console.log('📅 DASHBOARD SYNC: Triggering dashboard refresh...');
+        logger.log('📅 DASHBOARD SYNC: Triggering dashboard refresh...');
         window.dispatchEvent(new Event('refreshDashboard'));
       }
       
@@ -1264,23 +1265,23 @@ export function PaycheckPulseManager() {
       'sinking-funds'
     );
 
-    console.log(`💾 SAVE DEBUG: Saving ${allOverrideRows.length} items for ${selectedPlan}`);
-    console.log('Items being saved:', allOverrideRows.map(row => ({ name: row.name, type: row.type, amount: row.amount })));
+    logger.log(`💾 SAVE DEBUG: Saving ${allOverrideRows.length} items for ${selectedPlan}`);
+    logger.log('Items being saved:', allOverrideRows.map(row => ({ name: row.name, type: row.type, amount: row.amount })));
     
     // Debug: Log counts by category
     const incomeItems = recurringItems.filter(item => item.type === 'income');
     const fixedItems = recurringItems.filter(item => item.type === 'fixed-expense' && !(typeof item.name === 'string' && item.name.startsWith('Debt Payment Placeholder')));
     const subscriptionItems = recurringItems.filter(item => item.type === 'subscription');
     
-    console.log(`💾 SAVE DEBUG: Item counts - Income: ${incomeItems.length}, Fixed: ${fixedItems.length}, Subscription: ${subscriptionItems.length}, Variable: ${variableExpenses.length}, Debt: ${debtAccounts.length}, Goals: ${goals.length}`);
-    console.log(`💾 SAVE DEBUG: Total items available: ${incomeItems.length + fixedItems.length + subscriptionItems.length + variableExpenses.length + debtAccounts.length + goals.length}`);
+    logger.log(`💾 SAVE DEBUG: Item counts - Income: ${incomeItems.length}, Fixed: ${fixedItems.length}, Subscription: ${subscriptionItems.length}, Variable: ${variableExpenses.length}, Debt: ${debtAccounts.length}, Goals: ${goals.length}`);
+    logger.log(`💾 SAVE DEBUG: Total items available: ${incomeItems.length + fixedItems.length + subscriptionItems.length + variableExpenses.length + debtAccounts.length + goals.length}`);
     
     // Debug: Log what's being saved by category
     const savedByCategory = allOverrideRows.reduce((acc, row) => {
       acc[row.type] = (acc[row.type] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    console.log('💾 SAVE DEBUG: Saved by category:', savedByCategory);
+    logger.log('💾 SAVE DEBUG: Saved by category:', savedByCategory);
 
     const { error } = await supabase.from('paycheckoverrides').upsert(allOverrideRows, { onConflict: 'paycheck_id,user_id,item_id' });
     if (error) {
@@ -1288,11 +1289,11 @@ export function PaycheckPulseManager() {
     } else {
       // Also save the current date range to preferences when saving overrides
       if (manualStartDate && manualEndDate) {
-        console.log('🚀 SAVE: About to save date range for plan:', selectedPlan);
-        console.log('🚀 SAVE: Start date:', manualStartDate.toISOString().split('T')[0]);
-        console.log('🚀 SAVE: End date:', manualEndDate.toISOString().split('T')[0]);
-        console.log('🚀 SAVE: Active manual plan:', paycheckPreferences.activeManualPlan);
-        console.log('🚀 SAVE: Allocation mode:', paycheckPreferences.allocationMode);
+        logger.log('🚀 SAVE: About to save date range for plan:', selectedPlan);
+        logger.log('🚀 SAVE: Start date:', manualStartDate.toISOString().split('T')[0]);
+        logger.log('🚀 SAVE: End date:', manualEndDate.toISOString().split('T')[0]);
+        logger.log('🚀 SAVE: Active manual plan:', paycheckPreferences.activeManualPlan);
+        logger.log('🚀 SAVE: Allocation mode:', paycheckPreferences.allocationMode);
         await saveDateRangeToPreferences(selectedPlan, manualStartDate, manualEndDate);
       }
       
@@ -1325,7 +1326,7 @@ export function PaycheckPulseManager() {
           // Load saved manual date ranges into planStates
           const savedDateRanges = preferences.paycheckPreferences.manualPlanDateRanges;
           if (savedDateRanges) {
-            console.log('📅 Loading saved date ranges from preferences:', savedDateRanges);
+            logger.log('📅 Loading saved date ranges from preferences:', savedDateRanges);
             
             setPlanStates(prev => {
               const newStates = { ...prev };
@@ -1343,7 +1344,7 @@ export function PaycheckPulseManager() {
                       manualStartDate: startDate,
                       manualEndDate: endDate
                     };
-                    console.log(`📅 Restored ${plan} date range:`, {
+                    logger.log(`📅 Restored ${plan} date range:`, {
                       start: startDate.toISOString().split('T')[0],
                       end: endDate.toISOString().split('T')[0]
                     });
@@ -1603,7 +1604,7 @@ export function PaycheckPulseManager() {
   const categorizeBreakdowns = () => {
     const today = startOfDay(new Date());
     const sorted = [...paycheckBreakdowns].sort((a, b) => new Date(a.period.paycheckDate).getTime() - new Date(b.period.paycheckDate).getTime());
-    console.log("First period paycheckDate:", sorted[0]?.period.paycheckDate); // Debug: log first period
+    logger.log("First period paycheckDate:", sorted[0]?.period.paycheckDate); // Debug: log first period
     const past: PaycheckBreakdown[] = [];
     const current: PaycheckBreakdown[] = [];
     const future: PaycheckBreakdown[] = [];
@@ -1925,22 +1926,22 @@ export function PaycheckPulseManager() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log(`🔄 PLAN SWITCH: Button clicked! Switching from ${selectedPlan} to ${plan}`);
-                    console.log(`🔄 PLAN SWITCH: Current planStates:`, planStates);
-                    console.log(`🔄 PLAN SWITCH: Current selectedPlan:`, selectedPlan);
+                    logger.log(`🔄 PLAN SWITCH: Button clicked! Switching from ${selectedPlan} to ${plan}`);
+                    logger.log(`🔄 PLAN SWITCH: Current planStates:`, planStates);
+                    logger.log(`🔄 PLAN SWITCH: Current selectedPlan:`, selectedPlan);
                     
                     try {
                       // NO AUTO-SAVING! Only switch the plan view
-                      console.log(`🔄 PLAN SWITCH: Setting selected plan to ${plan} (NO AUTO-SAVE)`);
+                      logger.log(`🔄 PLAN SWITCH: Setting selected plan to ${plan} (NO AUTO-SAVE)`);
                       setSelectedPlan(plan);
                       
                       // Force re-render by updating state immediately
                       setTimeout(() => {
-                        console.log(`🔄 PLAN SWITCH: Post-switch selectedPlan should be ${plan}`);
-                        console.log(`🔄 PLAN SWITCH: Post-switch planStates:`, planStates);
+                        logger.log(`🔄 PLAN SWITCH: Post-switch selectedPlan should be ${plan}`);
+                        logger.log(`🔄 PLAN SWITCH: Post-switch planStates:`, planStates);
                       }, 100);
                       
-                      console.log(`🔄 PLAN SWITCH: Successfully switched to ${plan}`);
+                      logger.log(`🔄 PLAN SWITCH: Successfully switched to ${plan}`);
                     } catch (error) {
                       console.error('🔄 PLAN SWITCH: Error switching plans:', error);
                     }

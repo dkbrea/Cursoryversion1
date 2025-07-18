@@ -9,6 +9,7 @@ import { format, isToday, isPast, startOfDay, differenceInDays, addDays, addWeek
 import { generateOccurrenceId, calculateRecurringOccurrences, calculateDebtOccurrences } from "@/lib/utils/recurring-calculations";
 import { adjustToPreviousBusinessDay } from "@/lib/utils/date-calculations";
 import type { UserPreferences } from "@/lib/api/user-preferences";
+import { logger } from "@/lib/utils/logger";
 
 interface PastDueItemsCardProps {
   items: UnifiedRecurringListItem[];
@@ -85,11 +86,11 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
       })();
   
   items.filter(item => item.status !== 'Ended').forEach(item => {
-    console.log(`Processing item: ${item.name}, type: ${item.itemDisplayType}`);
+    logger.log(`Processing item: ${item.name}, type: ${item.itemDisplayType}`);
     
     // Skip placeholder recurring items created for debt accounts
     if (item.source === 'recurring' && item.name.startsWith('Debt Payment Placeholder -')) {
-      console.log(`Skipping placeholder item: ${item.name}`);
+      logger.log(`Skipping placeholder item: ${item.name}`);
       return;
     }
     
@@ -104,7 +105,7 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
       occurrenceDates = calculateRecurringOccurrences(item, trackingStartDate, today);
     }
     
-    console.log(`Found ${occurrenceDates.length} occurrences for ${item.name}:`, 
+    logger.log(`Found ${occurrenceDates.length} occurrences for ${item.name}:`, 
       occurrenceDates.map(d => d.toISOString().split('T')[0]));
     
     // Convert dates to past due items
@@ -120,7 +121,7 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
    });
   
   // Debug: Log what we found (reduced logging)
-  // console.log('PastDueItemsCard - Tracking period:', { trackingStartDate, today, totalOccurrencesFound: allOccurrences.length });
+  // logger.log('PastDueItemsCard - Tracking period:', { trackingStartDate, today, totalOccurrencesFound: allOccurrences.length });
 
   // Filter to only past due items that haven't been completed
   let pastDueItems = allOccurrences
@@ -134,8 +135,8 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
       const isNotCompleted = !completedItems.has(item.occurrenceId);
       
       // Reduced logging
-      // if (!isPastDue) console.log(`  Filtered out ${item.name}: not past due`);
-      // if (!isNotCompleted) console.log(`  Filtered out ${item.name}: marked as completed`);
+      // if (!isPastDue) logger.log(`  Filtered out ${item.name}: not past due`);
+      // if (!isNotCompleted) logger.log(`  Filtered out ${item.name}: marked as completed`);
       
       return isPastDue && isNotCompleted;
     })
@@ -162,28 +163,28 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
   pastDueItems = pastDueItems.slice(0, isMobile ? 3 : 10); // Limit to top 3 on mobile, 10 on desktop
 
   // Debug: Log the final past due items (reduced logging)
-  console.log('PastDueItemsCard - Final past due items:', pastDueItems.length);
-  console.log('PastDueItemsCard - DEBUGGING IS ACTIVE - Processing items now');
+  logger.log('PastDueItemsCard - Final past due items:', pastDueItems.length);
+  logger.log('PastDueItemsCard - DEBUGGING IS ACTIVE - Processing items now');
   
   // Debug: Specifically log debt items and their occurrence IDs
   const debtItems = pastDueItems.filter(item => item.source === 'debt');
   if (debtItems.length > 0) {
-    console.log('🔴🔴🔴 DEBT ITEMS REAPPEARING 🔴🔴🔴');
-    console.log('🔴 Count:', debtItems.length);
-    console.log('🔴 CompletedItems Set Size:', completedItems.size);
-    console.log('🔴 All CompletedItems IDs:', Array.from(completedItems));
+    logger.log('🔴🔴🔴 DEBT ITEMS REAPPEARING 🔴🔴🔴');
+    logger.log('🔴 Count:', debtItems.length);
+    logger.log('🔴 CompletedItems Set Size:', completedItems.size);
+    logger.log('🔴 All CompletedItems IDs:', Array.from(completedItems));
     debtItems.forEach(item => {
-      console.log(`🔴 ${item.name} - Date: ${item.nextOccurrenceDate.toISOString().split('T')[0]} - ID: ${item.occurrenceId} - In Completed Set: ${completedItems.has(item.occurrenceId)}`);
+      logger.log(`🔴 ${item.name} - Date: ${item.nextOccurrenceDate.toISOString().split('T')[0]} - ID: ${item.occurrenceId} - In Completed Set: ${completedItems.has(item.occurrenceId)}`);
     });
-    console.log('🔴🔴🔴 END DEBT ITEMS 🔴🔴🔴');
+    logger.log('🔴🔴🔴 END DEBT ITEMS 🔴🔴🔴');
   } else {
-    console.log('✅ No debt items in past due list');
+    logger.log('✅ No debt items in past due list');
   }
   
   // Debug: Specifically log income items and their occurrence IDs
   const incomeItems = pastDueItems.filter(item => item.itemDisplayType === 'income');
   if (incomeItems.length > 0) {
-    console.log('PastDueItemsCard - Income items showing as past due:', incomeItems.map(item => ({
+    logger.log('PastDueItemsCard - Income items showing as past due:', incomeItems.map(item => ({
       name: item.name,
       date: item.nextOccurrenceDate.toISOString().split('T')[0],
       occurrenceId: item.occurrenceId,
@@ -222,7 +223,7 @@ export function PastDueItemsCard({ items, completedItems, userPreferences, onIte
                 key={item.occurrenceId} 
                 className={`${isMobile ? 'p-2' : 'space-y-2 p-3'} rounded-lg bg-white border border-red-200 hover:bg-red-50 cursor-pointer transition-colors`}
                 onClick={() => {
-                  console.log('🔴 PastDueItem clicked:', {
+                  logger.log('🔴 PastDueItem clicked:', {
                     itemId: item.id,
                     itemName: item.name,
                     itemSource: item.source,

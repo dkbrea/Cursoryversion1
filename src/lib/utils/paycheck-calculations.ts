@@ -12,6 +12,7 @@ import {
 import { calculateNextRecurringItemOccurrence, calculateNextDebtOccurrence } from "./date-calculations";
 import { calculateRecurringOccurrences } from "./recurring-calculations";
 import { getVariableExpenseSpending } from "../api/transactions";
+import { logger } from "./logger";
 
 // Generate individual paycheck events from all income sources
 export const generatePaycheckPeriods = (
@@ -170,8 +171,8 @@ export const generatePaycheckBreakdownWithCarryover = (
   const breakdowns: PaycheckBreakdown[] = [];
   let carryoverBalance = 0; // Track surplus/deficit from previous paychecks
   
-  console.log('Processing paychecks with carryover logic...');
-  console.log('Input periods (before sorting):', periods.map(p => ({
+  logger.log('Processing paychecks with carryover logic...');
+  logger.log('Input periods (before sorting):', periods.map(p => ({
     date: p.paycheckDate.toISOString().split('T')[0],
     amount: p.paycheckAmount
   })));
@@ -181,21 +182,21 @@ export const generatePaycheckBreakdownWithCarryover = (
     a.paycheckDate.getTime() - b.paycheckDate.getTime()
   );
   
-  console.log('Sorted periods:', sortedPeriods.map(p => ({
+  logger.log('Sorted periods:', sortedPeriods.map(p => ({
     date: p.paycheckDate.toISOString().split('T')[0],
     amount: p.paycheckAmount
   })));
 
   // PRE-ANALYSIS: Check for major financial health issues
   const financialHealthAnalysis = analyzeFinancialHealth(sortedPeriods, recurringItems, debtAccounts, variableExpenses, goals);
-  console.log('Financial Health Analysis:', financialHealthAnalysis);
+  logger.log('Financial Health Analysis:', financialHealthAnalysis);
 
   // Look ahead for future deficits to inform current allocations
   const futureDeficitAnalysis = analyzeFutureDeficits(sortedPeriods, recurringItems, debtAccounts);
-  console.log('Future Deficit Analysis:', futureDeficitAnalysis);
+  logger.log('Future Deficit Analysis:', futureDeficitAnalysis);
   
   sortedPeriods.forEach((period, index) => {
-    console.log(`\n--- Processing paycheck ${index + 1}: ${period.paycheckDate.toISOString().split('T')[0]} ---`);
+    logger.log(`\n--- Processing paycheck ${index + 1}: ${period.paycheckDate.toISOString().split('T')[0]} ---`);
     // console.log(`Paycheck amount: $${period.paycheckAmount}`);
     // console.log(`Starting carryover balance: $${carryoverBalance}`);
     
@@ -208,7 +209,7 @@ export const generatePaycheckBreakdownWithCarryover = (
     
     // console.log(`Total obligated: $${totalObligated}`);
     // console.log(`Total available (paycheck + carryover): $${totalAvailable}`);
-    console.log(`Remaining after obligated: $${remainingAfterObligated.toFixed(2)} (${totalAvailable.toFixed(2)} available - ${totalObligated.toFixed(2)} obligated)`);
+    logger.log(`Remaining after obligated: $${remainingAfterObligated.toFixed(2)} (${totalAvailable.toFixed(2)} available - ${totalObligated.toFixed(2)} obligated)`);
     // console.log(`Period start: ${period.periodStart.toISOString().split('T')[0]}`);
     // console.log(`Period end: ${period.periodEnd.toISOString().split('T')[0]}`);
     
@@ -272,7 +273,7 @@ export const generatePaycheckBreakdownWithCarryover = (
       
       // console.log(`Variable expenses allocated: $${allocation.variableExpenses.reduce((sum, exp) => sum + exp.suggestedAmount, 0)}`);
       // console.log(`Goals allocated: $${allocation.savingsGoals.reduce((sum, goal) => sum + goal.suggestedAmount, 0)}`);
-      console.log(`Total allocated to expenses/goals: $${totalAllocated.toFixed(2)}, Carryover: $${actualCarryoverFromAllocation.toFixed(2)}`);
+      logger.log(`Total allocated to expenses/goals: $${totalAllocated.toFixed(2)}, Carryover: $${actualCarryoverFromAllocation.toFixed(2)}`);
       
       finalRemaining = availableForAllocation - totalAllocated - actualCarryoverFromAllocation;
       
@@ -285,7 +286,7 @@ export const generatePaycheckBreakdownWithCarryover = (
     // console.log(`Is deficit: ${isDeficit}`);
     // console.log(`Total allocated: $${totalAllocated}`);
     // console.log(`Final remaining: $${finalRemaining}`);
-    console.log(`New carryover balance: $${carryoverBalance.toFixed(2)}\n`);
+    logger.log(`New carryover balance: $${carryoverBalance.toFixed(2)}\n`);
     
     // Add financial health warnings and guidance
     const warnings = generatePaycheckWarnings(
@@ -322,9 +323,9 @@ export const generatePaycheckBreakdownWithCarryover = (
     });
   });
   
-  console.log('\nFinal breakdown summary:');
+  logger.log('\nFinal breakdown summary:');
   breakdowns.forEach((bd, i) => {
-    console.log(`${bd.period.paycheckDate.toISOString().split('T')[0]}: $${bd.period.paycheckAmount} -> ${bd.isDeficit ? 'DEFICIT' : 'SURPLUS'} $${bd.remainingAfterObligated}`);
+    logger.log(`${bd.period.paycheckDate.toISOString().split('T')[0]}: $${bd.period.paycheckAmount} -> ${bd.isDeficit ? 'DEFICIT' : 'SURPLUS'} $${bd.remainingAfterObligated}`);
   });
   
   return breakdowns;
@@ -846,11 +847,11 @@ const calculateEnhancedPaycheckAllocation = (
   
   // Step 2: Calculate BUDGET-AWARE prorated variable expenses with ACTUAL spending data
   const budgetAwareExpenses = calculateBudgetAwareVariableExpenses(variableExpenses, paycheckPeriod, actualSpendingData);
-  console.log('Budget-aware expenses for period:', budgetAwareExpenses);
+  logger.log('Budget-aware expenses for period:', budgetAwareExpenses);
   
   // Step 3: Calculate prorated goals with urgency
   const proratedGoals = calculateProratedGoals(goals, paycheckPeriod);
-  console.log('Prorated goals for period:', proratedGoals);
+  logger.log('Prorated goals for period:', proratedGoals);
   
   // Step 4: Priority allocation - UPDATED to use remainingBudget instead of proratedAmount
   let remainingForAllocation = allocatableAmount;
@@ -930,7 +931,7 @@ const calculateEnhancedPaycheckAllocation = (
     }
   });
   
-  console.log(`Enhanced allocation: Available $${allocatableAmount}, Total allocated $${allocatableAmount - remainingForAllocation}, Remaining unallocated $${remainingForAllocation}`);
+  logger.log(`Enhanced allocation: Available $${allocatableAmount}, Total allocated $${allocatableAmount - remainingForAllocation}, Remaining unallocated $${remainingForAllocation}`);
   
   // Step 5: Handle remaining unallocated funds
   if (remainingForAllocation > 0) {

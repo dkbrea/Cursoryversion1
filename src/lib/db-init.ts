@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * Ensures the user_preferences table exists in the database
@@ -6,7 +7,7 @@ import { supabase } from './supabase';
  */
 export async function ensureUserPreferencesTable() {
   try {
-    console.log('Checking if user_preferences table exists...');
+    logger.log('Checking if user_preferences table exists...');
     
     // First, check if the table exists
     const { data: tableExists, error: checkError } = await supabase
@@ -23,7 +24,7 @@ export async function ensureUserPreferencesTable() {
     
     // If table doesn't exist, create it
     if (!tableExists) {
-      console.log('Creating user_preferences table...');
+      logger.log('Creating user_preferences table...');
       
       // Create the table using raw SQL
       const { error: createError } = await supabase.rpc('create_table_and_policies', {
@@ -68,9 +69,9 @@ export async function ensureUserPreferencesTable() {
         return { success: false, error: createError };
       }
       
-      console.log('Successfully created user_preferences table');
+      logger.log('Successfully created user_preferences table');
     } else {
-      console.log('user_preferences table already exists');
+      logger.log('user_preferences table already exists');
     }
     
     return { success: true };

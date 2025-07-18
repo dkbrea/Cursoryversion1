@@ -33,6 +33,7 @@ import type { Account, AccountType } from "@/types";
 import { useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { logger } from "@/lib/utils/logger";
 
 const accountTypes: AccountType[] = ["checking", "savings", "credit card", "other"];
 
@@ -73,8 +74,8 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
   });
 
   async function onSubmit(values: AddAccountFormValues, keepOpen: boolean = false) {
-    console.log('=== AddAccountDialog: Form Submission Started ===');
-    console.log('Form values:', JSON.stringify(values, null, 2));
+    logger.log('=== AddAccountDialog: Form Submission Started ===');
+    logger.log('Form values:', JSON.stringify(values, null, 2));
     
     setIsLoading(true);
     
@@ -87,7 +88,7 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
         balance: values.balance,
       };
       
-      console.log('Transformed account data:', JSON.stringify(accountData, null, 2));
+      logger.log('Transformed account data:', JSON.stringify(accountData, null, 2));
       
       // Wrap the onAccountAdded call in a Promise to properly catch errors
       await Promise.resolve(onAccountAdded(accountData, keepOpen));
@@ -101,7 +102,7 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
         balance: 0,
       });
       
-      console.log('Form reset completed');
+      logger.log('Form reset completed');
       
       // Only close the dialog if not keeping it open
       if (!keepOpen) {

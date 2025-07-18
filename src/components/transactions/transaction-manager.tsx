@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, TrendingDown, TrendingUp, DollarSign, Loader2, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { logger } from "@/lib/utils/logger";
 
 // API imports
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from "@/lib/api/transactions";
@@ -415,15 +416,15 @@ export function TransactionManager() {
       // if we delete the transaction first, making it impossible to find the completion
       if (transactionToDelete) {
         try {
-          console.log('TransactionManager: Attempting to remove completion BEFORE deleting transaction:', transactionToDelete.id);
+          logger.log('TransactionManager: Attempting to remove completion BEFORE deleting transaction:', transactionToDelete.id);
           const { removeCompletionByTransactionId } = await import('@/lib/api/recurring-completions');
           
           const completionResult = await removeCompletionByTransactionId(transactionToDelete.id, transactionToDelete.userId);
           
           if (completionResult.success) {
-            console.log('TransactionManager: Successfully removed completion before transaction deletion');
+            logger.log('TransactionManager: Successfully removed completion before transaction deletion');
           } else {
-            console.log('TransactionManager: No completion found for this transaction (this is normal for non-recurring transactions)');
+            logger.log('TransactionManager: No completion found for this transaction (this is normal for non-recurring transactions)');
           }
         } catch (error) {
           console.warn('TransactionManager: Error removing completion record:', error);

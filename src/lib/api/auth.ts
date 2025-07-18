@@ -1,5 +1,6 @@
 import { supabase, handleSupabaseError } from '../supabase';
 import type { User } from '@/types';
+import { logger } from '@/lib/utils/logger';
 
 export const signUp = async (email: string, password: string, firstName?: string) => {
   try {
@@ -58,34 +59,34 @@ export const signIn = async (email: string, password: string): Promise<{ data?: 
 
 export const signOut = async (): Promise<{ success?: boolean; error?: string }> => {
   try {
-    console.log('Starting sign out process...');
+    logger.log('Starting sign out process...');
     
     const { error } = await supabase.auth.signOut();
     
     if (error) {
-      console.log('Supabase signOut returned error:', error);
+      logger.log('Supabase signOut returned error:', error);
       
       // Handle AuthSessionMissingError specifically
       if (error.message?.includes('Auth session missing') || 
           error.name === 'AuthSessionMissingError' ||
           error.toString().includes('AuthSessionMissingError')) {
-        console.log('No active session to sign out from, treating as successful signout');
+        logger.log('No active session to sign out from, treating as successful signout');
         return { success: true };
       }
       
       return handleSupabaseError(error);
     }
     
-    console.log('Sign out successful');
+    logger.log('Sign out successful');
     return { success: true };
   } catch (error: any) {
-    console.log('Sign out caught error:', error);
+    logger.log('Sign out caught error:', error);
     
     // Handle AuthSessionMissingError that might be thrown as exception
     if (error.message?.includes('Auth session missing') || 
         error.name === 'AuthSessionMissingError' ||
         error.toString().includes('AuthSessionMissingError')) {
-      console.log('Caught AuthSessionMissingError - treating as successful signout');
+      logger.log('Caught AuthSessionMissingError - treating as successful signout');
       return { success: true };
     }
     
@@ -104,7 +105,7 @@ export const getCurrentUser = async (): Promise<{ user: User | null; error?: str
     }
     
     if (!session) {
-      console.log('No active session found');
+      logger.log('No active session found');
       return { user: null };
     }
 
@@ -129,7 +130,7 @@ export const getCurrentUser = async (): Promise<{ user: User | null; error?: str
 
     // If no profile exists, create one
     if (!userProfile && !profileError) {
-      console.log('Creating user profile for:', session.user.id);
+      logger.log('Creating user profile for:', session.user.id);
       const { data: newProfile, error: createError } = await supabase
         .from('users')
         .insert({

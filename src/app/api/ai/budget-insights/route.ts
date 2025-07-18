@@ -4,6 +4,7 @@ import { generateBudgetInsights, type BudgetContext } from '@/ai/flows/budget-in
 import { getForecastOverridesForMonth } from '@/lib/api/forecast-overrides-v2';
 import { adjustToPreviousBusinessDay } from '@/lib/utils/date-calculations';
 import { startOfMonth, endOfMonth, format, subMonths, differenceInCalendarMonths, startOfDay, isPast } from 'date-fns';
+import { logger } from '@/lib/utils/logger';
 
 // For API routes, we'll use the service role key to bypass auth
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -41,9 +42,9 @@ export async function POST(request: NextRequest) {
 
     // If budget data is provided, use it directly instead of calculating
     if (budgetData) {
-      console.log('=== USING PASSED BUDGET DATA ===');
-      console.log('Budget data received:', budgetData);
-      console.log('=== END PASSED BUDGET DATA ===');
+      logger.log('=== USING PASSED BUDGET DATA ===');
+      logger.log('Budget data received:', budgetData);
+      logger.log('=== END PASSED BUDGET DATA ===');
       
       const budgetContext: BudgetContext = {
         currentMonth: {
@@ -108,9 +109,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(insights);
     }
     
-    console.log('=== API STARTING DEBUG ===');
-    console.log('API called with params:', { userId, year, month });
-    console.log('=== END API STARTING DEBUG ===');
+    logger.log('=== API STARTING DEBUG ===');
+    logger.log('API called with params:', { userId, year, month });
+    logger.log('=== END API STARTING DEBUG ===');
 
     // Create date range for current month
     const currentDate = new Date(year, month - 1, 1); // month is 0-indexed in Date constructor
@@ -335,19 +336,19 @@ export async function POST(request: NextRequest) {
 
     // Load monthly overrides for the selected month (same as frontend)
     const monthKey = `${year}-${month.toString().padStart(2, '0')}`; // Format: YYYY-MM
-    console.log('=== OVERRIDE DEBUG ===');
-    console.log('Looking for overrides with:');
-    console.log('- user_id:', userId);
-    console.log('- month_year:', monthKey);
+    logger.log('=== OVERRIDE DEBUG ===');
+    logger.log('Looking for overrides with:');
+    logger.log('- user_id:', userId);
+    logger.log('- month_year:', monthKey);
     
     // Use the same override loading function as the main UI
     const { overrides: overrideMapRaw, error: overrideError } = await getForecastOverridesForMonth(userId, monthKey);
     const overrideMap = overrideMapRaw || {}; // Ensure it's not null
     
-    console.log('Forecast overrides query result:');
-    console.log('- Error:', overrideError);
-    console.log('- Override map:', overrideMap);
-    console.log('=== END OVERRIDE DEBUG ===');
+    logger.log('Forecast overrides query result:');
+    logger.log('- Error:', overrideError);
+    logger.log('- Override map:', overrideMap);
+    logger.log('=== END OVERRIDE DEBUG ===');
 
     // Process variable expenses with detailed progress information and apply overrides
     const processedVariableExpenses = (variableExpenses || []).map((category: any) => {
@@ -480,13 +481,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Calculate sinking funds contributions (same logic as frontend)
-    console.log('=== SINKING FUNDS QUERY DEBUG ===');
+    logger.log('=== SINKING FUNDS QUERY DEBUG ===');
     const sinkingFundsResult = await supabase
       .from('sinking_funds')
       .select('*')
       .eq('user_id', userId);
     
-    console.log('Sinking funds query result:', {
+    logger.log('Sinking funds query result:', {
       data: sinkingFundsResult.data,
       error: sinkingFundsResult.error,
       count: sinkingFundsResult.data?.length || 0
@@ -494,7 +495,7 @@ export async function POST(request: NextRequest) {
 
     let calculatedSinkingFundsContributions = 0;
     (sinkingFundsResult.data || []).forEach((fund: any) => {
-      console.log('Processing sinking fund:', {
+      logger.log('Processing sinking fund:', {
         id: fund.id,
         name: fund.name,
         is_active: fund.is_active,
@@ -504,8 +505,8 @@ export async function POST(request: NextRequest) {
         calculatedSinkingFundsContributions += fund.monthly_contribution;
       }
     });
-    console.log('Total calculated sinking funds contributions:', calculatedSinkingFundsContributions);
-    console.log('=== END SINKING FUNDS QUERY DEBUG ===');
+    logger.log('Total calculated sinking funds contributions:', calculatedSinkingFundsContributions);
+    logger.log('=== END SINKING FUNDS QUERY DEBUG ===');
     
     const sinkingFunds = sinkingFundsResult.data;
 
@@ -540,26 +541,26 @@ export async function POST(request: NextRequest) {
     const leftToAllocate = totalIncome - totalAllocated;
     const isBalanced = Math.abs(leftToAllocate) < 0.01;
 
-    console.log('=== FINAL CALCULATION DEBUG (UPDATED) ===');
-    console.log('Request params:', { userId, year, month, monthKey });
-    console.log('Total Income:', totalIncome);
-    console.log('Fixed Expenses:', totalFixedExpenses);
-    console.log('Subscriptions:', totalSubscriptions);
-    console.log('Debt Payments (base):', calculatedDebtPayments);
-    console.log('Debt Payments (adjusted):', adjustedDebtPayments);
-    console.log('Goal Contributions (adjusted):', adjustedGoalContributions);
-    console.log('Sinking Funds (base):', calculatedSinkingFundsContributions);
-    console.log('Sinking Funds (adjusted):', adjustedSinkingFundsContributions);
-    console.log('Variable Expenses (budgeted, adjusted):', totalBudgetedVariable);
-    console.log('CALCULATION CHECK:');
-    console.log('- Total Allocated WITHOUT sinking funds:', totalFixedExpenses + totalSubscriptions + adjustedDebtPayments + adjustedGoalContributions + totalBudgetedVariable);
-    console.log('- Total Allocated WITH sinking funds:', totalAllocated);
-    console.log('- Left to Allocate:', leftToAllocate);
-    console.log('- Should be balanced?:', isBalanced);
-    console.log('Budget Context being sent to AI:');
-    console.log('- currentMonth.leftToAllocate:', leftToAllocate);
-    console.log('- currentMonth.totalSinkingFundsContributions:', adjustedSinkingFundsContributions);
-    console.log('=== END CALCULATION DEBUG ===');
+    logger.log('=== FINAL CALCULATION DEBUG (UPDATED) ===');
+    logger.log('Request params:', { userId, year, month, monthKey });
+    logger.log('Total Income:', totalIncome);
+    logger.log('Fixed Expenses:', totalFixedExpenses);
+    logger.log('Subscriptions:', totalSubscriptions);
+    logger.log('Debt Payments (base):', calculatedDebtPayments);
+    logger.log('Debt Payments (adjusted):', adjustedDebtPayments);
+    logger.log('Goal Contributions (adjusted):', adjustedGoalContributions);
+    logger.log('Sinking Funds (base):', calculatedSinkingFundsContributions);
+    logger.log('Sinking Funds (adjusted):', adjustedSinkingFundsContributions);
+    logger.log('Variable Expenses (budgeted, adjusted):', totalBudgetedVariable);
+    logger.log('CALCULATION CHECK:');
+    logger.log('- Total Allocated WITHOUT sinking funds:', totalFixedExpenses + totalSubscriptions + adjustedDebtPayments + adjustedGoalContributions + totalBudgetedVariable);
+    logger.log('- Total Allocated WITH sinking funds:', totalAllocated);
+    logger.log('- Left to Allocate:', leftToAllocate);
+    logger.log('- Should be balanced?:', isBalanced);
+    logger.log('Budget Context being sent to AI:');
+    logger.log('- currentMonth.leftToAllocate:', leftToAllocate);
+    logger.log('- currentMonth.totalSinkingFundsContributions:', adjustedSinkingFundsContributions);
+    logger.log('=== END CALCULATION DEBUG ===');
 
     // Enhanced previous month comparison
     let previousMonthComparison;

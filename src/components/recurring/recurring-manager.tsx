@@ -28,6 +28,7 @@ import { getCategories } from "@/lib/api/categories";
 import { createTransaction } from "@/lib/api/transactions";
 import { getRecurringPeriods } from "@/lib/api/recurring-completions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { logger } from "@/lib/utils/logger";
 
 interface MonthlySummary {
   income: number;
@@ -327,18 +328,18 @@ export function RecurringManager() {
             if (completion.debt_account_id) {
               const debtOccurrenceId = `${completion.debt_account_id}-${format(periodDate, 'yyyy-MM-dd')}`;
               completedSet.add(debtOccurrenceId);
-              console.log('🗓️ Calendar - Added DEBT completion:', debtOccurrenceId);
+              logger.log('🗓️ Calendar - Added DEBT completion:', debtOccurrenceId);
             }
             
             if (completion.recurring_item_id) {
               const recurringOccurrenceId = `${completion.recurring_item_id}-${format(periodDate, 'yyyy-MM-dd')}`;
               completedSet.add(recurringOccurrenceId);
-              console.log('🗓️ Calendar - Added RECURRING completion:', recurringOccurrenceId);
+              logger.log('🗓️ Calendar - Added RECURRING completion:', recurringOccurrenceId);
             }
           });
         }
 
-        console.log('🗓️ Calendar - Setting completed items:', Array.from(completedSet));
+        logger.log('🗓️ Calendar - Setting completed items:', Array.from(completedSet));
         setCompletedItems(completedSet);
       } catch (error) {
         console.warn('Error loading completion data:', error);
@@ -446,7 +447,7 @@ export function RecurringManager() {
           const startDate = trackingStartDate < yearStart ? trackingStartDate : yearStart;
           const endDate = yearEnd;
 
-          console.log('RecurringManager: Refreshing completion data after transaction record');
+          logger.log('RecurringManager: Refreshing completion data after transaction record');
           
           // Fetch completions directly from database (same as dashboard and loadCompletionData)
           const { data: completionsData, error: completionsError } = await supabase
@@ -457,7 +458,7 @@ export function RecurringManager() {
             .lte('period_date', endDate.toISOString());
 
           if (!completionsError && completionsData) {
-            console.log('RecurringManager: Found completion records after refresh:', completionsData.length);
+            logger.log('RecurringManager: Found completion records after refresh:', completionsData.length);
             const completedSet = new Set<string>();
             
             completionsData.forEach((completion: any) => {
@@ -467,17 +468,17 @@ export function RecurringManager() {
               if (completion.debt_account_id) {
                 const debtOccurrenceId = `${completion.debt_account_id}-${format(periodDate, 'yyyy-MM-dd')}`;
                 completedSet.add(debtOccurrenceId);
-                console.log('RecurringManager: Added DEBT completion to set after refresh:', debtOccurrenceId);
+                logger.log('RecurringManager: Added DEBT completion to set after refresh:', debtOccurrenceId);
               }
               
               if (completion.recurring_item_id) {
                 const recurringOccurrenceId = `${completion.recurring_item_id}-${format(periodDate, 'yyyy-MM-dd')}`;
                 completedSet.add(recurringOccurrenceId);
-                console.log('RecurringManager: Added RECURRING completion to set after refresh:', recurringOccurrenceId);
+                logger.log('RecurringManager: Added RECURRING completion to set after refresh:', recurringOccurrenceId);
               }
             });
             
-            console.log('RecurringManager: Setting completed items after refresh:', Array.from(completedSet));
+            logger.log('RecurringManager: Setting completed items after refresh:', Array.from(completedSet));
             setCompletedItems(completedSet);
           } else {
             console.error('RecurringManager: Error refreshing completion data:', completionsError);

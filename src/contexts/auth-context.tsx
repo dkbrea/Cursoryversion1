@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser, signIn, signOut, updateUserProfile } from "@/lib/api/auth";
+import { logger } from "@/lib/utils/logger";
 
 interface AuthContextType {
   user: User | null;
@@ -29,7 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const checkSession = async () => {
       try {
-        console.log('Checking for existing session...');
+        logger.log('Checking for existing session...');
         
         // Add timeout to prevent hanging
         const timeoutPromise = new Promise((_, reject) => {
@@ -44,10 +45,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.error("Session error:", error);
           setUser(null);
         } else if (user) {
-          console.log('User found in session:', user.email);
+          logger.log('User found in session:', user.email);
           setUser(user);
         } else {
-          console.log('No authenticated user found');
+          logger.log('No authenticated user found');
           setUser(null);
         }
       } catch (error) {
@@ -56,7 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } finally {
         setLoading(false);
         setSessionChecked(true);
-        console.log('Session check completed');
+        logger.log('Session check completed');
       }
     };
 
@@ -65,7 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      console.log('Login attempt for:', email);
+      logger.log('Login attempt for:', email);
       const result = await signIn(email, password);
       
       if (result.error) {
@@ -74,7 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       if (result.data?.user) {
-        console.log('Supabase auth successful, getting user data');
+        logger.log('Supabase auth successful, getting user data');
         const { user: userData, error: userError } = await getCurrentUser();
         
         if (userError) {
@@ -87,7 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return { success: false, error: 'User profile not found' };
         }
         
-        console.log('User data retrieved successfully:', userData);
+        logger.log('User data retrieved successfully:', userData);
         setUser(userData);
         router.replace("/dashboard");
         return { success: true };
@@ -102,9 +103,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
-      console.log('Logout function called');
+      logger.log('Logout function called');
       const result = await signOut();
-      console.log('SignOut result:', result);
+      logger.log('SignOut result:', result);
       
       // Always clear user state and redirect, even if signOut had issues
       setUser(null);

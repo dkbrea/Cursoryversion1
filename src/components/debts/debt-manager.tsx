@@ -16,6 +16,7 @@ import { getDebtAccounts, createDebtAccount, deleteDebtAccount, updateDebtAccoun
 import { useAuth } from "@/contexts/auth-context";
 import { format, addMonths } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { logger } from "@/lib/utils/logger";
 
 
 
@@ -375,8 +376,8 @@ export function DebtManager() {
     
     setIsSubmitting(true);
     try {
-      console.log('=== handleAddDebtAccount called ===');
-      console.log('newDebtData:', JSON.stringify(newDebtData, null, 2));
+      logger.log('=== handleAddDebtAccount called ===');
+      logger.log('newDebtData:', JSON.stringify(newDebtData, null, 2));
       
       // Add userId to the debt data
       const debtDataWithUser = {
@@ -384,12 +385,12 @@ export function DebtManager() {
         userId: user.id
       };
       
-      console.log('debtDataWithUser:', JSON.stringify(debtDataWithUser, null, 2));
+      logger.log('debtDataWithUser:', JSON.stringify(debtDataWithUser, null, 2));
       
       // Create the debt account in the database
       const result = await createDebtAccount(debtDataWithUser);
       
-      console.log('createDebtAccount result:', result);
+      logger.log('createDebtAccount result:', result);
       
       if (result.error) {
         console.error('Create failed with error:', result.error);
@@ -397,7 +398,7 @@ export function DebtManager() {
       }
       
       if (result.account) {
-        console.log('Create successful, updating local state');
+        logger.log('Create successful, updating local state');
         // Add the new account to the local state
         setDebtAccounts((prevAccounts) => [...prevAccounts, result.account!]);
         
@@ -436,14 +437,14 @@ export function DebtManager() {
     
     setIsSubmitting(true);
     try {
-      console.log('=== handleUpdateDebtAccount called ===');
-      console.log('debtId:', debtId);
-      console.log('updatedDebtData:', JSON.stringify(updatedDebtData, null, 2));
+      logger.log('=== handleUpdateDebtAccount called ===');
+      logger.log('debtId:', debtId);
+      logger.log('updatedDebtData:', JSON.stringify(updatedDebtData, null, 2));
       
       // Update the debt account in the database
       const result = await updateDebtAccount(debtId, updatedDebtData);
       
-      console.log('updateDebtAccount result:', result);
+      logger.log('updateDebtAccount result:', result);
       
       if (result.error) {
         console.error('Update failed with error:', result.error);
@@ -451,7 +452,7 @@ export function DebtManager() {
       }
       
       if (result.account) {
-        console.log('Update successful, updating local state');
+        logger.log('Update successful, updating local state');
         // Update the account in the local state
         setDebtAccounts((prevAccounts) => 
           prevAccounts.map(account => 

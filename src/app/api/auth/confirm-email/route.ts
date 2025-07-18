@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/utils/logger';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
     // For now, we'll assume verification is successful
     // In production, replace this with actual verification logic
     
-    console.log('Email confirmation token received:', token);
+    logger.log('Email confirmation token received:', token);
     
     // Redirect to login page with success message
     return NextResponse.redirect(

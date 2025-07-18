@@ -9,6 +9,7 @@ import { Trash2, Edit } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { logger } from "@/lib/utils/logger";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
@@ -25,7 +26,7 @@ export function VariableExpenseList({ expenses, transactions = [], onUpdateExpen
   const { toast } = useToast();
   const [editingAmounts, setEditingAmounts] = useState<Record<string, string>>({});
 
-  console.log('📋 DEBUG: VariableExpenseList rendered', { 
+  logger.log('📋 DEBUG: VariableExpenseList rendered', { 
     expensesCount: expenses.length,
     expenses: expenses.map(e => ({ id: e.id, name: e.name, amount: e.amount })),
     totalAmount: expenses.reduce((sum, e) => sum + e.amount, 0)
@@ -105,7 +106,7 @@ export function VariableExpenseList({ expenses, transactions = [], onUpdateExpen
   };
 
   const handleAmountBlur = (expenseId: string) => {
-    console.log('🔍 DEBUG: handleAmountBlur called', { 
+    logger.log('🔍 DEBUG: handleAmountBlur called', { 
       expenseId, 
       hasUpdateHandler: !!onUpdateExpenseAmount, 
       isLoading, 
@@ -117,7 +118,7 @@ export function VariableExpenseList({ expenses, transactions = [], onUpdateExpen
     const stringValue = editingAmounts[expenseId];
     const originalExpense = expenses.find(e => e.id === expenseId);
 
-    console.log('🔍 DEBUG: handleAmountBlur processing', { 
+    logger.log('🔍 DEBUG: handleAmountBlur processing', { 
       expenseId, 
       stringValue, 
       originalAmount: originalExpense?.amount,
@@ -129,17 +130,17 @@ export function VariableExpenseList({ expenses, transactions = [], onUpdateExpen
       if (originalExpense) {
         setEditingAmounts(prev => ({ ...prev, [expenseId]: originalExpense.amount.toString() }));
       }
-      console.log('🔍 DEBUG: Reverting to original - no valid input');
+      logger.log('🔍 DEBUG: Reverting to original - no valid input');
       return;
     }
     const numericValue = parseFloat(stringValue);
     if (!isNaN(numericValue) && numericValue >= 0) {
-      console.log('🔍 DEBUG: Comparing values', { numericValue, originalAmount: originalExpense.amount, willUpdate: numericValue !== originalExpense.amount });
+      logger.log('🔍 DEBUG: Comparing values', { numericValue, originalAmount: originalExpense.amount, willUpdate: numericValue !== originalExpense.amount });
       if (numericValue !== originalExpense.amount) { // Only update if changed
-        console.log('✅ DEBUG: Triggering update - calling onUpdateExpenseAmount');
+        logger.log('✅ DEBUG: Triggering update - calling onUpdateExpenseAmount');
         onUpdateExpenseAmount(expenseId, numericValue);
       } else {
-        console.log('⏭️ DEBUG: No change detected, skipping update');
+        logger.log('⏭️ DEBUG: No change detected, skipping update');
       }
     } else {
       setEditingAmounts(prev => ({ ...prev, [expenseId]: originalExpense.amount.toString() }));

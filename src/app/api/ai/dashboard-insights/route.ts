@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateDashboardInsights } from '@/ai/flows/dashboard-insights';
+import { logger } from '@/lib/utils/logger';
 
 // For API routes, we'll use the service role key to bypass auth
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -8,7 +9,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== Dashboard insights API called ===');
+    logger.log('=== Dashboard insights API called ===');
 
     // Check environment variables
     if (!supabaseUrl || !supabaseServiceKey) {
@@ -35,13 +36,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
-    console.log('Dashboard insights request for user:', userId);
+    logger.log('Dashboard insights request for user:', userId);
 
     // Create Supabase client
     let supabase;
     try {
       supabase = createClient(supabaseUrl, supabaseServiceKey);
-      console.log('Supabase client created successfully');
+      logger.log('Supabase client created successfully');
     } catch (error) {
       console.error('Error creating Supabase client:', error);
       return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
       if (error) {
         console.error('Supabase connection test failed:', error);
       } else {
-        console.log('Supabase connection test successful');
+        logger.log('Supabase connection test successful');
       }
     } catch (error) {
       console.error('Supabase connection test error:', error);
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     // Build comprehensive dashboard context
     let dashboardContext;
     try {
-      console.log('Building comprehensive dashboard context...');
+      logger.log('Building comprehensive dashboard context...');
       
       const now = new Date();
       const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
           .single()
       ]);
 
-      console.log('Data fetched:', {
+      logger.log('Data fetched:', {
         currentTx: currentTransactions?.data?.length || 0,
         previousTx: previousTransactions?.data?.length || 0,
         accounts: accounts?.data?.length || 0,
@@ -257,7 +258,7 @@ export async function POST(request: NextRequest) {
         },
       };
 
-      console.log('Comprehensive dashboard context built successfully');
+      logger.log('Comprehensive dashboard context built successfully');
     } catch (error) {
       console.error('Error building comprehensive dashboard context:', error);
       return NextResponse.json({ 
@@ -268,7 +269,7 @@ export async function POST(request: NextRequest) {
 
     // Try to generate Jade insights
     try {
-      console.log('Generating Jade insights...');
+      logger.log('Generating Jade insights...');
       
       const insights = await generateDashboardInsights({ dashboardContext });
       

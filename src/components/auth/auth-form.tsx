@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/lib/supabase";
 import { useSearchParams } from "next/navigation";
+import { logger } from "@/lib/utils/logger";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -76,26 +77,26 @@ export function AuthForm() {
     // Set a safety timeout to reset loading state if login takes too long
     const safetyTimeout = setTimeout(() => {
       if (setIsLoading) {
-        console.log('Login safety timeout triggered - resetting loading state');
+        logger.log('Login safety timeout triggered - resetting loading state');
         setIsLoading(false);
         setError('Login timed out. Please try again.');
       }
     }, 10000); // 10 seconds timeout
     
     try {
-      console.log('Attempting login for:', values.email);
+      logger.log('Attempting login for:', values.email);
       const result = await login(values.email, values.password);
       
       clearTimeout(safetyTimeout); // Clear timeout on success/error
       
-      console.log('Login result:', result);
+      logger.log('Login result:', result);
       
       if (!result.success && result.error) {
         setError(result.error);
         setIsLoading(false);
       } else if (result.success) {
         // Success case - we'll let the redirect happen
-        console.log('Login successful, waiting for redirect');
+        logger.log('Login successful, waiting for redirect');
         // Still set a backup timeout in case redirect doesn't happen
         setTimeout(() => {
           setIsLoading(false);

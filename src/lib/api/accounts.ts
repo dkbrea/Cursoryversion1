@@ -1,5 +1,6 @@
 import { supabase, handleSupabaseError } from '../supabase';
 import type { Account, AccountType } from '@/types';
+import { logger } from '@/lib/utils/logger';
 
 export const getAccounts = async (userId: string): Promise<{ accounts: Account[] | null; error?: string }> => {
   try {
@@ -66,8 +67,8 @@ export const getAccount = async (accountId: string): Promise<{ account: Account 
 
 export const createAccount = async (account: Omit<Account, 'id' | 'createdAt'>): Promise<{ account: Account | null; error?: string }> => {
   try {
-    console.log('=== createAccount called ===');
-    console.log('account data:', JSON.stringify(account, null, 2));
+    logger.log('=== createAccount called ===');
+    logger.log('account data:', JSON.stringify(account, null, 2));
     
     // Transform from application format to database format
     const insertData = {
@@ -80,7 +81,7 @@ export const createAccount = async (account: Omit<Account, 'id' | 'createdAt'>):
       user_id: account.userId
     };
     
-    console.log('transformed insertData:', JSON.stringify(insertData, null, 2));
+    logger.log('transformed insertData:', JSON.stringify(insertData, null, 2));
     
     const { data, error } = await supabase
       .from('accounts')
@@ -88,7 +89,7 @@ export const createAccount = async (account: Omit<Account, 'id' | 'createdAt'>):
       .select()
       .single();
 
-    console.log('supabase response:', { data, error });
+    logger.log('supabase response:', { data, error });
 
     if (error) {
       console.error('Supabase error:', error);
@@ -96,6 +97,7 @@ export const createAccount = async (account: Omit<Account, 'id' | 'createdAt'>):
     }
 
     if (!data) {
+      // Keep console.error for production error handling
       console.error('No data returned from insert');
       return { account: null, error: 'No data returned from database insert' };
     }
@@ -113,10 +115,11 @@ export const createAccount = async (account: Omit<Account, 'id' | 'createdAt'>):
       createdAt: new Date(data.created_at)
     };
 
-    console.log('transformed result:', JSON.stringify(newAccount, null, 2));
-    console.log('=== createAccount success ===');
+    logger.log('transformed result:', JSON.stringify(newAccount, null, 2));
+    logger.log('=== createAccount success ===');
     return { account: newAccount };
   } catch (error: any) {
+    // Keep console.error for production error handling
     console.error('createAccount caught exception:', error);
     return { account: null, error: error.message };
   }

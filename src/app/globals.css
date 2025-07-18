@@ -527,7 +527,7 @@ a:hover ~ .custom-cursor {
   left: 100%;
 }
 
-/* Responsive Cursor Hide */
+/* Mobile Accessibility Enhancements */
 @media (max-width: 768px) {
   .custom-cursor,
   .cursor-follower {
@@ -536,10 +536,37 @@ a:hover ~ .custom-cursor {
   
   body {
     cursor: auto;
+    /* Prevent zoom on input focus (iOS Safari) */
+    -webkit-text-size-adjust: 100%;
+    /* Improve touch scrolling */
+    -webkit-overflow-scrolling: touch;
   }
   
   body * {
     cursor: auto !important;
+  }
+  
+  /* Ensure minimum touch target sizes on mobile */
+  button, a, input, select, textarea {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  
+  /* Improve button spacing on mobile */
+  .flex.gap-2 button + button,
+  .space-x-2 button + button {
+    margin-left: 0.75rem; /* Increased spacing for easier touch */
+  }
+  
+  /* Prevent horizontal scroll on mobile */
+  html, body {
+    overflow-x: hidden;
+  }
+  
+  /* Better focus indicators for mobile */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
@@ -695,4 +722,43 @@ a:hover ~ .custom-cursor {
 
 .tropical-summer-bg .text-slate-600 {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+/* Modal/Dialog Body Scroll Lock */
+.modal-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* Prevent background scrolling when modals are open */
+body:has([data-state="open"]) {
+  overflow: hidden;
+}
+
+/* Improved accessibility for screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --ring: 0 0% 0%;
+    --border: 0 0% 0%;
+  }
+  
+  .dark {
+    --ring: 0 0% 100%;
+    --border: 0 0% 100%;
+  }
 }

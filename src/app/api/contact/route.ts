@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,22 +98,22 @@ export async function POST(request: NextRequest) {
     try {
       if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully to support@unbrokenpockets.com');
+        logger.log('Email sent successfully to support@unbrokenpockets.com');
       } else {
         // Log the submission if email isn't configured
-        console.log('Email configuration missing. Contact form submission logged:', {
+        logger.log('Email configuration missing. Contact form submission logged:', {
           name,
           email,
           issueType: issueTypeLabel,
           message,
           timestamp: new Date().toISOString()
         });
-        console.log('To enable email sending, add EMAIL_USER and EMAIL_PASS to your .env file');
+        logger.log('To enable email sending, add EMAIL_USER and EMAIL_PASS to your .env file');
       }
     } catch (emailError) {
       console.error('Failed to send email:', emailError);
       // Still log the submission even if email fails
-      console.log('Contact form submission (email failed):', {
+      logger.log('Contact form submission (email failed):', {
         name,
         email,
         issueType: issueTypeLabel,

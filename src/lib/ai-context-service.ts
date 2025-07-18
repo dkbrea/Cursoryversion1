@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Transaction, Category, VariableExpense } from '@/types';
 import type { TransactionContext } from '@/ai/flows/financial-insights';
 import type { PatternContext } from '@/ai/flows/pattern-recognition';
+import { logger } from '@/lib/utils/logger';
 
 export class AIContextService {
   private supabase: SupabaseClient;
@@ -38,9 +39,9 @@ export class AIContextService {
       .order('date', { ascending: false })
       .limit(50);
 
-    console.log('AI Context Debug - thirtyDaysAgo:', thirtyDaysAgo.toISOString());
-    console.log('AI Context Debug - recentTransactions:', recentTransactions);
-    console.log('AI Context Debug - current transaction:', currentTransaction);
+    logger.log('AI Context Debug - thirtyDaysAgo:', thirtyDaysAgo.toISOString());
+    logger.log('AI Context Debug - recentTransactions:', recentTransactions);
+    logger.log('AI Context Debug - current transaction:', currentTransaction);
 
     // Get category spending patterns
     const { data: categorySpending } = await this.supabase

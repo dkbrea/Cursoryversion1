@@ -35,6 +35,7 @@ import { format, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { markPeriodComplete } from "@/lib/api/recurring-completions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { logger } from "@/lib/utils/logger";
 
 const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
@@ -195,15 +196,15 @@ export function RecordRecurringTransactionDialog({
         try {
           const occurrenceId = `${recurringItem.id}-${format(startOfDay(selectedDate), 'yyyy-MM-dd')}`;
           if (recurringItem.source === 'debt') {
-            console.log('💳💳💳 RECORDING DEBT PAYMENT COMPLETION 💳💳💳');
-            console.log('💳 Debt Item:', recurringItem.name);
-            console.log('💳 Debt ID:', recurringItem.id);
-            console.log('💳 Period Date:', startOfDay(selectedDate).toISOString().split('T')[0]);
-            console.log('💳 Transaction ID:', savedTransaction.id);
-            console.log('💳💳💳 ABOUT TO CALL markPeriodComplete 💳💳💳');
+            logger.log('💳💳💳 RECORDING DEBT PAYMENT COMPLETION 💳💳💳');
+            logger.log('💳 Debt Item:', recurringItem.name);
+            logger.log('💳 Debt ID:', recurringItem.id);
+            logger.log('💳 Period Date:', startOfDay(selectedDate).toISOString().split('T')[0]);
+            logger.log('💳 Transaction ID:', savedTransaction.id);
+            logger.log('💳💳💳 ABOUT TO CALL markPeriodComplete 💳💳💳');
           }
           
-          console.log('RecordDialog: Attempting to mark period complete with data:', {
+          logger.log('RecordDialog: Attempting to mark period complete with data:', {
             recurringItemId: recurringItem.source === 'recurring' ? recurringItem.id : undefined,
             debtAccountId: recurringItem.source === 'debt' ? recurringItem.id : undefined,
             periodDate: startOfDay(selectedDate),
@@ -225,13 +226,13 @@ export function RecordRecurringTransactionDialog({
             userId: savedTransaction.userId,
           });
           
-          console.log('RecordDialog: markPeriodComplete result:', result);
+          logger.log('RecordDialog: markPeriodComplete result:', result);
           
           if (result.error) {
             console.error('RecordDialog: Error from markPeriodComplete:', result.error);
           } else {
-            console.log('RecordDialog: Successfully marked period as complete:', result.completion);
-            console.log('RecordDialog: Completion record created with:', {
+            logger.log('RecordDialog: Successfully marked period as complete:', result.completion);
+            logger.log('RecordDialog: Completion record created with:', {
               transactionId: result.completion?.transactionId,
               periodDate: result.completion?.periodDate,
               recurringItemId: result.completion?.recurringItemId,
@@ -243,7 +244,7 @@ export function RecordRecurringTransactionDialog({
           // Don't fail the whole operation if completion tracking fails
         }
       } else {
-        console.log('RecordDialog: Skipping period completion - missing savedTransaction or savedTransaction.id', {
+        logger.log('RecordDialog: Skipping period completion - missing savedTransaction or savedTransaction.id', {
           hasSavedTransaction: !!savedTransaction,
           savedTransactionId: savedTransaction?.id
         });

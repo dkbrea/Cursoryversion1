@@ -1,11 +1,12 @@
 import { supabase } from './supabase';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * Utility function to check which tables exist in the database
  */
 export async function checkDatabaseTables() {
   try {
-    console.log('Checking database tables...');
+    logger.log('Checking database tables...');
     
     // Query the information_schema.tables to get a list of all tables
     const { data, error } = await supabase
@@ -18,7 +19,7 @@ export async function checkDatabaseTables() {
       return { success: false, error };
     }
     
-    console.log('Available tables:', data?.map(table => table.table_name));
+    logger.log('Available tables:', data?.map(table => table.table_name));
     return { success: true, tables: data?.map(table => table.table_name) };
   } catch (error) {
     console.error('Error checking database tables:', error);

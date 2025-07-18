@@ -11,6 +11,7 @@ import { adjustToPreviousBusinessDay } from '@/lib/utils/date-calculations';
 import type { DayContentProps, CaptionProps } from 'react-day-picker';
 import { CalendarDays, DollarSign, CreditCard, Users, Briefcase, TrendingUp, TrendingDown, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/utils/logger';
 
 interface RecurringCalendarViewProps {
   items: UnifiedRecurringListItem[];
@@ -423,7 +424,7 @@ export function RecurringCalendarView({ items, onMonthChange, onItemClick, compl
           if (unifiedItem.itemDisplayType === 'income') {
             const rawDate = new Date(occurrenceDate);
             const businessAdjustedDate = adjustToPreviousBusinessDay(occurrenceDate);
-            console.log(`CalendarView - ${unifiedItem.name}:`, {
+            logger.log(`CalendarView - ${unifiedItem.name}:`, {
               rawCalculated: rawDate.toISOString().split('T')[0],
               rawDayOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][rawDate.getDay()],
               businessAdjusted: businessAdjustedDate.toISOString().split('T')[0],

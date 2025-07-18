@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { analyzeTransactionPatterns } from '@/ai/flows/pattern-recognition';
 import { AIContextService } from '@/lib/ai-context-service';
+import { logger } from '@/lib/utils/logger';
 
 // Use service role key for server-side operations
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     // Check if AI is configured and enabled
     if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) {
-      console.log('AI analysis disabled - no API key configured');
+      logger.log('AI analysis disabled - no API key configured');
       return NextResponse.json({ 
         anomalies: [],
         patterns: [],
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (process.env.ENABLE_AI_FEATURES === 'false') {
-      console.log('AI analysis disabled - ENABLE_AI_FEATURES=false');
+      logger.log('AI analysis disabled - ENABLE_AI_FEATURES=false');
       return NextResponse.json({ 
         anomalies: [],
         patterns: [],
