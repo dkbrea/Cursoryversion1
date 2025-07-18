@@ -271,6 +271,15 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
   const showLastRenewalDateField = selectedType === 'subscription';
   const showSemiMonthlyDateFields = selectedType !== 'subscription' && selectedFrequency === 'semi-monthly';
   
+  // Debug logging for mobile issue
+  console.log('DEBUG: Field visibility', { 
+    selectedType, 
+    selectedFrequency, 
+    showPrimaryDateField, 
+    showLastRenewalDateField, 
+    showSemiMonthlyDateFields 
+  });
+  
   const showCategoryField = selectedType === 'subscription' || selectedType === 'fixed-expense';
   const showEndDateField = selectedType === 'subscription';
 
@@ -413,10 +422,8 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                         <FormControl>
                           <Button
                             variant={"outline"}
-                            className={cn("w-full pl-3 text-left font-normal touch-manipulation", !field.value && "text-muted-foreground")}
+                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                             onClick={() => setIsLastRenewalDatePickerOpen(true)}
-                            onTouchStart={() => setIsLastRenewalDatePickerOpen(true)}
-                            type="button"
                           >
                             {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -424,13 +431,12 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent 
-                        className="w-auto p-0 z-50" 
+                        className="w-auto p-0" 
                         align="start" 
                         side="bottom" 
                         sideOffset={4} 
                         avoidCollisions={true}
                         collisionPadding={16}
-                        hideWhenDetached={false}
                       >
                         <Calendar
                           mode="single"
@@ -453,15 +459,22 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>{getPrimaryDateLabel()}</FormLabel>
-                    <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
+                    <Popover 
+                      open={isStartDatePickerOpen} 
+                      onOpenChange={(open) => {
+                        console.log('DEBUG: Popover state changing to:', open);
+                        setIsStartDatePickerOpen(open);
+                      }}
+                    >
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant={"outline"}
-                            className={cn("w-full pl-3 text-left font-normal touch-manipulation", !field.value && "text-muted-foreground")}
-                            onClick={() => setIsStartDatePickerOpen(true)}
-                            onTouchStart={() => setIsStartDatePickerOpen(true)}
-                            type="button"
+                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                            onClick={() => {
+                              console.log('DEBUG: Primary date button clicked, opening picker');
+                              setIsStartDatePickerOpen(true);
+                            }}
                           >
                             {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -469,13 +482,12 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent 
-                        className="w-auto p-0 z-50" 
+                        className="w-auto p-0" 
                         align="start" 
                         side="bottom" 
                         sideOffset={4} 
                         avoidCollisions={true}
                         collisionPadding={16}
-                        hideWhenDetached={false}
                       >
                         <Calendar
                           mode="single"
@@ -504,10 +516,8 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           <FormControl>
                             <Button
                               variant={"outline"}
-                              className={cn("w-full pl-3 text-left font-normal touch-manipulation", !field.value && "text-muted-foreground")}
+                              className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                               onClick={() => setIsSemiMonthlyFirstDatePickerOpen(true)}
-                              onTouchStart={() => setIsSemiMonthlyFirstDatePickerOpen(true)}
-                              type="button"
                             >
                               {field.value ? format(new Date(field.value), "PPP") : <span>Pick first pay date</span>}
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -545,10 +555,8 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           <FormControl>
                             <Button
                               variant={"outline"}
-                              className={cn("w-full pl-3 text-left font-normal touch-manipulation", !field.value && "text-muted-foreground")}
+                              className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                               onClick={() => setIsSemiMonthlySecondDatePickerOpen(true)}
-                              onTouchStart={() => setIsSemiMonthlySecondDatePickerOpen(true)}
-                              type="button"
                             >
                               {field.value ? format(new Date(field.value), "PPP") : <span>Pick second pay date</span>}
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -589,10 +597,8 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                         <FormControl>
                           <Button
                             variant={"outline"}
-                            className={cn("w-full pl-3 text-left font-normal touch-manipulation", !field.value && "text-muted-foreground")}
+                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                             onClick={() => setIsEndDatePickerOpen(true)}
-                            onTouchStart={() => setIsEndDatePickerOpen(true)}
-                            type="button"
                           >
                             {field.value ? format(new Date(field.value), "PPP") : <span>Pick an end date</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -600,13 +606,12 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent 
-                        className="w-auto p-0 z-50" 
+                        className="w-auto p-0" 
                         align="start" 
                         side="bottom" 
                         sideOffset={4} 
                         avoidCollisions={true}
                         collisionPadding={16}
-                        hideWhenDetached={false}
                       >
                         <Calendar
                           mode="single"
