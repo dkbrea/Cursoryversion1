@@ -288,9 +288,6 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
           <DialogDescription>
             Set up your regular income, subscriptions, or fixed expenses.
           </DialogDescription>
-          <div className="bg-blue-100 p-2 rounded text-xs">
-            DEBUG: Type={selectedType || 'none'}, Freq={selectedFrequency || 'none'}, ShowPrimary={showPrimaryDateField.toString()}, PopoverOpen={isStartDatePickerOpen.toString()}
-          </div>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
@@ -448,41 +445,53 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
             )}
 
             {showPrimaryDateField && (
-              <div className="bg-green-100 p-2 rounded border">{/* DEBUG: Primary date field is visible */}
-                <div className="flex flex-col space-y-2">
-                  <label className="text-sm font-medium">{getPrimaryDateLabel()}</label>
-                  <div className="relative">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full pl-3 text-left font-normal"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        alert('Button clicked! Setting state to true...');
-                        setIsStartDatePickerOpen(true);
-                      }}
-                    >
-                      <span>Pick a date (MANUAL TEST)</span>
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  
-                    {isStartDatePickerOpen && (
-                      <div className="absolute top-full left-0 mt-1 z-[9999] bg-white border shadow-lg rounded-md">
-                        <Calendar
-                          mode="single"
-                          selected={undefined}
-                          onSelect={(date) => { 
-                            alert(`Date selected: ${date}`);
-                            setIsStartDatePickerOpen(false); 
+              <FormField
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>{getPrimaryDateLabel()}</FormLabel>
+                    <div className="relative">
+                      <FormControl>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsStartDatePickerOpen(true);
                           }}
-                          initialFocus
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                        >
+                          {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                      
+                      {isStartDatePickerOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-[9998]" 
+                            onClick={() => setIsStartDatePickerOpen(false)}
+                          />
+                          <div className="absolute top-full left-0 mt-1 z-[9999] bg-white border shadow-lg rounded-md p-3">
+                            <Calendar
+                              mode="single"
+                              selected={field.value ? new Date(field.value) : undefined}
+                              onSelect={(date) => { 
+                                field.onChange(date);
+                                setIsStartDatePickerOpen(false); 
+                              }}
+                              initialFocus
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
             {showSemiMonthlyDateFields && (
