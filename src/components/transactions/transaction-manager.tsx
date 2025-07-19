@@ -49,7 +49,8 @@ export function TransactionManager() {
   // Time period filtering state
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('current-month');
   const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null);
-  const [isCustomDatePickerOpen, setIsCustomDatePickerOpen] = useState(false);
+  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
+  const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
   
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -610,27 +611,30 @@ export function TransactionManager() {
             
             {timePeriod === 'custom' && (
               <div className="flex-1">
-                <Label htmlFor="custom-range" className="text-sm font-medium">
+                <Label className="text-sm font-medium">
                   Custom Date Range
                 </Label>
-                <Popover open={isCustomDatePickerOpen} onOpenChange={setIsCustomDatePickerOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full sm:w-[250px] mt-1 justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {customDateRange ? (
-                        `${format(customDateRange.start, 'MMM d, yyyy')} - ${format(customDateRange.end, 'MMM d, yyyy')}`
-                      ) : (
-                        "Pick a date range"
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <div className="p-4 space-y-4">
-                      <div className="space-y-2">
-                        <Label>Start Date</Label>
+                <div className="flex flex-col sm:flex-row gap-2 mt-1">
+                  {/* Start Date Picker */}
+                  <div className="flex-1">
+                    <Label htmlFor="start-date" className="text-xs text-muted-foreground">
+                      Start Date
+                    </Label>
+                    <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {customDateRange?.start ? (
+                            format(customDateRange.start, 'MMM d, yyyy')
+                          ) : (
+                            "Start date"
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
                           selected={customDateRange?.start}
@@ -640,36 +644,59 @@ export function TransactionManager() {
                                 start: date,
                                 end: prev?.end || date
                               }));
+                              setIsStartDatePickerOpen(false);
                             }
                           }}
-                          disabled={(date) => date > new Date()}
+                          disabled={(date) => 
+                            date > new Date() || 
+                            (customDateRange?.end ? date > customDateRange.end : false)
+                          }
                         />
-                      </div>
-                      {customDateRange?.start && (
-                        <div className="space-y-2">
-                          <Label>End Date</Label>
-                          <Calendar
-                            mode="single"
-                            selected={customDateRange?.end}
-                            onSelect={(date) => {
-                              if (date && customDateRange?.start) {
-                                setCustomDateRange(prev => ({
-                                  start: prev!.start,
-                                  end: date
-                                }));
-                                setIsCustomDatePickerOpen(false);
-                              }
-                            }}
-                            disabled={(date) => 
-                              date > new Date() || 
-                              (customDateRange?.start && date < customDateRange.start)
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  {/* End Date Picker */}
+                  <div className="flex-1">
+                    <Label htmlFor="end-date" className="text-xs text-muted-foreground">
+                      End Date
+                    </Label>
+                    <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {customDateRange?.end ? (
+                            format(customDateRange.end, 'MMM d, yyyy')
+                          ) : (
+                            "End date"
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={customDateRange?.end}
+                          onSelect={(date) => {
+                            if (date) {
+                              setCustomDateRange(prev => ({
+                                start: prev?.start || date,
+                                end: date
+                              }));
+                              setIsEndDatePickerOpen(false);
                             }
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                          }}
+                          disabled={(date) => 
+                            date > new Date() || 
+                            (customDateRange?.start ? date < customDateRange.start : false)
+                          }
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
               </div>
             )}
             
