@@ -789,4 +789,16 @@ body:has([data-state="open"]) {
     overflow-scrolling: touch;
     overscroll-behavior: contain;
   }
+  
+  /* Prevent sidebar animation conflicts */
+  .sidebar-stable {
+    animation-fill-mode: both;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Force GPU rendering for sidebar */
+  [data-sidebar="sidebar"] {
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+  }
 }

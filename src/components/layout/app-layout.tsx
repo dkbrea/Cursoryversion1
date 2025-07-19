@@ -38,14 +38,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const [isMounted, setIsMounted] = React.useState(false);
   
-  // Simplified navigation handler - no complex timing conflicts
+  // Ensure component is fully mounted to prevent hydration issues
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Navigation handler with proper state management
   const handleNavigation = React.useCallback((href: string) => {
     if (pathname === href) return;
     
-    // Close sidebar immediately and navigate - let React handle the transitions naturally
+    // Close sidebar first
     setMobileNavOpen(false);
-    router.push(href);
+    
+    // Small delay to ensure smooth animation completion before navigation
+    requestAnimationFrame(() => {
+      router.push(href);
+    });
   }, [pathname, router]);
 
   React.useEffect(() => {
@@ -54,12 +64,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [loading, isAuthenticated, router]);
 
-  // Close sidebar on route changes
-  React.useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
+  // Remove the conflicting useEffect that was causing double state updates
+  // The navigation handler already closes the sidebar, so this is redundant
 
-  if (loading || !isAuthenticated) {
+  if (loading || !isAuthenticated || !isMounted) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
         <p>Loading...</p>
@@ -84,6 +92,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               onClick={(e) => {
                 if (onNavigation && pathname !== item.href) {
                   e.preventDefault();
+                  e.stopPropagation(); // Prevent event bubbling
                   onNavigation(item.href);
                 }
               }}
@@ -130,7 +139,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main content area with independent scrolling */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Mobile Header with Optimized Hamburger Menu */}
-        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <Sheet 
+          open={mobileNavOpen} 
+          onOpenChange={(open) => {
+            // Prevent conflicting state updates during transitions
+            if (open !== mobileNavOpen) {
+              setMobileNavOpen(open);
+            }
+          }}
+        >
           <SheetTrigger asChild>
             <Button 
               variant="outline" 
@@ -143,8 +160,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </SheetTrigger>
           <SheetContent 
             side="left" 
-            className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0 will-change-transform sidebar-optimize"
-            // Force hardware acceleration for smoother animations
+            className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0 will-change-transform sidebar-optimize sidebar-stable"
+            onInteractOutside={() => {
+              // Ensure sidebar closes when clicking outside
+              setMobileNavOpen(false);
+            }}
           >
             <SidebarNavContent onNavigation={handleNavigation} />
           </SheetContent>
