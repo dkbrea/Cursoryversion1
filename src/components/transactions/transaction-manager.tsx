@@ -7,10 +7,15 @@ import { AddEditTransactionDialog } from "./add-edit-transaction-dialog";
 import { PostTransactionJadeInsights } from "./post-transaction-ai-insights";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, TrendingDown, TrendingUp, DollarSign, Loader2, Target } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Label } from "@/components/ui/label";
+import { PlusCircle, TrendingDown, TrendingUp, DollarSign, Loader2, Target, CalendarIcon, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { logger } from "@/lib/utils/logger";
+import { format } from "date-fns";
 
 // API imports
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from "@/lib/api/transactions";
@@ -20,6 +25,13 @@ import { getRecurringItems } from "@/lib/api/recurring";
 import { getDebtAccounts } from "@/lib/api/debts";
 import { getFinancialGoals } from "@/lib/api/goals";
 import { supabase } from "@/lib/supabase";
+
+type TimePeriod = 'current-month' | '3-months' | '6-months' | '12-months' | 'custom';
+
+interface DateRange {
+  start: Date;
+  end: Date;
+}
 
 export function TransactionManager() {
   const { toast } = useToast();
@@ -33,6 +45,11 @@ export function TransactionManager() {
   const [debtAccountsList, setDebtAccountsList] = useState<DebtAccount[]>([]);
   const [goalsList, setGoalsList] = useState<FinancialGoalWithContribution[]>([]);
   const [variableExpensesList, setVariableExpensesList] = useState<VariableExpense[]>([]);
+  
+  // Time period filtering state
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('current-month');
+  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null);
+  const [isCustomDatePickerOpen, setIsCustomDatePickerOpen] = useState(false);
   
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -49,6 +66,74 @@ export function TransactionManager() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
+  };
+
+  // Helper function to get date range based on time period
+  const getDateRange = (period: TimePeriod): DateRange => {
+    const now = new Date();
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    switch (period) {
+      case 'current-month':
+        return {
+          start: startOfCurrentMonth,
+          end: new Date(now.getFullYear(), now.getMonth() + 1, 0) // Last day of current month
+        };
+      case '3-months':
+        return {
+          start: new Date(now.getFullYear(), now.getMonth() - 2, 1), // 3 months ago, start of month
+          end: new Date(now.getFullYear(), now.getMonth() + 1, 0) // End of current month
+        };
+      case '6-months':
+        return {
+          start: new Date(now.getFullYear(), now.getMonth() - 5, 1), // 6 months ago, start of month
+          end: new Date(now.getFullYear(), now.getMonth() + 1, 0) // End of current month
+        };
+      case '12-months':
+        return {
+          start: new Date(now.getFullYear(), now.getMonth() - 11, 1), // 12 months ago, start of month
+          end: new Date(now.getFullYear(), now.getMonth() + 1, 0) // End of current month
+        };
+      case 'custom':
+        return customDateRange || {
+          start: startOfCurrentMonth,
+          end: new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        };
+      default:
+        return {
+          start: startOfCurrentMonth,
+          end: new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        };
+    }
+  };
+
+  // Filter transactions based on selected time period
+  const getFilteredTransactions = (): Transaction[] => {
+    const dateRange = getDateRange(timePeriod);
+    
+    return transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.date);
+      // Reset time to start of day for accurate comparison
+      const transactionDateOnly = new Date(transactionDate.getFullYear(), transactionDate.getMonth(), transactionDate.getDate());
+      const startDateOnly = new Date(dateRange.start.getFullYear(), dateRange.start.getMonth(), dateRange.start.getDate());
+      const endDateOnly = new Date(dateRange.end.getFullYear(), dateRange.end.getMonth(), dateRange.end.getDate());
+      
+      return transactionDateOnly >= startDateOnly && transactionDateOnly <= endDateOnly;
+    });
+  };
+
+  // Get formatted date range string for display
+  const getDateRangeString = (): string => {
+    const dateRange = getDateRange(timePeriod);
+    
+    switch (timePeriod) {
+      case 'current-month':
+        return format(dateRange.start, 'MMMM yyyy');
+      case 'custom':
+        return `${format(dateRange.start, 'MMM d, yyyy')} - ${format(dateRange.end, 'MMM d, yyyy')}`;
+      default:
+        return `${format(dateRange.start, 'MMM d, yyyy')} - ${format(dateRange.end, 'MMM d, yyyy')}`;
+    }
   };
 
   // Fetch all data when component mounts and user is authenticated
@@ -480,12 +565,127 @@ export function TransactionManager() {
     );
   }
 
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Math.abs(t.amount), 0); 
+  const filteredTransactions = getFilteredTransactions();
+  const totalIncome = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Math.abs(t.amount), 0); 
   const netFlow = totalIncome - totalExpenses;
 
   return (
     <div className="space-y-6">
+      {/* Time Period Filter */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filter by Time Period
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="flex-1">
+              <Label htmlFor="time-period" className="text-sm font-medium">
+                Time Period
+              </Label>
+              <Select
+                value={timePeriod}
+                onValueChange={(value: TimePeriod) => {
+                  setTimePeriod(value);
+                  if (value !== 'custom') {
+                    setCustomDateRange(null);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[200px] mt-1">
+                  <SelectValue placeholder="Select time period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current-month">Current Month</SelectItem>
+                  <SelectItem value="3-months">Last 3 Months</SelectItem>
+                  <SelectItem value="6-months">Last 6 Months</SelectItem>
+                  <SelectItem value="12-months">Last 12 Months</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {timePeriod === 'custom' && (
+              <div className="flex-1">
+                <Label htmlFor="custom-range" className="text-sm font-medium">
+                  Custom Date Range
+                </Label>
+                <Popover open={isCustomDatePickerOpen} onOpenChange={setIsCustomDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-[250px] mt-1 justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customDateRange ? (
+                        `${format(customDateRange.start, 'MMM d, yyyy')} - ${format(customDateRange.end, 'MMM d, yyyy')}`
+                      ) : (
+                        "Pick a date range"
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <div className="p-4 space-y-4">
+                      <div className="space-y-2">
+                        <Label>Start Date</Label>
+                        <Calendar
+                          mode="single"
+                          selected={customDateRange?.start}
+                          onSelect={(date) => {
+                            if (date) {
+                              setCustomDateRange(prev => ({
+                                start: date,
+                                end: prev?.end || date
+                              }));
+                            }
+                          }}
+                          disabled={(date) => date > new Date()}
+                        />
+                      </div>
+                      {customDateRange?.start && (
+                        <div className="space-y-2">
+                          <Label>End Date</Label>
+                          <Calendar
+                            mode="single"
+                            selected={customDateRange?.end}
+                            onSelect={(date) => {
+                              if (date && customDateRange?.start) {
+                                setCustomDateRange(prev => ({
+                                  start: prev!.start,
+                                  end: date
+                                }));
+                                setIsCustomDatePickerOpen(false);
+                              }
+                            }}
+                            disabled={(date) => 
+                              date > new Date() || 
+                              (customDateRange?.start && date < customDateRange.start)
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            
+            <div className="flex-1">
+              <Label className="text-sm font-medium">
+                Showing
+              </Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                {getDateRangeString()}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -494,7 +694,7 @@ export function TransactionManager() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">${formatCurrency(totalIncome)}</div>
-            <p className="text-xs text-muted-foreground">Based on current transactions</p>
+            <p className="text-xs text-muted-foreground">{getDateRangeString()}</p>
           </CardContent>
         </Card>
         <Card>
@@ -504,7 +704,7 @@ export function TransactionManager() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">${formatCurrency(totalExpenses)}</div>
-             <p className="text-xs text-muted-foreground">Based on current transactions</p>
+            <p className="text-xs text-muted-foreground">{getDateRangeString()}</p>
           </CardContent>
         </Card>
         <Card>
@@ -516,7 +716,7 @@ export function TransactionManager() {
             <div className={`text-2xl font-bold ${netFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               ${formatCurrency(netFlow)}
             </div>
-             <p className="text-xs text-muted-foreground">Income - Expenses</p>
+            <p className="text-xs text-muted-foreground">{getDateRangeString()}</p>
           </CardContent>
         </Card>
       </div>
@@ -567,7 +767,7 @@ export function TransactionManager() {
         </CardHeader>
         <CardContent>
           <TransactionTable
-            transactions={transactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
+            transactions={filteredTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
             categories={categoriesList}
             accounts={accountsList}
             debtAccounts={debtAccountsList}
