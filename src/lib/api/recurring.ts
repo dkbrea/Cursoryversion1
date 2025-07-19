@@ -180,18 +180,26 @@ export const updateRecurringItem = async (
 };
 
 export const deleteRecurringItem = async (itemId: string): Promise<{ success: boolean; error?: string }> => {
+  console.log('DEBUG API: deleteRecurringItem called with itemId:', itemId);
+  
   try {
-    const { error } = await supabase
+    console.log('DEBUG API: Executing Supabase delete...');
+    const { error, count } = await supabase
       .from('recurring_items')
       .delete()
       .eq('id', itemId);
 
+    console.log('DEBUG API: Supabase response:', { error, count });
+
     if (error) {
+      console.log('DEBUG API: Supabase error:', error.message);
       return { success: false, error: error.message };
     }
 
+    console.log('DEBUG API: Delete successful');
     return { success: true };
   } catch (error: any) {
+    console.log('DEBUG API: Exception caught:', error.message);
     return { success: false, error: error.message };
   }
 };

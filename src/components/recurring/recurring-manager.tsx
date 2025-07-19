@@ -807,23 +807,38 @@ export function RecurringManager() {
   };
 
   const handleDeleteRecurringItem = async (itemId: string, source: 'recurring' | 'debt') => {
+    console.log('DEBUG: Delete called for itemId:', itemId, 'source:', source);
+    
     if (source === 'recurring') {
       const itemToDelete = recurringItems.find(item => item.id === itemId);
-      if (!itemToDelete) return;
+      console.log('DEBUG: Item to delete:', itemToDelete);
+      
+      if (!itemToDelete) {
+        console.log('DEBUG: Item not found in local state');
+        return;
+      }
       
       try {
+        console.log('DEBUG: Calling deleteRecurringItem API...');
         // Use the proper API function
         const { success, error } = await deleteRecurringItem(itemId);
+        console.log('DEBUG: API response:', { success, error });
         
         if (success) {
+          console.log('DEBUG: Delete successful, updating local state');
           // Only remove from local state on successful deletion
-          setRecurringItems((prevItems) => prevItems.filter(item => item.id !== itemId));
+          setRecurringItems((prevItems) => {
+            const newItems = prevItems.filter(item => item.id !== itemId);
+            console.log('DEBUG: Local state updated, new count:', newItems.length);
+            return newItems;
+          });
           toast({
             title: "Recurring Item Deleted",
             description: `"${itemToDelete.name}" has been deleted.`,
             variant: "destructive",
           });
         } else {
+          console.log('DEBUG: Delete failed:', error);
           toast({
             title: 'Error',
             description: error || 'Failed to delete recurring item from database.',
@@ -831,13 +846,15 @@ export function RecurringManager() {
           });
         }
       } catch (error) {
-        console.error('Error deleting recurring item:', error);
+        console.error('DEBUG: Exception during delete:', error);
         toast({
           title: 'Error',
           description: 'Failed to delete recurring item. Please try again.',
           variant: 'destructive'
         });
       }
+    } else {
+      console.log('DEBUG: Source is not recurring, skipping delete');
     }
   };
   
