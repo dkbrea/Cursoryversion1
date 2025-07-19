@@ -810,4 +810,21 @@ body:has([data-state="open"]) {
   .mobile-sidebar-panel {
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
   }
+  
+  /* Hardware accelerated mobile sidebar */
+  .mobile-sidebar-transform {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: transform;
+    -webkit-transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+  }
+  
+  .mobile-sidebar-backdrop-transform {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: opacity;
+    -webkit-transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+  }
 }
