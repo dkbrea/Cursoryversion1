@@ -68,95 +68,96 @@ export function RecurringManager() {
     debtPayments: 0,
   });
 
-  // Effect to fetch data from Supabase
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!user?.id) return;
-      
-      setIsLoading(true);
+  // Reusable function to fetch all data
+  const fetchAllData = async (showLoading = true) => {
+    if (!user?.id) return;
+    
+    if (showLoading) setIsLoading(true);
+    try {
+      // Fetch recurring items
+      const { data: recurringData, error: recurringError } = await supabase
+        .from('recurring_items')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (recurringError) {
+        throw new Error(recurringError.message);
+      }
+
+      // Fetch debt accounts
+      const { data: debtData, error: debtError } = await supabase
+        .from('debt_accounts')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (debtError) {
+        throw new Error(debtError.message);
+      }
+
+      // Transform the data to match our types
+      const formattedRecurringItems: RecurringItem[] = recurringData?.map(item => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        amount: item.amount,
+        frequency: item.frequency,
+        startDate: item.start_date ? new Date(item.start_date) : undefined,
+        lastRenewalDate: item.last_renewal_date ? new Date(item.last_renewal_date) : undefined,
+        endDate: item.end_date ? new Date(item.end_date) : undefined,
+        semiMonthlyFirstPayDate: item.semi_monthly_first_pay_date ? new Date(item.semi_monthly_first_pay_date) : undefined,
+        semiMonthlySecondPayDate: item.semi_monthly_second_pay_date ? new Date(item.semi_monthly_second_pay_date) : undefined,
+        userId: item.user_id,
+        createdAt: new Date(item.created_at),
+        categoryId: item.category_id,
+        notes: item.notes
+      })) || [];
+
+      const formattedDebtAccounts: DebtAccount[] = debtData?.map(debt => ({
+        id: debt.id,
+        name: debt.name,
+        type: debt.type,
+        balance: debt.balance,
+        apr: debt.apr,
+        minimumPayment: debt.minimum_payment,
+        paymentDayOfMonth: debt.payment_day_of_month,
+        paymentFrequency: debt.payment_frequency,
+        nextDueDate: debt.next_due_date ? new Date(debt.next_due_date) : new Date(),
+        userId: debt.user_id,
+        createdAt: new Date(debt.created_at)
+      })) || [];
+
+      setRecurringItems(formattedRecurringItems);
+      setDebtAccounts(formattedDebtAccounts);
+
+      // Also fetch accounts and categories for transaction recording
       try {
-        // Fetch recurring items
-        const { data: recurringData, error: recurringError } = await supabase
-          .from('recurring_items')
-          .select('*')
-          .eq('user_id', user.id);
-
-        if (recurringError) {
-          throw new Error(recurringError.message);
+        const { accounts: accountsData, error: accountsError } = await getAccounts(user.id);
+        if (!accountsError && accountsData) {
+          setAccounts(accountsData);
         }
 
-        // Fetch debt accounts
-        const { data: debtData, error: debtError } = await supabase
-          .from('debt_accounts')
-          .select('*')
-          .eq('user_id', user.id);
-
-        if (debtError) {
-          throw new Error(debtError.message);
-        }
-
-        // Transform the data to match our types
-        const formattedRecurringItems: RecurringItem[] = recurringData?.map(item => ({
-          id: item.id,
-          name: item.name,
-          type: item.type,
-          amount: item.amount,
-          frequency: item.frequency,
-          startDate: item.start_date ? new Date(item.start_date) : undefined,
-          lastRenewalDate: item.last_renewal_date ? new Date(item.last_renewal_date) : undefined,
-          endDate: item.end_date ? new Date(item.end_date) : undefined,
-          semiMonthlyFirstPayDate: item.semi_monthly_first_pay_date ? new Date(item.semi_monthly_first_pay_date) : undefined,
-          semiMonthlySecondPayDate: item.semi_monthly_second_pay_date ? new Date(item.semi_monthly_second_pay_date) : undefined,
-          userId: item.user_id,
-          createdAt: new Date(item.created_at),
-          categoryId: item.category_id,
-          notes: item.notes
-        })) || [];
-
-        const formattedDebtAccounts: DebtAccount[] = debtData?.map(debt => ({
-          id: debt.id,
-          name: debt.name,
-          type: debt.type,
-          balance: debt.balance,
-          apr: debt.apr,
-          minimumPayment: debt.minimum_payment,
-          paymentDayOfMonth: debt.payment_day_of_month,
-          paymentFrequency: debt.payment_frequency,
-          nextDueDate: debt.next_due_date ? new Date(debt.next_due_date) : new Date(),
-          userId: debt.user_id,
-          createdAt: new Date(debt.created_at)
-        })) || [];
-
-        setRecurringItems(formattedRecurringItems);
-        setDebtAccounts(formattedDebtAccounts);
-
-        // Also fetch accounts and categories for transaction recording
-        try {
-          const { accounts: accountsData, error: accountsError } = await getAccounts(user.id);
-          if (!accountsError && accountsData) {
-            setAccounts(accountsData);
-          }
-
-          const { categories: categoriesData, error: categoriesError } = await getCategories(user.id);
-          if (!categoriesError && categoriesData) {
-            setCategories(categoriesData);
-          }
-        } catch (error) {
-          console.warn('Error fetching accounts/categories:', error);
+        const { categories: categoriesData, error: categoriesError } = await getCategories(user.id);
+        if (!categoriesError && categoriesData) {
+          setCategories(categoriesData);
         }
       } catch (error) {
-        console.error('Error fetching recurring data:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load recurring items and debt accounts.',
-          variant: 'destructive'
-        });
-      } finally {
-        setIsLoading(false);
+        console.warn('Error fetching accounts/categories:', error);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching recurring data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load recurring items and debt accounts.',
+        variant: 'destructive'
+      });
+    } finally {
+      if (showLoading) setIsLoading(false);
+    }
+  };
 
-    fetchData();
+  // Effect to fetch data from Supabase
+  useEffect(() => {
+    fetchAllData();
   }, [user?.id, toast]);
 
   // Effect for Unified List (for display)
@@ -810,7 +811,7 @@ export function RecurringManager() {
     console.log('DEBUG: Delete called for itemId:', itemId, 'source:', source);
     console.log('DEBUG: Current recurringItems count:', recurringItems.length);
     console.log('DEBUG: All recurring item IDs:', recurringItems.map(item => item.id));
-    console.log('DEBUG: All unified list item IDs:', unifiedItems.map(item => item.id));
+    console.log('DEBUG: All unified list item IDs:', unifiedList.map(item => item.id));
     
     if (source === 'recurring') {
       let itemToDelete = recurringItems.find(item => item.id === itemId);
@@ -819,7 +820,7 @@ export function RecurringManager() {
       if (!itemToDelete) {
         console.log('DEBUG: Item not found in recurringItems state');
         console.log('DEBUG: Looking in unified items instead...');
-        const unifiedItem = unifiedItems.find(item => item.id === itemId);
+        const unifiedItem = unifiedList.find(item => item.id === itemId);
         console.log('DEBUG: Found in unified items:', unifiedItem);
         
         if (!unifiedItem) {
@@ -838,21 +839,12 @@ export function RecurringManager() {
         console.log('DEBUG: API response:', { success, error });
         
         if (success) {
-          console.log('DEBUG: Delete successful, updating local state');
-          // Remove from local state on successful deletion
-          setRecurringItems((prevItems) => {
-            const newItems = prevItems.filter(item => item.id !== itemId);
-            console.log('DEBUG: Local state updated, new count:', newItems.length);
-            return newItems;
-          });
+          console.log('DEBUG: Delete successful, refreshing all data');
           
-          // Force refresh of the data to ensure UI is updated
-          console.log('DEBUG: Refreshing data after delete');
-          if (user?.id) {
-            loadRecurringData(user.id);
-          }
+          // Refresh all data to ensure UI is properly updated
+          await fetchAllData(false); // Don't show loading spinner for refresh
           
-          const itemName = itemToDelete?.name || unifiedItems.find(item => item.id === itemId)?.name || 'Item';
+          const itemName = itemToDelete?.name || unifiedList.find(item => item.id === itemId)?.name || 'Item';
           toast({
             title: "Recurring Item Deleted",
             description: `"${itemName}" has been deleted.`,
