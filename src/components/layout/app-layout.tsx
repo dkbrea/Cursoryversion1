@@ -135,46 +135,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <Button 
             variant="outline" 
             size="icon" 
-            className="fixed top-4 left-4 z-[60] bg-card/95 hover:bg-card shadow-lg transition-all duration-200"
+            className="fixed top-4 left-4 z-[70] bg-card/95 hover:bg-card shadow-lg transition-all duration-200"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               setMobileNavOpen(!mobileNavOpen);
-            }}
-            onTouchStart={(e) => {
-              e.stopPropagation();
             }}
           >
             <Menu className="h-6 w-6" />
             <span className="sr-only">Toggle navigation menu</span>
           </Button>
 
-          {/* Always-rendered Mobile Sidebar - controlled by CSS transforms */}
-          <div className="fixed inset-0 z-[50] pointer-events-none">
-            {/* Backdrop */}
-            <div 
-              className={`absolute inset-0 bg-black/80 transition-opacity duration-300 mobile-sidebar-backdrop-transform ${mobileNavOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setMobileNavOpen(false);
-              }}
-              onTouchStart={(e) => {
-                e.stopPropagation();
-              }}
-            />
-            
-            {/* Sidebar Panel */}
-            <div 
-              className={`absolute inset-y-0 left-0 w-[280px] bg-sidebar text-sidebar-foreground transition-transform duration-300 ease-out pointer-events-auto transform mobile-sidebar-transform ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}
-              style={{ boxShadow: '4px 0 24px rgba(0, 0, 0, 0.15)' }}
-              onTouchStart={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              <SidebarNavContent onNavigation={handleNavigation} />
+          {/* Mobile Sidebar Overlay - only interactive when open */}
+          {mobileNavOpen && (
+            <div className="fixed inset-0 z-[50]">
+              {/* Backdrop */}
+              <div 
+                className="absolute inset-0 bg-black/80 transition-opacity duration-300"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setMobileNavOpen(false);
+                }}
+              />
+              
+              {/* Sidebar Panel */}
+              <div 
+                className="absolute inset-y-0 left-0 w-[280px] bg-sidebar text-sidebar-foreground transition-transform duration-300 ease-out transform translate-x-0"
+                style={{ boxShadow: '4px 0 24px rgba(0, 0, 0, 0.15)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <SidebarNavContent onNavigation={handleNavigation} />
+              </div>
             </div>
-          </div>
+          )}
         </div>
         
         <main className="flex-1 overflow-y-auto overflow-x-auto bg-background relative">
