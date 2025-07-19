@@ -754,33 +754,65 @@ function SidebarAccountBalances() {
     getAccounts(user.id).then(({ accounts }) => {
       setAccounts(accounts || []);
       setLoading(false);
+    }).catch(() => {
+      setLoading(false);
     });
   }, [user?.id, refreshTrigger]);
 
-  // Separate and sort accounts
-  const checkingAccounts = React.useMemo(() => {
-    const primary = accounts.filter(a => a.type === 'checking' && a.isPrimary);
-    const others = accounts.filter(a => a.type === 'checking' && !a.isPrimary)
+  // Memoize expensive calculations to prevent re-renders during animations
+  const { checkingAccounts, checkingTotal, savingsAccounts, savingsTotal } = React.useMemo(() => {
+    const checkingAccounts = React.useMemo(() => {
+      const primary = accounts.filter(a => a.type === 'checking' && a.isPrimary);
+      const others = accounts.filter(a => a.type === 'checking' && !a.isPrimary)
+        .sort((a, b) => b.balance - a.balance);
+      return [...primary, ...others];
+    }, [accounts]);
+
+    const checkingTotal = accounts.filter(a => a.type === 'checking').reduce((sum, a) => sum + a.balance, 0);
+    
+    const savingsAccounts = accounts.filter(a => a.type === 'savings')
       .sort((a, b) => b.balance - a.balance);
-    return [...primary, ...others];
+    
+    const savingsTotal = accounts.filter(a => a.type === 'savings').reduce((sum, a) => sum + a.balance, 0);
+
+    return { checkingAccounts, checkingTotal, savingsAccounts, savingsTotal };
   }, [accounts]);
 
-  const checkingTotal = accounts.filter(a => a.type === 'checking').reduce((sum, a) => sum + a.balance, 0);
-  const savingsAccounts = React.useMemo(() => {
-    return accounts.filter(a => a.type === 'savings')
-      .sort((a, b) => b.balance - a.balance);
-  }, [accounts]);
-  const savingsTotal = accounts.filter(a => a.type === 'savings').reduce((sum, a) => sum + a.balance, 0);
+  // UI helpers - memoized to prevent unnecessary re-renders
+  const uiHelpers = React.useMemo(() => {
+    const maxChecking = 3;
+    const maxSavings = 3;
+    const showCheckingChevron = checkingAccounts.length > maxChecking;
+    const showSavingsChevron = savingsAccounts.length > maxSavings;
+    const visibleChecking = showAllChecking ? checkingAccounts : checkingAccounts.slice(0, maxChecking);
+    const hiddenCheckingCount = checkingAccounts.length - visibleChecking.length;
+    const visibleSavings = showSavings ? savingsAccounts.slice(0, maxSavings) : [];
+    const hiddenSavingsCount = savingsAccounts.length - maxSavings;
 
-  // UI helpers
-  const maxChecking = 3;
-  const maxSavings = 3;
-  const showCheckingChevron = checkingAccounts.length > maxChecking;
-  const showSavingsChevron = savingsAccounts.length > maxSavings;
-  const visibleChecking = showAllChecking ? checkingAccounts : checkingAccounts.slice(0, maxChecking);
-  const hiddenCheckingCount = checkingAccounts.length - visibleChecking.length;
-  const visibleSavings = showSavings ? savingsAccounts.slice(0, maxSavings) : [];
-  const hiddenSavingsCount = savingsAccounts.length - maxSavings;
+    return {
+      maxChecking,
+      maxSavings,
+      showCheckingChevron,
+      showSavingsChevron,
+      visibleChecking,
+      hiddenCheckingCount,
+      visibleSavings,
+      hiddenSavingsCount
+    };
+  }, [checkingAccounts, savingsAccounts, showAllChecking, showSavings]);
+
+  // Show loading placeholder with fixed height to prevent layout shifts
+  if (loading) {
+    return (
+      <div className="space-y-3 min-h-[120px]">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20 bg-sidebar-accent" />
+          <Skeleton className="h-6 w-24 bg-sidebar-accent" />
+          <Skeleton className="h-3 w-32 bg-sidebar-accent" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-3">
@@ -798,19 +830,19 @@ function SidebarAccountBalances() {
           <div className="text-xs text-gray-400">Loading...</div>
         ) : (
           <ul className="divide-y divide-muted-foreground/10 bg-sidebar rounded-md">
-            {visibleChecking.map(acc => (
+            {uiHelpers.visibleChecking.map(acc => (
               <li key={acc.id} className="flex items-center justify-between py-1.5">
                 <span className="text-xs text-muted-foreground">{acc.name}{acc.isPrimary ? ' (Primary)' : ''}</span>
                 <span className="font-bold text-xs text-sidebar-foreground">${acc.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </li>
             ))}
-            {showCheckingChevron && !showAllChecking && (
+            {uiHelpers.showCheckingChevron && !showAllChecking && (
               <li className="flex items-center justify-between py-1.5 cursor-pointer text-xs text-purple-400 hover:text-purple-300" onClick={() => setShowAllChecking(true)}>
-                <span>+{hiddenCheckingCount} more…</span>
+                <span>+{uiHelpers.hiddenCheckingCount} more…</span>
                 <ChevronRight className="w-4 h-4" />
               </li>
             )}
-            {showAllChecking && showCheckingChevron && (
+            {showAllChecking && uiHelpers.showCheckingChevron && (
               <li className="flex items-center justify-between py-1.5 cursor-pointer text-xs text-purple-400 hover:text-purple-300" onClick={() => setShowAllChecking(false)}>
                 <span>Show less</span>
                 <ChevronDown className="w-4 h-4" />
@@ -837,15 +869,15 @@ function SidebarAccountBalances() {
         </button>
         {showSavings && !loading && (
           <ul className="divide-y divide-muted-foreground/10 bg-sidebar rounded-md mt-1">
-            {visibleSavings.map(acc => (
+            {uiHelpers.visibleSavings.map(acc => (
               <li key={acc.id} className="flex items-center justify-between py-1.5">
                 <span className="text-xs text-muted-foreground">{acc.name}</span>
                 <span className="font-bold text-xs text-sidebar-foreground">${acc.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </li>
             ))}
-            {showSavingsChevron && !showAllChecking && hiddenSavingsCount > 0 && (
+            {uiHelpers.showSavingsChevron && !showAllChecking && uiHelpers.hiddenSavingsCount > 0 && (
               <li className="flex items-center justify-between py-1.5 text-xs text-purple-400">
-                <span>+{hiddenSavingsCount} more…</span>
+                <span>+{uiHelpers.hiddenSavingsCount} more…</span>
               </li>
             )}
           </ul>

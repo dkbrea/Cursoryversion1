@@ -762,3 +762,31 @@ body:has([data-state="open"]) {
     --border: 0 0% 100%;
   }
 }
+
+@layer utilities {
+  /* Mobile sidebar performance optimizations */
+  .sidebar-optimize {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+  
+  /* Smooth hardware-accelerated transitions */
+  .smooth-transition {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+  }
+  
+  /* Reduce paint and layout during animations */
+  .mobile-nav-content {
+    contain: layout style paint;
+    transform: translateZ(0);
+  }
+  
+  /* Optimize scroll performance */
+  .optimized-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}

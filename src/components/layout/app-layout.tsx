@@ -38,20 +38,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
-  const [isNavigating, setIsNavigating] = React.useState(false);
   
-  // Handle navigation with proper sidebar closing
+  // Simplified navigation handler - no complex timing conflicts
   const handleNavigation = React.useCallback((href: string) => {
     if (pathname === href) return;
     
-    setIsNavigating(true);
+    // Close sidebar immediately and navigate - let React handle the transitions naturally
     setMobileNavOpen(false);
-    
-    // Wait for sidebar to close before navigating
-    setTimeout(() => {
-      router.push(href);
-      setIsNavigating(false);
-    }, 300); // Match the sidebar close animation duration
+    router.push(href);
   }, [pathname, router]);
 
   React.useEffect(() => {
@@ -59,6 +53,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace("/auth");
     }
   }, [loading, isAuthenticated, router]);
+
+  // Close sidebar on route changes
+  React.useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   if (loading || !isAuthenticated) {
     return (
@@ -68,27 +67,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const SidebarNavContent = ({ onNavigation }: { onNavigation?: (href: string) => void }) => {
-    const [showAccountBalances, setShowAccountBalances] = React.useState(false);
-    
-    // Defer rendering heavy components until after animation
-    React.useEffect(() => {
-      const timer = setTimeout(() => {
-        setShowAccountBalances(true);
-      }, 350); // Slightly after animation completes (300ms)
-      
-      return () => clearTimeout(timer);
-    }, []);
-    
+  const SidebarNavContent = ({ onNavigation }: { onNavigation?: (href: string) => void }) => {    
     return (
-      <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground mobile-nav-content">
         <div className="flex h-16 items-center border-b border-sidebar-border px-6 flex-shrink-0">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
             <Icons.Wallet className="h-6 w-6" />
             <span>Unbroken Pockets</span>
           </Link>
         </div>
-        <nav className="flex-1 space-y-1 p-4 overflow-y-auto overflow-x-hidden">
+        <nav className="flex-1 space-y-1 p-4 overflow-y-auto overflow-x-hidden optimized-scroll">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -100,9 +88,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 }
               }}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                pathname === item.href ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium" : "",
-                isNavigating ? "opacity-50 pointer-events-none" : ""
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                pathname === item.href ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium" : ""
               )}
             >
               <item.icon className="h-5 w-5" />
@@ -110,8 +97,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        {/* Account Balances Section - Deferred for smooth animation */}
-        {showAccountBalances && <SidebarAccountBalances />}
+        {/* Optimized Account Balances - only render when sidebar is open and stable */}
+        {mobileNavOpen && (
+          <div className="animate-in fade-in-0 duration-200 delay-300">
+            <Separator className="bg-sidebar-border mx-2 my-2" />
+            <div className="p-2">
+              <SidebarAccountBalances />
+            </div>
+          </div>
+        )}
+        
         <Separator className="bg-sidebar-border mx-2 my-2" />
         <div className="p-4 flex-shrink-0">
           <UserNav />
@@ -134,15 +129,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       
       {/* Main content area with independent scrolling */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Mobile Header with Floating Hamburger Menu */}
+        {/* Mobile Header with Optimized Hamburger Menu */}
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="lg:hidden fixed top-4 left-4 z-[60] bg-card/90 hover:bg-card shadow-md transition-all duration-300">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="lg:hidden fixed top-4 left-4 z-[60] bg-card/95 hover:bg-card shadow-lg transition-all duration-200 will-change-transform"
+            >
               <Menu className="h-6 w-6" />
               <span className="sr-only">Toggle navigation menu</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0">
+          <SheetContent 
+            side="left" 
+            className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0 will-change-transform sidebar-optimize"
+            // Force hardware acceleration for smoother animations
+          >
             <SidebarNavContent onNavigation={handleNavigation} />
           </SheetContent>
         </Sheet>
