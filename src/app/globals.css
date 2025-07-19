@@ -801,4 +801,13 @@ body:has([data-state="open"]) {
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
   }
+  
+  /* Custom mobile sidebar animations */
+  .mobile-sidebar-backdrop {
+    backdrop-filter: blur(4px);
+  }
+  
+  .mobile-sidebar-panel {
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  }
 }

@@ -76,7 +76,7 @@ const nextConfig: NextConfig = {
   ],
   compress: true,
   poweredByHeader: false,
-  reactStrictMode: true,
+  reactStrictMode: false, // Temporarily disabled to test sidebar glitching
   experimental: {
     optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react'],
   },

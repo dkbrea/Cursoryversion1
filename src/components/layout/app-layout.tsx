@@ -7,7 +7,7 @@ import { Icons } from "@/components/icons"; // Corrected import
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserNav } from "./user-nav";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+// Removed Sheet import - using custom sidebar implementation
 import { Menu } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
@@ -40,22 +40,33 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [isMounted, setIsMounted] = React.useState(false);
   
+  // Debug logging to track state changes
+  React.useEffect(() => {
+    console.log("🔍 AppLayout: mobileNavOpen changed to:", mobileNavOpen);
+  }, [mobileNavOpen]);
+  
+  React.useEffect(() => {
+    console.log("🔍 AppLayout: pathname changed to:", pathname);
+  }, [pathname]);
+  
   // Ensure component is fully mounted to prevent hydration issues
   React.useEffect(() => {
     setIsMounted(true);
+    console.log("🔍 AppLayout: Component mounted");
   }, []);
 
-  // Navigation handler with proper state management
+  // Simplified navigation handler for custom sidebar
   const handleNavigation = React.useCallback((href: string) => {
+    console.log("🔍 AppLayout: handleNavigation called with:", href, "current pathname:", pathname);
     if (pathname === href) return;
     
-    // Close sidebar first
+    // Close sidebar immediately for instant response
+    console.log("🔍 AppLayout: Setting mobileNavOpen to false");
     setMobileNavOpen(false);
     
-    // Small delay to ensure smooth animation completion before navigation
-    requestAnimationFrame(() => {
-      router.push(href);
-    });
+    // Navigate immediately - no need for complex timing with our custom implementation
+    console.log("🔍 AppLayout: Navigating to:", href);
+    router.push(href);
   }, [pathname, router]);
 
   React.useEffect(() => {
@@ -90,10 +101,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               onClick={(e) => {
+                console.log("🔍 Navigation Link: Clicked", item.href, "current pathname:", pathname);
                 if (onNavigation && pathname !== item.href) {
+                  console.log("🔍 Navigation Link: Preventing default and calling onNavigation");
                   e.preventDefault();
                   e.stopPropagation(); // Prevent event bubbling
                   onNavigation(item.href);
+                } else {
+                  console.log("🔍 Navigation Link: Same page, doing nothing");
                 }
               }}
               className={cn(
@@ -138,37 +153,41 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       
       {/* Main content area with independent scrolling */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Mobile Header with Optimized Hamburger Menu */}
-        <Sheet 
-          open={mobileNavOpen} 
-          onOpenChange={(open) => {
-            // Prevent conflicting state updates during transitions
-            if (open !== mobileNavOpen) {
-              setMobileNavOpen(open);
-            }
-          }}
-        >
-          <SheetTrigger asChild>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="lg:hidden fixed top-4 left-4 z-[60] bg-card/95 hover:bg-card shadow-lg transition-all duration-200 will-change-transform"
-            >
-              <Menu className="h-6 w-6" />
-              <span className="sr-only">Toggle navigation menu</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent 
-            side="left" 
-            className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0 will-change-transform sidebar-optimize sidebar-stable"
-            onInteractOutside={() => {
-              // Ensure sidebar closes when clicking outside
-              setMobileNavOpen(false);
+        {/* Mobile Header with Simple Custom Sidebar */}
+        <div className="lg:hidden">
+          {/* Hamburger Button */}
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="fixed top-4 left-4 z-[60] bg-card/95 hover:bg-card shadow-lg transition-all duration-200"
+            onClick={() => {
+              console.log("🔍 Hamburger: Clicked, current mobileNavOpen:", mobileNavOpen);
+              setMobileNavOpen(!mobileNavOpen);
             }}
           >
-            <SidebarNavContent onNavigation={handleNavigation} />
-          </SheetContent>
-        </Sheet>
+            <Menu className="h-6 w-6" />
+            <span className="sr-only">Toggle navigation menu</span>
+          </Button>
+
+          {/* Mobile Sidebar Overlay */}
+          {mobileNavOpen && (
+            <>
+                             {/* Backdrop */}
+               <div 
+                 className="fixed inset-0 z-[50] bg-black/80 animate-in fade-in-0 duration-300 mobile-sidebar-backdrop"
+                 onClick={() => {
+                   console.log("🔍 Backdrop: Clicked, closing sidebar");
+                   setMobileNavOpen(false);
+                 }}
+               />
+               
+               {/* Sidebar Panel */}
+               <div className="fixed inset-y-0 left-0 z-[51] w-[280px] bg-sidebar text-sidebar-foreground animate-in slide-in-from-left duration-300 will-change-transform mobile-sidebar-panel">
+                <SidebarNavContent onNavigation={handleNavigation} />
+              </div>
+            </>
+          )}
+        </div>
         
         <main className="flex-1 overflow-y-auto overflow-x-auto bg-background relative">
           {/* Container with padding */}
