@@ -814,7 +814,17 @@ export function RecurringManager() {
     console.log('DEBUG: All unified list item IDs:', unifiedList.map(item => item.id));
     
     if (source === 'recurring') {
-      let itemToDelete = recurringItems.find(item => item.id === itemId);
+      // Extract base ID from composite ID (for list view occurrences with date suffixes)
+      // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (5 parts when split by '-')
+      // Composite format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-yyyy-mm-dd (8 parts)
+      const baseItemId = itemId.split('-').length > 5 
+        ? itemId.split('-').slice(0, 5).join('-') // Extract first 5 parts (UUID)
+        : itemId;
+      
+      console.log('DEBUG: Original itemId:', itemId);
+      console.log('DEBUG: Base itemId for deletion:', baseItemId);
+      
+      let itemToDelete = recurringItems.find(item => item.id === baseItemId);
       console.log('DEBUG: Item to delete:', itemToDelete);
       
       if (!itemToDelete) {
@@ -834,8 +844,8 @@ export function RecurringManager() {
       
       try {
         console.log('DEBUG: Calling deleteRecurringItem API...');
-        // Use the proper API function
-        const { success, error } = await deleteRecurringItem(itemId);
+        // Use the proper API function with base ID
+        const { success, error } = await deleteRecurringItem(baseItemId);
         console.log('DEBUG: API response:', { success, error });
         
         if (success) {
