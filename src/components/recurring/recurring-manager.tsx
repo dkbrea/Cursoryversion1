@@ -808,14 +808,27 @@ export function RecurringManager() {
 
   const handleDeleteRecurringItem = async (itemId: string, source: 'recurring' | 'debt') => {
     console.log('DEBUG: Delete called for itemId:', itemId, 'source:', source);
+    console.log('DEBUG: Current recurringItems count:', recurringItems.length);
+    console.log('DEBUG: All recurring item IDs:', recurringItems.map(item => item.id));
+    console.log('DEBUG: All unified list item IDs:', unifiedItems.map(item => item.id));
     
     if (source === 'recurring') {
-      const itemToDelete = recurringItems.find(item => item.id === itemId);
+      let itemToDelete = recurringItems.find(item => item.id === itemId);
       console.log('DEBUG: Item to delete:', itemToDelete);
       
       if (!itemToDelete) {
-        console.log('DEBUG: Item not found in local state');
-        return;
+        console.log('DEBUG: Item not found in recurringItems state');
+        console.log('DEBUG: Looking in unified items instead...');
+        const unifiedItem = unifiedItems.find(item => item.id === itemId);
+        console.log('DEBUG: Found in unified items:', unifiedItem);
+        
+        if (!unifiedItem) {
+          console.log('DEBUG: Item not found anywhere');
+          return;
+        }
+        
+        // If found in unified but not in recurring, just proceed with API call
+        console.log('DEBUG: Proceeding with delete even though not in local recurring state');
       }
       
       try {
@@ -826,15 +839,23 @@ export function RecurringManager() {
         
         if (success) {
           console.log('DEBUG: Delete successful, updating local state');
-          // Only remove from local state on successful deletion
+          // Remove from local state on successful deletion
           setRecurringItems((prevItems) => {
             const newItems = prevItems.filter(item => item.id !== itemId);
             console.log('DEBUG: Local state updated, new count:', newItems.length);
             return newItems;
           });
+          
+          // Force refresh of the data to ensure UI is updated
+          console.log('DEBUG: Refreshing data after delete');
+          if (user?.id) {
+            loadRecurringData(user.id);
+          }
+          
+          const itemName = itemToDelete?.name || unifiedItems.find(item => item.id === itemId)?.name || 'Item';
           toast({
             title: "Recurring Item Deleted",
-            description: `"${itemToDelete.name}" has been deleted.`,
+            description: `"${itemName}" has been deleted.`,
             variant: "destructive",
           });
         } else {
