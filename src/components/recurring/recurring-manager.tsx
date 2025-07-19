@@ -27,6 +27,7 @@ import { getDebtAccounts } from "@/lib/api/debts";
 import { getCategories } from "@/lib/api/categories";
 import { createTransaction } from "@/lib/api/transactions";
 import { getRecurringPeriods } from "@/lib/api/recurring-completions";
+import { deleteRecurringItem } from "@/lib/api/recurring";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { logger } from "@/lib/utils/logger";
 
@@ -805,40 +806,38 @@ export function RecurringManager() {
     setIsAddDialogOpen(false);
   };
 
-  const handleDeleteRecurringItem = (itemId: string, source: 'recurring' | 'debt') => {
+  const handleDeleteRecurringItem = async (itemId: string, source: 'recurring' | 'debt') => {
     if (source === 'recurring') {
       const itemToDelete = recurringItems.find(item => item.id === itemId);
       if (!itemToDelete) return;
       
-      // Remove from local state
-      setRecurringItems((prevItems) => prevItems.filter(item => item.id !== itemId));
-      
-      // Delete from Supabase
-      const deleteFromSupabase = async () => {
-        try {
-          const { error } = await supabase
-            .from('recurring_items')
-            .delete()
-            .eq('id', itemId);
-            
-          if (error) throw error;
-        } catch (error) {
-          console.error('Error deleting recurring item:', error);
+      try {
+        // Use the proper API function
+        const { success, error } = await deleteRecurringItem(itemId);
+        
+        if (success) {
+          // Only remove from local state on successful deletion
+          setRecurringItems((prevItems) => prevItems.filter(item => item.id !== itemId));
+          toast({
+            title: "Recurring Item Deleted",
+            description: `"${itemToDelete.name}" has been deleted.`,
+            variant: "destructive",
+          });
+        } else {
           toast({
             title: 'Error',
-            description: 'Failed to delete recurring item from database.',
+            description: error || 'Failed to delete recurring item from database.',
             variant: 'destructive'
           });
         }
-      };
-      
-      deleteFromSupabase();
-      
-      toast({
-        title: "Recurring Item Deleted",
-        description: `"${itemToDelete.name}" has been deleted.`,
-        variant: "destructive",
-      });
+      } catch (error) {
+        console.error('Error deleting recurring item:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to delete recurring item. Please try again.',
+          variant: 'destructive'
+        });
+      }
     }
   };
   

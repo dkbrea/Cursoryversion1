@@ -185,26 +185,29 @@ export function RecurringList({ items, onDeleteItem, onEditItem }: RecurringList
                         </TooltipContent>
                        </Tooltip>
                     ) : (
-                        <Button variant="ghost" size="icon" onClick={() => onEditItem(item as unknown as RecurringItem)} disabled={item.status === "Ended"} className="hover:text-primary h-8 w-8">
+                        <Button variant="ghost" size="icon" onClick={() => onEditItem(item as unknown as RecurringItem)} disabled={item.status === "Ended"} className="hover:text-primary h-10 w-10 md:h-8 md:w-8">
                             <Edit3 className="h-4 w-4" />
                         </Button>
                     )}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" disabled={item.isDebt} className={cn("hover:text-destructive h-8 w-8", item.isDebt && "opacity-50 cursor-not-allowed")}>
+                        <Button variant="ghost" size="icon" disabled={item.isDebt} className={cn("hover:text-destructive h-10 w-10 md:h-8 md:w-8", item.isDebt && "opacity-50 cursor-not-allowed")}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent>
+                      <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete "{item.name}"?</AlertDialogTitle>
                           <AlertDialogDescription>
                             This action cannot be undone. This will permanently delete this recurring item.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => onDeleteItem(item.id, item.source)} className="bg-destructive hover:bg-destructive/90">
+                        <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+                          <AlertDialogCancel className="min-h-[44px] w-full sm:w-auto">Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => onDeleteItem(item.id, item.source)} 
+                            className="bg-destructive hover:bg-destructive/90 min-h-[44px] w-full sm:w-auto"
+                          >
                             Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>
