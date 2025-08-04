@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
@@ -7,30 +6,39 @@ import { Icons } from "@/components/icons"; // Corrected import
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserNav } from "./user-nav";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 // Removed Sheet import - using custom sidebar implementation
 import { Menu } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
-import { DataPrefetcher } from "@/components/navigation/data-prefetcher";
-import { SidebarAccountBalances } from "@/components/ui/sidebar";
+import { SidebarAccountBalances } from "@/components/sidebar-account-balances";
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ElementType;
-}
-
-const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: Icons.Dashboard },
-  { href: "/budget", label: "Budget", icon: Icons.Budget },
-  { href: "/paycheck-pulse", label: "Paycheck Pulse", icon: Icons.Activity },
-  { href: "/recurring", label: "Recurring", icon: Icons.Recurring },
-  { href: "/transactions", label: "Transactions", icon: Icons.Transactions },
-  { href: "/accounts", label: "Accounts", icon: Icons.Accounts },
-  { href: "/debts", label: "Debt Plan", icon: Icons.Debts },
-  { href: "/goals", label: "Goals", icon: Icons.Goals },
-  { href: "/investments", label: "Investments", icon: Icons.Investments },
-  { href: "/reports", label: "Reports", icon: Icons.Reports },
+const navItems = [
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: Icons.Dashboard,
+  },
+  {
+    label: "Accounts",
+    href: "/accounts",
+    icon: Icons.CreditCard,
+  },
+  {
+    label: "Transactions",
+    href: "/transactions",
+    icon: Icons.Activity,
+  },
+  {
+    label: "Analytics",
+    href: "/analytics",
+    icon: Icons.BarChart3,
+  },
+  {
+    label: "Settings",
+    href: "/settings",
+    icon: Icons.Settings,
+  },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -39,7 +47,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [isMounted, setIsMounted] = React.useState(false);
-  
+
   // Ensure component is fully mounted to prevent hydration issues
   React.useEffect(() => {
     setIsMounted(true);
@@ -97,16 +105,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        {/* Optimized Account Balances - only render when sidebar is open and stable */}
+        
+        {/* Account Balances Section - Always show on desktop, conditionally on mobile */}
+        <div className="hidden lg:block">
+          <SidebarAccountBalances />
+        </div>
+        {/* Mobile Account Balances - only when nav is open */}
         {mobileNavOpen && (
-          <div className="animate-in fade-in-0 duration-200 delay-300">
-            <Separator className="bg-sidebar-border mx-2 my-2" />
+          <div className="lg:hidden animate-in fade-in-0 duration-200 delay-300">
             <div className="p-2">
               <SidebarAccountBalances />
             </div>
           </div>
         )}
-        
+
         <Separator className="bg-sidebar-border mx-2 my-2" />
         <div className="p-4 flex-shrink-0">
           <UserNav />
@@ -117,8 +129,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex w-full h-screen overflow-hidden">
-      {/* Invisible component that handles data prefetching */}
-      <DataPrefetcher />
+      {/* Layout container */}
       
       {/* Desktop Sidebar - Fixed position with its own scrolling */}
       <aside className="hidden lg:flex lg:flex-col w-[280px] border-r border-sidebar-border flex-shrink-0 h-screen">
@@ -126,7 +137,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarNavContent onNavigation={handleNavigation} />
         </div>
       </aside>
-      
+
       {/* Main content area with independent scrolling */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Mobile Header with Transform-Based Sidebar */}
@@ -158,7 +169,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   setMobileNavOpen(false);
                 }}
               />
-              
+
               {/* Sidebar Panel */}
               <div 
                 className="absolute inset-y-0 left-0 w-[280px] bg-sidebar text-sidebar-foreground transition-transform duration-300 ease-out transform translate-x-0"
@@ -170,14 +181,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           )}
         </div>
-        
+
         <main className="flex-1 overflow-y-auto overflow-x-auto bg-background relative">
           {/* Container with padding */}
-          <div className="p-4 md:p-6 min-h-full">
-            {/* Add padding top to prevent content from being obscured by the mobile menu button */}
-            <div className="lg:pt-0 pt-[64px] md:pt-[72px]"> 
-              {children}
-            </div>
+          <div className="container mx-auto px-4 py-8 lg:px-8">
+            {children}
           </div>
         </main>
       </div>
